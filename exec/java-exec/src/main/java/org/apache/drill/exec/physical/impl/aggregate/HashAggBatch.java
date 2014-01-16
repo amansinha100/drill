@@ -26,6 +26,7 @@ import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.logical.data.NamedExpression;
+import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.exec.compile.sig.GeneratorMapping;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
@@ -50,6 +51,9 @@ import org.apache.drill.exec.record.selection.SelectionVector4;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
 import org.apache.drill.exec.physical.impl.aggregate.Aggregator.AggOutcome;
+import org.apache.drill.exec.physical.impl.common.ChainedHashTable;
+import org.apache.drill.exec.physical.impl.common.HashTable;
+import org.apache.drill.exec.record.VectorWrapper;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -62,10 +66,30 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   private Aggregator aggregator;
   private final RecordBatch incoming;
   private boolean done = false;
+  private LogicalExpression[] groupByExprs;
+  private LogicalExpression[] aggrExprs;
+  private TypedFieldId[] groupByFieldIds;
+  private Class<?>[] groupByClasses;
+  private TypedFieldId[] aggrFieldIds;
+  private Class<?>[] aggrClasses;
+
+  // the hash table to store aggr groups (keys) and values
+  private ChainedHashTable htable;
   
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) {
     super(popConfig, context);
     this.incoming = incoming;
+    float loadFactor = 0.75f;
+    this.htable = new ChainedHashTable(getInitialCapacity(), loadFactor, context,
+                                       popConfig.getGroupByExprs(), popConfig.getAggrExprs(),
+                                       incoming);
+  }
+
+  private int getInitialCapacity() {
+    // TODO: confirm if cardinality is indeed providing the estimated number of groups
+    double estimatedGroups = popConfig.getCardinality();  
+    return ( (estimatedGroups > (double) HashTable.MAXIMUM_CAPACITY) ? 
+             HashTable.MAXIMUM_CAPACITY : (int) estimatedGroups );
   }
 
   @Override
@@ -122,8 +146,6 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     
   }
 
-  
-  
   /**
    * Creates a new Aggregator based on the current schema. If setup fails, this method is responsible for cleaning up
    * and informing the context of the failure state, as well is informing the upstream operators.
@@ -143,178 +165,101 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     }
   }
 
-
-
-
   private Aggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
     CodeGenerator<Aggregator> cg = new CodeGenerator<Aggregator>(AggTemplate.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     container.clear();
     List<VectorAllocator> allocators = Lists.newArrayList();
     
-    LogicalExpression[] keyExprs = new LogicalExpression[popConfig.getKeys().length];
-    LogicalExpression[] valueExprs = new LogicalExpression[popConfig.getExprs().length];
-    TypedFieldId[] keyOutputIds = new TypedFieldId[popConfig.getKeys().length];
+    groupByExprs = new LogicalExpression[popConfig.getGroupByExprs().length];
+    aggrExprs = new LogicalExpression[popConfig.getAggrExprs().length];
+    groupByFieldIds = new TypedFieldId[popConfig.getGroupByExprs().length];
+    groupByClasses = new Class<?>[popConfig.getGroupByExprs().length];
+    aggrFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];
+    aggrClasses = new Class<?>[popConfig.getAggrExprs().length];
     
     ErrorCollector collector = new ErrorCollectorImpl();
     
-    for(int i =0; i < keyExprs.length; i++){
-      NamedExpression ne = popConfig.getKeys()[i];
+    for(int i = 0; i < groupByExprs.length; i++){
+      NamedExpression ne = popConfig.getGroupByExprs()[i];
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
       if(expr == null) continue;
-      keyExprs[i] = expr;
+      groupByExprs[i] = expr;
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
       ValueVector vector = TypeHelper.getNewVector(outputField, context.getAllocator());
       allocators.add(VectorAllocator.getAllocator(vector, 50));
-      keyOutputIds[i] = container.add(vector);
+      groupByFieldIds[i] = container.add(vector);
+
+      TypeProtos.DataMode mode = expr.getMajorType().getMode(); 
+      TypeProtos.MinorType mtype = expr.getMajorType().getMinorType();
+      groupByClasses[i] = TypeHelper.getValueVectorClass(mtype, mode);
     }
     
-    for(int i =0; i < valueExprs.length; i++){
-      NamedExpression ne = popConfig.getExprs()[i];
+    for(int i = 0; i < aggrExprs.length; i++){
+      NamedExpression ne = popConfig.getAggrExprs()[i];
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
       if(expr == null) continue;
       
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
       ValueVector vector = TypeHelper.getNewVector(outputField, context.getAllocator());
       allocators.add(VectorAllocator.getAllocator(vector, 50));
-      TypedFieldId id = container.add(vector);
-      valueExprs[i] = new ValueVectorWriteExpression(id, expr, true);
+      aggrFieldIds[i] = container.add(vector);
+      aggrExprs[i] = new ValueVectorWriteExpression(aggrFieldIds[i], expr, true);
+
+      TypeProtos.DataMode mode = expr.getMajorType().getMode(); 
+      TypeProtos.MinorType mtype = expr.getMajorType().getMinorType();
+      aggrClasses[i] = TypeHelper.getValueVectorClass(mtype, mode);
     }
     
     if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
     
-    setupIsSame(cg, keyExprs);
-    setupIsSameApart(cg, keyExprs);
-    addRecordValues(cg, valueExprs);
-    outputRecordKeys(cg, keyOutputIds, keyExprs);
-    outputRecordKeysPrev(cg, keyOutputIds, keyExprs);
-    
-    cg.getBlock("resetValues")._return(JExpr.TRUE);
-    getIndex(cg);
-    
+    // setupIsGroupPresent(cg, groupByExprs); 
+
     container.buildSchema(SelectionVectorMode.NONE);
     Aggregator agg = context.getImplementationClass(cg);
     agg.setup(context, incoming, this, allocators.toArray(new VectorAllocator[allocators.size()]));
     return agg;
   }
-  
-  
-  
-  private final GeneratorMapping IS_SAME = GeneratorMapping.create("setupInterior", "isSame", null, null);
-  private final MappingSet IS_SAME_I1 = new MappingSet("index1", null, IS_SAME, IS_SAME);
-  private final MappingSet IS_SAME_I2 = new MappingSet("index2", null, IS_SAME, IS_SAME);
 
-  private void setupIsSame(CodeGenerator<Aggregator> cg, LogicalExpression[] keyExprs){
-    cg.setMappingSet(IS_SAME_I1);
-    for(LogicalExpression expr : keyExprs){
-      // first, we rewrite the evaluation stack for each side of the comparison.
-      cg.setMappingSet(IS_SAME_I1);
-      HoldingContainer first = cg.addExpr(expr, false);
-      cg.setMappingSet(IS_SAME_I2);
-      HoldingContainer second = cg.addExpr(expr, false);
-      
-      FunctionCall f = new FunctionCall(ComparatorFunctions.COMPARE_TO, ImmutableList.of((LogicalExpression) new HoldingContainerExpression(first), new HoldingContainerExpression(second)), ExpressionPosition.UNKNOWN);
-      HoldingContainer out = cg.addExpr(f, false);
-      cg.getEvalBlock()._if(out.getValue().ne(JExpr.lit(0)))._then()._return(JExpr.FALSE);
+  /*   
+  private final GeneratorMapping IS_GROUP_PRESENT = GeneratorMapping.create("setupInterior", "isGroupPresent", null, null);
+  private final MappingSet IS_GROUP_PRESENT_I1 = new MappingSet("readIndex", null, IS_GROUP_PRESENT);
+
+  // code-gen for checking if a set of group-by keys are present in the hash table
+  private void setupIsGroupPresent(CodeGenerator<Aggregator> cg, LogicalExpression[] groupByExprs) {
+    cg.setMappingSet(IS_GROUP_PRESENT_I1);
+
+    for(LogicalExpression expr : groupByExprs) {
+      cg.setMappingSet(IS_GROUP_PRESENT_I1);
+      HoldingContainer hc = cg.addExpr(expr, false);
+
+
     }
-    cg.getEvalBlock()._return(JExpr.TRUE);
+  }
+  */
+
+  // Check if the group represented by the group-by keys at currentIndex is present 
+  // in the hash table 
+  private boolean isGroupPresent(int currentIndex) {
+    return htable.containsKey(currentIndex, groupByFieldIds, groupByClasses);
   }
   
-  private final GeneratorMapping IS_SAME_PREV_INTERNAL_BATCH_READ = GeneratorMapping.create("isSamePrev", "isSamePrev", null, null); // the internal batch changes each time so we need to redo setup.
-  private final GeneratorMapping IS_SAME_PREV = GeneratorMapping.create("setupInterior", "isSamePrev", null, null);
-  private final MappingSet ISA_B1 = new MappingSet("b1Index", null, "b1", null, IS_SAME_PREV_INTERNAL_BATCH_READ, IS_SAME_PREV_INTERNAL_BATCH_READ);
-  private final MappingSet ISA_B2 = new MappingSet("b2Index", null, "incoming", null, IS_SAME_PREV, IS_SAME_PREV);
-  
-  private void setupIsSameApart(CodeGenerator<Aggregator> cg, LogicalExpression[] keyExprs){
-    cg.setMappingSet(ISA_B1);
-    for(LogicalExpression expr : keyExprs){
-      // first, we rewrite the evaluation stack for each side of the comparison.
-      cg.setMappingSet(ISA_B1);
-      HoldingContainer first = cg.addExpr(expr, false);
-      cg.setMappingSet(ISA_B2);
-      HoldingContainer second = cg.addExpr(expr, false);
-
-      FunctionCall f = new FunctionCall(ComparatorFunctions.COMPARE_TO, ImmutableList.of((LogicalExpression) new HoldingContainerExpression(first), new HoldingContainerExpression(second)), ExpressionPosition.UNKNOWN);
-      HoldingContainer out = cg.addExpr(f, false);
-      cg.getEvalBlock()._if(out.getValue().ne(JExpr.lit(0)))._then()._return(JExpr.FALSE);
-    }
-    cg.getEvalBlock()._return(JExpr.TRUE);
+  private void addGroupAndValues(int currentIndex) {
+    htable.put(currentIndex, groupByFieldIds, groupByClasses, aggrFieldIds, aggrClasses);
   }
-  
-  private final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupInterior", "addRecord", null, null);
-  private final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupInterior", "outputRecordValues", "resetValues", "cleanup");
+
+  private final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupInterior", "aggrValues", null, null);
+  private final GeneratorMapping EVAL_OUTSIDE  = GeneratorMapping.create("setupInterior", "outputRecordValues", "resetValues", "cleanup");
   private final MappingSet EVAL = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
-  
-  private void addRecordValues(CodeGenerator<Aggregator> cg, LogicalExpression[] valueExprs){
+
+  private void aggrValues(CodeGenerator<Aggregator> cg, LogicalExpression[] aggrExprs) {
     cg.setMappingSet(EVAL);
-    for(LogicalExpression ex : valueExprs){
-      HoldingContainer hc = cg.addExpr(ex);
+    for (LogicalExpression expr : aggrExprs) {
+      HoldingContainer hc = cg.addExpr(expr);
       cg.getBlock(BlockType.EVAL)._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
     cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
   }
-  
-  private final MappingSet RECORD_KEYS = new MappingSet(GeneratorMapping.create("setupInterior", "outputRecordKeys", null, null));
-  
-  private void outputRecordKeys(CodeGenerator<Aggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
-    cg.setMappingSet(RECORD_KEYS);
-    for(int i =0; i < keyExprs.length; i++){
-      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(keyOutputIds[i], keyExprs[i], true));
-      cg.getBlock(BlockType.EVAL)._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
-    }
-    cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
-  }
-  
-  private final GeneratorMapping PREVIOUS_KEYS_OUT = GeneratorMapping.create("setupInterior", "outputRecordKeysPrev", null, null);
-  private final MappingSet RECORD_KEYS_PREV_OUT = new MappingSet("previousIndex", "outIndex", "previous", "outgoing", PREVIOUS_KEYS_OUT, PREVIOUS_KEYS_OUT);
 
-  private final GeneratorMapping PREVIOUS_KEYS = GeneratorMapping.create("outputRecordKeysPrev", "outputRecordKeysPrev", null, null);
-  private final MappingSet RECORD_KEYS_PREV = new MappingSet("previousIndex", "outIndex", "previous", null, PREVIOUS_KEYS, PREVIOUS_KEYS);
-  
-  private void outputRecordKeysPrev(CodeGenerator<Aggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
-    cg.setMappingSet(RECORD_KEYS_PREV);
-
-    for(int i =0; i < keyExprs.length; i++){
-      // IMPORTANT: there is an implicit assertion here that the TypedFieldIds for the previous batch and the current batch are the same.  This is possible because InternalBatch guarantees this.
-      logger.debug("Writing out expr {}", keyExprs[i]);
-      cg.rotateBlock();
-      cg.setMappingSet(RECORD_KEYS_PREV);
-      HoldingContainer innerExpression = cg.addExpr(keyExprs[i], false);
-      cg.setMappingSet(RECORD_KEYS_PREV_OUT);
-      HoldingContainer outerExpression = cg.addExpr(new ValueVectorWriteExpression(keyOutputIds[i], new HoldingContainerExpression(innerExpression), true), false);
-      cg.getBlock(BlockType.EVAL)._if(outerExpression.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
-      
-    }
-    cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
-  }
-  
-  private void getIndex(CodeGenerator<Aggregator> g){
-    switch(incoming.getSchema().getSelectionVectorMode()){
-    case FOUR_BYTE: {
-      JVar var = g.declareClassField("sv4_", g.getModel()._ref(SelectionVector4.class));
-      g.getBlock("setupInterior").assign(var, JExpr.direct("incoming").invoke("getSelectionVector4"));
-      g.getBlock("getVectorIndex")._return(var.invoke("get").arg(JExpr.direct("recordIndex")));;
-      return;
-    }
-    case NONE: {
-      g.getBlock("getVectorIndex")._return(JExpr.direct("recordIndex"));;
-      return;
-    }
-    case TWO_BYTE: {
-      JVar var = g.declareClassField("sv2_", g.getModel()._ref(SelectionVector2.class));
-      g.getBlock("setupInterior").assign(var, JExpr.direct("incoming").invoke("getSelectionVector2"));
-      g.getBlock("getVectorIndex")._return(var.invoke("get").arg(JExpr.direct("recordIndex")));;
-      return;
-    }
-     
-    default:
-      throw new IllegalStateException();
-      
-    }
-   
-  }
-
-  
-  
   @Override
   protected void killIncoming() {
     incoming.kill();

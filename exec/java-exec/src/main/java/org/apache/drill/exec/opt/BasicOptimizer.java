@@ -49,7 +49,9 @@ import org.apache.drill.exec.physical.config.SelectionVectorRemover;
 import org.apache.drill.exec.physical.config.Sort;
 import org.apache.drill.exec.physical.config.Limit;
 import org.apache.drill.exec.physical.config.StreamingAggregate;
+import org.apache.drill.exec.physical.config.HashAggregate;
 import org.apache.drill.exec.store.StorageEngine;
+import org.apache.drill.exec.physical.OperatorCost;
 
 import com.beust.jcommander.internal.Lists;
 
@@ -160,8 +162,22 @@ public class BasicOptimizer extends Optimizer{
       }
       Sort sort = new Sort(segment.getInput().accept(this, value), orderDefs, false);
       
-      StreamingAggregate sa = new StreamingAggregate(sort, keys.toArray(new NamedExpression[keys.size()]), agg.getAggregations(), 1.0f);
-      return sa;
+      NamedExpression[] keyArr = keys.toArray(new NamedExpression[keys.size()]);
+      
+      StreamingAggregate streamingAggr = new StreamingAggregate(sort, keyArr, agg.getAggregations(), 1.0f);
+      OperatorCost totalSACost = sort.getCost().add(streamingAggr.getCost());
+      
+      HashAggregate hashAggr = new HashAggregate(segment.getInput().accept(this, value), keyArr, agg.getAggregations(), 1.0f);
+      OperatorCost totalHACost = hashAggr.getCost();
+     
+      // Compare the total cost of HashAggr vs. StreamingAggr (which includes cost
+      // of Sort). Return the operator with lower cost;  note that currently, this is a 
+      // simplistic way of generating the plan; we would ideally want to base this decision
+      // on interesting sort orders as needed by the parent...
+      if (totalHACost.compare(totalSACost) < 0)
+    	  return hashAggr;
+      else 
+    	  return streamingAggr;
     }
 
 

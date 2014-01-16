@@ -21,8 +21,17 @@ import org.apache.drill.exec.record.VectorContainer;
 
 public interface HashTable {
 
-  public int put(VectorContainer key, VectorContainer value);
-  public VectorContainer get(VectorContainer key);
+  /** The initial default capacity of the hash table (in terms of number of buckets). */
+  static final public int DEFAULT_INITIAL_CAPACITY = 1 << 4; 
+
+  /** The maximum capacity of the hash table (in terms of number of buckets). */
+  static final public int MAXIMUM_CAPACITY = 1 << 30; 
+
+  /** The default load factor of a hash table. */
+  final public float DEFAULT_LOAD_FACTOR = 0.75f;
+
+  public boolean put(VectorContainer key, VectorContainer inValue);
+  public boolean get(VectorContainer key, VectorContainer outValue);
   // public VectorContainer remove(VectorContainer key);
   public boolean containsKey(VectorContainer key);
   public int size();

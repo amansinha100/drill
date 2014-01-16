@@ -151,7 +151,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     container.clear();
     List<VectorAllocator> allocators = Lists.newArrayList();
     
-    LogicalExpression[] keyExprs = new LogicalExpression[popConfig.getKeys().length];
+    LogicalExpression[] keyExprs = new LogicalExpression[popConfig.getKeys() .length];
     LogicalExpression[] valueExprs = new LogicalExpression[popConfig.getExprs().length];
     TypedFieldId[] keyOutputIds = new TypedFieldId[popConfig.getKeys().length];
     

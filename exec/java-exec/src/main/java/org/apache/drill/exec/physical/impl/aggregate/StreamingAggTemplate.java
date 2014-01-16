@@ -27,25 +27,9 @@ import org.apache.drill.exec.vector.allocator.VectorAllocator;
 
 public abstract class StreamingAggTemplate extends AggTemplate {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(Aggregator.class);
-  private int previousIndex = 0;
-  private int underlyingIndex = 0;
-  private int currentIndex;
-
   @Override
   public void setup(FragmentContext context, RecordBatch incoming, RecordBatch outgoing, VectorAllocator[] allocators) throws SchemaChangeException {
-	super.setup(context, incoming, outgoing, allocators);  
-    this.currentIndex = this.getVectorIndex(underlyingIndex);
-  }
-
-  
-  @Override
-  public IterOutcome getOutcome() {
-    return outcome;
-  }
-
-  @Override
-  public int getOutputCount() {
-    return outputCount;
+    super.setup(context, incoming, outgoing, allocators);
   }
 
   @Override
@@ -190,31 +174,20 @@ public abstract class StreamingAggTemplate extends AggTemplate {
     }
     
   }
-  
-  
-  private final void incIndex(){
-    underlyingIndex++;
-    if(underlyingIndex >= incoming.getRecordCount()){
-      currentIndex = Integer.MAX_VALUE;
-      return;
-    }
-    currentIndex = getVectorIndex(underlyingIndex);
-  }
-  
-  private final void resetIndex(){
-    underlyingIndex = -1;
-    incIndex();
-  }
 
+  private void addRecordInc(int index){
+    addRecord(index);
+    addedRecordCount++;
+  }
   
-  public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing) throws SchemaChangeException;
+  //  public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing) throws SchemaChangeException;
   public abstract boolean isSame(@Named("index1") int index1, @Named("index2") int index2);
   public abstract boolean isSamePrev(@Named("b1Index") int b1Index, @Named("b1") InternalBatch b1, @Named("b2Index") int b2Index);
   public abstract void addRecord(@Named("index") int index);
-  public abstract boolean outputRecordKeys(@Named("inIndex") int inIndex, @Named("outIndex") int outIndex);
-  public abstract boolean outputRecordKeysPrev(@Named("previous") InternalBatch previous, @Named("previousIndex") int previousIndex, @Named("outIndex") int outIndex);
-  public abstract boolean outputRecordValues(@Named("outIndex") int outIndex);
-  public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
-  public abstract boolean resetValues();
+  //  public abstract boolean outputRecordKeys(@Named("inIndex") int inIndex, @Named("outIndex") int outIndex);
+  //  public abstract boolean outputRecordKeysPrev(@Named("previous") InternalBatch previous, @Named("previousIndex") int previousIndex, @Named("outIndex") int outIndex);
+  //  public abstract boolean outputRecordValues(@Named("outIndex") int outIndex);
+  // public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
+  // public abstract boolean resetValues();
   
 }

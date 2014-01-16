@@ -33,25 +33,29 @@ public class HashAggregate extends AbstractSingle {
 
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggregate.class);
 
-  private final NamedExpression[] keys;
-  private final NamedExpression[] exprs;
+  private final NamedExpression[] groupByExprs;
+  private final NamedExpression[] aggrExprs;
 
   private final float cardinality;
   
   @JsonCreator
-  public HashAggregate(@JsonProperty("child") PhysicalOperator child, @JsonProperty("keys") NamedExpression[] keys, @JsonProperty("exprs") NamedExpression[] exprs, @JsonProperty("cardinality") float cardinality) {
+  public HashAggregate(@JsonProperty("child") PhysicalOperator child, @JsonProperty("groupByExprs") NamedExpression[] groupByExprs, @JsonProperty("aggrExprs") NamedExpression[] aggrExprs, @JsonProperty("cardinality") float cardinality) {
     super(child);
-    this.keys = keys;
-    this.exprs = exprs;
+    this.groupByExprs = groupByExprs;
+    this.aggrExprs = aggrExprs;
     this.cardinality = cardinality;
   }
 
-  public NamedExpression[] getKeys() {
-    return keys;
+  public NamedExpression[] getGroupByExprs() {
+    return groupByExprs;
   }
 
-  public NamedExpression[] getExprs() {
-    return exprs;
+  public NamedExpression[] getAggrExprs() {
+    return aggrExprs;
+  }
+
+  public double getCardinality() {
+    return cardinality;
   }
 
   @Override
@@ -66,7 +70,7 @@ public class HashAggregate extends AbstractSingle {
 
   @Override
   protected PhysicalOperator getNewWithChild(PhysicalOperator child) {
-    return new HashAggregate(child, keys, exprs, cardinality);
+    return new HashAggregate(child, groupByExprs, aggrExprs, cardinality);
   }
 
   @Override

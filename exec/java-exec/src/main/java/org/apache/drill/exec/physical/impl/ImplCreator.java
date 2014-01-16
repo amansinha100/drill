@@ -27,7 +27,8 @@ import org.apache.drill.exec.physical.base.FragmentRoot;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.base.SubScan;
 import org.apache.drill.exec.physical.config.*;
-import org.apache.drill.exec.physical.impl.aggregate.AggBatchCreator;
+import org.apache.drill.exec.physical.impl.aggregate.StreamingAggBatchCreator;
+import org.apache.drill.exec.physical.impl.aggregate.HashAggBatchCreator;
 import org.apache.drill.exec.physical.impl.filter.FilterBatchCreator;
 import org.apache.drill.exec.physical.impl.join.MergeJoinCreator;
 import org.apache.drill.exec.physical.impl.limit.LimitBatchCreator;
@@ -73,7 +74,8 @@ public class ImplCreator extends AbstractPhysicalVisitor<RecordBatch, FragmentCo
   private UnionBatchCreator unionbc = new UnionBatchCreator();
   private SVRemoverCreator svc = new SVRemoverCreator();
   private SortBatchCreator sbc = new SortBatchCreator();
-  private AggBatchCreator abc = new AggBatchCreator();
+  private StreamingAggBatchCreator sabc = new StreamingAggBatchCreator();
+  private HashAggBatchCreator habc = new HashAggBatchCreator();
   private MergeJoinCreator mjc = new MergeJoinCreator();
   private IteratorValidatorCreator ivc = new IteratorValidatorCreator();
   private RootExec root = null;
@@ -166,7 +168,13 @@ public class ImplCreator extends AbstractPhysicalVisitor<RecordBatch, FragmentCo
   @Override
   public RecordBatch visitStreamingAggregate(StreamingAggregate config, FragmentContext context)
       throws ExecutionSetupException {
-    return abc.getBatch(context, config, getChildren(config, context));
+    return sabc.getBatch(context, config, getChildren(config, context));
+  }
+  
+  @Override
+  public RecordBatch visitHashAggregate(HashAggregate config, FragmentContext context)
+      throws ExecutionSetupException {
+	  return habc.getBatch(context,  config, getChildren(config, context));
   }
 
   @Override
