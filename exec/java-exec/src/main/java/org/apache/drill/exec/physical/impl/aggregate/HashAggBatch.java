@@ -39,6 +39,7 @@ import org.apache.drill.exec.expr.HoldingContainerExpression;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.ValueVectorWriteExpression;
 import org.apache.drill.exec.expr.fn.impl.ComparatorFunctions;
+import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.HashAggregate;
 import org.apache.drill.exec.record.AbstractRecordBatch;
@@ -46,11 +47,12 @@ import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TypedFieldId;
+import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
-import org.apache.drill.exec.physical.impl.aggregate.Aggregator.AggOutcome;
+import org.apache.drill.exec.physical.impl.aggregate.HashAggregator.AggOutcome;
 import org.apache.drill.exec.physical.impl.common.ChainedHashTable;
 import org.apache.drill.exec.physical.impl.common.HashTable;
 import org.apache.drill.exec.record.VectorWrapper;
@@ -63,26 +65,30 @@ import com.sun.codemodel.JVar;
 public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggBatch.class);
 
-  private Aggregator aggregator;
+  private HashAggregator aggregator;
   private final RecordBatch incoming;
   private boolean done = false;
   private LogicalExpression[] groupByExprs;
   private LogicalExpression[] aggrExprs;
-  private TypedFieldId[] groupByFieldIds;
-  private Class<?>[] groupByClasses;
-  private TypedFieldId[] aggrFieldIds;
-  private Class<?>[] aggrClasses;
+  private TypedFieldId[] groupByFieldIds ;
+  private TypedFieldId[] aggrFieldIds ;
 
-  // the hash table to store aggr groups (keys) and values
-  private ChainedHashTable htable;
-  
+  private static final GeneratorMapping UPDATE_AGGR = 
+    GeneratorMapping.create("doSetup" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
+                            null /* reset */, null /* cleanup */) ;
+
+  private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incoming" /* read container */, "aggrValuesContainer" /* write container */, UPDATE_AGGR, UPDATE_AGGR);
+
+  private static final GeneratorMapping OUTPUT_RECORD = 
+    GeneratorMapping.create("doSetup" /* setup method */, "outputAllRecords" /* eval method */, 
+                            null /* reset */, null /* cleanup */) ;
+
+  private final MappingSet OutputRecordMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htContainer" /* read container */, "aggrValuesContainer" /* write container */, OUTPUT_RECORD, OUTPUT_RECORD);
+
+
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) {
     super(popConfig, context);
     this.incoming = incoming;
-    float loadFactor = 0.75f;
-    this.htable = new ChainedHashTable(getInitialCapacity(), loadFactor, context,
-                                       popConfig.getGroupByExprs(), popConfig.getAggrExprs(),
-                                       incoming);
   }
 
   private int getInitialCapacity() {
@@ -165,33 +171,31 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     }
   }
 
-  private Aggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
-    CodeGenerator<Aggregator> cg = new CodeGenerator<Aggregator>(AggTemplate.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+  private HashAggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
+    CodeGenerator<HashAggregator> cg = new CodeGenerator<HashAggregator>(HashAggregator.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     container.clear();
     List<VectorAllocator> allocators = Lists.newArrayList();
     
     groupByExprs = new LogicalExpression[popConfig.getGroupByExprs().length];
     aggrExprs = new LogicalExpression[popConfig.getAggrExprs().length];
     groupByFieldIds = new TypedFieldId[popConfig.getGroupByExprs().length];
-    groupByClasses = new Class<?>[popConfig.getGroupByExprs().length];
-    aggrFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];
-    aggrClasses = new Class<?>[popConfig.getAggrExprs().length];
-    
+    aggrFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
+
     ErrorCollector collector = new ErrorCollectorImpl();
     
     for(int i = 0; i < groupByExprs.length; i++){
       NamedExpression ne = popConfig.getGroupByExprs()[i];
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
       if(expr == null) continue;
-      groupByExprs[i] = expr;
-      final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
-      ValueVector vector = TypeHelper.getNewVector(outputField, context.getAllocator());
-      allocators.add(VectorAllocator.getAllocator(vector, 50));
-      groupByFieldIds[i] = container.add(vector);
 
-      TypeProtos.DataMode mode = expr.getMajorType().getMode(); 
-      TypeProtos.MinorType mtype = expr.getMajorType().getMinorType();
-      groupByClasses[i] = TypeHelper.getValueVectorClass(mtype, mode);
+      groupByExprs[i] = expr;
+
+      final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
+      ValueVector vv = TypeHelper.getNewVector(outputField, context.getAllocator());
+      allocators.add(VectorAllocator.getAllocator(vv, 50));
+
+      // add this group-by vector to the output container 
+      groupByFieldIds[i] = container.add(vv);
     }
     
     for(int i = 0; i < aggrExprs.length; i++){
@@ -200,64 +204,54 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
       if(expr == null) continue;
       
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
-      ValueVector vector = TypeHelper.getNewVector(outputField, context.getAllocator());
-      allocators.add(VectorAllocator.getAllocator(vector, 50));
-      aggrFieldIds[i] = container.add(vector);
+      ValueVector vv = TypeHelper.getNewVector(outputField, context.getAllocator());
+      allocators.add(VectorAllocator.getAllocator(vv, 50));
+      aggrFieldIds[i] = container.add(vv);
       aggrExprs[i] = new ValueVectorWriteExpression(aggrFieldIds[i], expr, true);
 
-      TypeProtos.DataMode mode = expr.getMajorType().getMode(); 
-      TypeProtos.MinorType mtype = expr.getMajorType().getMinorType();
-      aggrClasses[i] = TypeHelper.getValueVectorClass(mtype, mode);
+      //ValueVector tmpvector = TypeHelper.getNewVector(outputField, context.getAllocator());
+      // allocators.add(VectorAllocator.getAllocator(tmpvector, 50));
+      // aggrValuesContainer.add(tmpvector); 
     }
     
     if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
-    
-    // setupIsGroupPresent(cg, groupByExprs); 
 
     container.buildSchema(SelectionVectorMode.NONE);
-    Aggregator agg = context.getImplementationClass(cg);
-    agg.setup(context, incoming, this, allocators.toArray(new VectorAllocator[allocators.size()]));
+    HashAggregator agg = context.getImplementationClass(cg);
+    agg.setup(popConfig, context, incoming, this, allocators.toArray(new VectorAllocator[allocators.size()]));
+
+    setupUpdateAggrValues(cg);
+    setupOutputAllRecords(cg);
+
     return agg;
   }
 
-  /*   
-  private final GeneratorMapping IS_GROUP_PRESENT = GeneratorMapping.create("setupInterior", "isGroupPresent", null, null);
-  private final MappingSet IS_GROUP_PRESENT_I1 = new MappingSet("readIndex", null, IS_GROUP_PRESENT);
 
-  // code-gen for checking if a set of group-by keys are present in the hash table
-  private void setupIsGroupPresent(CodeGenerator<Aggregator> cg, LogicalExpression[] groupByExprs) {
-    cg.setMappingSet(IS_GROUP_PRESENT_I1);
+  private void setupUpdateAggrValues(CodeGenerator<HashAggregator> cg) {
+    cg.setMappingSet(UpdateAggrValuesMapping);
 
-    for(LogicalExpression expr : groupByExprs) {
-      cg.setMappingSet(IS_GROUP_PRESENT_I1);
-      HoldingContainer hc = cg.addExpr(expr, false);
-
-
+    for (LogicalExpression aggr : aggrExprs) {
+      HoldingContainer hc = cg.addExpr(aggr);
+      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
-  }
-  */
 
-  // Check if the group represented by the group-by keys at currentIndex is present 
-  // in the hash table 
-  private boolean isGroupPresent(int currentIndex) {
-    return htable.containsKey(currentIndex, groupByFieldIds, groupByClasses);
-  }
-  
-  private void addGroupAndValues(int currentIndex) {
-    htable.put(currentIndex, groupByFieldIds, groupByClasses, aggrFieldIds, aggrClasses);
+    cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
-  private final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupInterior", "aggrValues", null, null);
-  private final GeneratorMapping EVAL_OUTSIDE  = GeneratorMapping.create("setupInterior", "outputRecordValues", "resetValues", "cleanup");
-  private final MappingSet EVAL = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
+  private void setupOutputAllRecords(CodeGenerator<HashAggregator> cg) {
+    cg.setMappingSet(OutputRecordMapping);
 
-  private void aggrValues(CodeGenerator<Aggregator> cg, LogicalExpression[] aggrExprs) {
-    cg.setMappingSet(EVAL);
-    for (LogicalExpression expr : aggrExprs) {
-      HoldingContainer hc = cg.addExpr(expr);
-      cg.getBlock(BlockType.EVAL)._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
+    for (int i = 0; i < groupByExprs.length; i++) {
+      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(groupByFieldIds[i], groupByExprs[i], true));
+      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
-    cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
+
+    for (int i = 0; i < aggrExprs.length; i++) {
+      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(aggrFieldIds[i], aggrExprs[i], true));
+      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
+    }
+
+    cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
   @Override

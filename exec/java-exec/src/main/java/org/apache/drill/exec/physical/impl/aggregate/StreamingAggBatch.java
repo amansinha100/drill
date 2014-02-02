@@ -40,6 +40,7 @@ import org.apache.drill.exec.expr.ValueVectorWriteExpression;
 import org.apache.drill.exec.expr.fn.impl.ComparatorFunctions;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.StreamingAggregate;
+import org.apache.drill.exec.physical.impl.aggregate.StreamingAggregator.AggOutcome;
 import org.apache.drill.exec.record.AbstractRecordBatch;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.MaterializedField;
@@ -49,7 +50,6 @@ import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
-import org.apache.drill.exec.physical.impl.aggregate.Aggregator.AggOutcome;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -59,10 +59,10 @@ import com.sun.codemodel.JVar;
 public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StreamingAggBatch.class);
 
-  private Aggregator aggregator;
+  private StreamingAggregator aggregator;
   private final RecordBatch incoming;
   private boolean done = false;
-  
+
   public StreamingAggBatch(StreamingAggregate popConfig, RecordBatch incoming, FragmentContext context) {
     super(popConfig, context);
     this.incoming = incoming;
@@ -146,12 +146,12 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
 
 
-  private Aggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
-    CodeGenerator<Aggregator> cg = new CodeGenerator<Aggregator>(AggTemplate.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+  private StreamingAggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
+    CodeGenerator<StreamingAggregator> cg = new CodeGenerator<StreamingAggregator>(StreamingAggTemplate.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     container.clear();
     List<VectorAllocator> allocators = Lists.newArrayList();
     
-    LogicalExpression[] keyExprs = new LogicalExpression[popConfig.getKeys() .length];
+    LogicalExpression[] keyExprs = new LogicalExpression[popConfig.getKeys().length];
     LogicalExpression[] valueExprs = new LogicalExpression[popConfig.getExprs().length];
     TypedFieldId[] keyOutputIds = new TypedFieldId[popConfig.getKeys().length];
     
@@ -192,7 +192,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     getIndex(cg);
     
     container.buildSchema(SelectionVectorMode.NONE);
-    Aggregator agg = context.getImplementationClass(cg);
+    StreamingAggregator agg = context.getImplementationClass(cg);
     agg.setup(context, incoming, this, allocators.toArray(new VectorAllocator[allocators.size()]));
     return agg;
   }
@@ -203,7 +203,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final MappingSet IS_SAME_I1 = new MappingSet("index1", null, IS_SAME, IS_SAME);
   private final MappingSet IS_SAME_I2 = new MappingSet("index2", null, IS_SAME, IS_SAME);
 
-  private void setupIsSame(CodeGenerator<Aggregator> cg, LogicalExpression[] keyExprs){
+  private void setupIsSame(CodeGenerator<StreamingAggregator> cg, LogicalExpression[] keyExprs){
     cg.setMappingSet(IS_SAME_I1);
     for(LogicalExpression expr : keyExprs){
       // first, we rewrite the evaluation stack for each side of the comparison.
@@ -224,7 +224,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final MappingSet ISA_B1 = new MappingSet("b1Index", null, "b1", null, IS_SAME_PREV_INTERNAL_BATCH_READ, IS_SAME_PREV_INTERNAL_BATCH_READ);
   private final MappingSet ISA_B2 = new MappingSet("b2Index", null, "incoming", null, IS_SAME_PREV, IS_SAME_PREV);
   
-  private void setupIsSameApart(CodeGenerator<Aggregator> cg, LogicalExpression[] keyExprs){
+  private void setupIsSameApart(CodeGenerator<StreamingAggregator> cg, LogicalExpression[] keyExprs){
     cg.setMappingSet(ISA_B1);
     for(LogicalExpression expr : keyExprs){
       // first, we rewrite the evaluation stack for each side of the comparison.
@@ -244,7 +244,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupInterior", "outputRecordValues", "resetValues", "cleanup");
   private final MappingSet EVAL = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
   
-  private void addRecordValues(CodeGenerator<Aggregator> cg, LogicalExpression[] valueExprs){
+  private void addRecordValues(CodeGenerator<StreamingAggregator> cg, LogicalExpression[] valueExprs){
     cg.setMappingSet(EVAL);
     for(LogicalExpression ex : valueExprs){
       HoldingContainer hc = cg.addExpr(ex);
@@ -255,7 +255,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   
   private final MappingSet RECORD_KEYS = new MappingSet(GeneratorMapping.create("setupInterior", "outputRecordKeys", null, null));
   
-  private void outputRecordKeys(CodeGenerator<Aggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
+  private void outputRecordKeys(CodeGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
     cg.setMappingSet(RECORD_KEYS);
     for(int i =0; i < keyExprs.length; i++){
       HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(keyOutputIds[i], keyExprs[i], true));
@@ -270,7 +270,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final GeneratorMapping PREVIOUS_KEYS = GeneratorMapping.create("outputRecordKeysPrev", "outputRecordKeysPrev", null, null);
   private final MappingSet RECORD_KEYS_PREV = new MappingSet("previousIndex", "outIndex", "previous", null, PREVIOUS_KEYS, PREVIOUS_KEYS);
   
-  private void outputRecordKeysPrev(CodeGenerator<Aggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
+  private void outputRecordKeysPrev(CodeGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
     cg.setMappingSet(RECORD_KEYS_PREV);
 
     for(int i =0; i < keyExprs.length; i++){
@@ -287,7 +287,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
   }
   
-  private void getIndex(CodeGenerator<Aggregator> g){
+  private void getIndex(CodeGenerator<StreamingAggregator> g){
     switch(incoming.getSchema().getSelectionVectorMode()){
     case FOUR_BYTE: {
       JVar var = g.declareClassField("sv4_", g.getModel()._ref(SelectionVector4.class));

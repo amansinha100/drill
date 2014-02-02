@@ -24,9 +24,9 @@ import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
 
-public interface Aggregator {
+public interface StreamingAggregator {
 
-  public static TemplateClassDefinition<Aggregator> TEMPLATE_DEFINITION = new TemplateClassDefinition<Aggregator>(Aggregator.class, AggTemplate.class);
+  public static TemplateClassDefinition<StreamingAggregator> TEMPLATE_DEFINITION = new TemplateClassDefinition<StreamingAggregator>(StreamingAggregator.class, StreamingAggTemplate.class);
 
   public static enum AggOutcome {
 	    RETURN_OUTCOME, CLEANUP_AND_RETURN, UPDATE_AGGREGATOR;

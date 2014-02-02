@@ -21,17 +21,70 @@ import javax.inject.Named;
 
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.ops.FragmentContext;
+import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
+import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
 
-public abstract class StreamingAggTemplate extends AggTemplate {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(Aggregator.class);
+public abstract class StreamingAggTemplate implements StreamingAggregator {
+  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StreamingAggregator.class);
+  private static final boolean EXTRA_DEBUG = false;
+  private static final String TOO_BIG_ERROR = "Couldn't add value to an empty batch.  This likely means that a single value is too long for a varlen field.";
+  private IterOutcome lastOutcome = null;
+  private boolean first = true;
+  private boolean newSchema = false;
+  private int previousIndex = 0;
+  private int underlyingIndex = 0;
+  private int currentIndex;
+  private int addedRecordCount = 0;
+  private boolean pendingOutput = false;
+  private IterOutcome outcome;
+  private int outputCount = 0;
+  private RecordBatch incoming;
+  private BatchSchema schema;
+  private RecordBatch outgoing;
+  private VectorAllocator[] allocators;
+  private FragmentContext context;
+  private InternalBatch remainderBatch;
+
+
   @Override
   public void setup(FragmentContext context, RecordBatch incoming, RecordBatch outgoing, VectorAllocator[] allocators) throws SchemaChangeException {
-    super.setup(context, incoming, outgoing, allocators);
+    this.allocators = allocators;
+    this.context = context;
+    this.incoming = incoming;
+    this.schema = incoming.getSchema();
+    this.allocators = allocators;
+    this.outgoing = outgoing;
+    setupInterior(incoming, outgoing);
+    this.currentIndex = this.getVectorIndex(underlyingIndex);
   }
 
+  
+  private void allocateOutgoing() {
+    for (VectorAllocator a : allocators) {
+      if(EXTRA_DEBUG) logger.debug("Allocating {} with {} records.", a, 20000);
+      a.alloc(20000);
+    }
+  }
+  
+  @Override
+  public IterOutcome getOutcome() {
+    return outcome;
+  }
+
+  @Override
+  public int getOutputCount() {
+    return outputCount;
+  }
+
+  private AggOutcome tooBigFailure(){
+    context.fail(new Exception(TOO_BIG_ERROR));
+    this.outcome = IterOutcome.STOP;
+    return AggOutcome.CLEANUP_AND_RETURN;
+  }
+  
   @Override
   public AggOutcome doWork() {
     try{ // outside loop to ensure that first is set to false after the first run.
@@ -174,20 +227,78 @@ public abstract class StreamingAggTemplate extends AggTemplate {
     }
     
   }
-
-  private void addRecordInc(int index){
-    addRecord(index);
-    addedRecordCount++;
+  
+  
+  private final void incIndex(){
+    underlyingIndex++;
+    if(underlyingIndex >= incoming.getRecordCount()){
+      currentIndex = Integer.MAX_VALUE;
+      return;
+    }
+    currentIndex = getVectorIndex(underlyingIndex);
   }
   
-  //  public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing) throws SchemaChangeException;
+  private final void resetIndex(){
+    underlyingIndex = -1;
+    incIndex();
+  }
+  
+  private final AggOutcome setOkAndReturn(){
+    if(first){
+      this.outcome = IterOutcome.OK_NEW_SCHEMA;
+    }else{
+      this.outcome = IterOutcome.OK;
+    }
+    for(VectorWrapper<?> v : outgoing){
+      v.getValueVector().getMutator().setValueCount(outputCount);
+    }
+    return AggOutcome.RETURN_OUTCOME;
+  }
+
+  private final boolean outputToBatch(int inIndex){
+    boolean success = outputRecordKeys(inIndex, outputCount) //
+        && outputRecordValues(outputCount) //
+        && resetValues();
+    if(success){
+      if(EXTRA_DEBUG) logger.debug("Outputting values to {}", outputCount);
+      outputCount++;
+      addedRecordCount = 0;
+    }
+    
+    return success;
+  }
+
+  private final boolean outputToBatchPrev(InternalBatch b1, int inIndex, int outIndex){
+    boolean success = outputRecordKeysPrev(b1, inIndex, outIndex) //
+        && outputRecordValues(outIndex) //
+        && resetValues();
+    if(success){
+      outputCount++;
+      addedRecordCount = 0;
+    }
+    
+    return success;
+  }
+  
+  private void addRecordInc(int index){
+    addRecord(index);
+    this.addedRecordCount++;
+  }
+  
+  @Override
+  public void cleanup(){
+    if(remainderBatch != null) remainderBatch.clear(); 
+  }
+
+
+  public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing) throws SchemaChangeException;
   public abstract boolean isSame(@Named("index1") int index1, @Named("index2") int index2);
   public abstract boolean isSamePrev(@Named("b1Index") int b1Index, @Named("b1") InternalBatch b1, @Named("b2Index") int b2Index);
   public abstract void addRecord(@Named("index") int index);
-  //  public abstract boolean outputRecordKeys(@Named("inIndex") int inIndex, @Named("outIndex") int outIndex);
-  //  public abstract boolean outputRecordKeysPrev(@Named("previous") InternalBatch previous, @Named("previousIndex") int previousIndex, @Named("outIndex") int outIndex);
-  //  public abstract boolean outputRecordValues(@Named("outIndex") int outIndex);
-  // public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
-  // public abstract boolean resetValues();
+  public abstract boolean outputRecordKeys(@Named("inIndex") int inIndex, @Named("outIndex") int outIndex);
+  public abstract boolean outputRecordKeysPrev(@Named("previous") InternalBatch previous, @Named("previousIndex") int previousIndex, @Named("outIndex") int outIndex);
+  public abstract boolean outputRecordValues(@Named("outIndex") int outIndex);
+  public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
+  public abstract boolean resetValues();
   
 }

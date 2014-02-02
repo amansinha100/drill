@@ -175,7 +175,7 @@ public class BasicOptimizer extends Optimizer{
       // simplistic way of generating the plan; we would ideally want to base this decision
       // on interesting sort orders as needed by the parent...
       if (totalHACost.compare(totalSACost) < 0)
-    	  return hashAggr;
+        return hashAggr ;
       else 
     	  return streamingAggr;
     }
