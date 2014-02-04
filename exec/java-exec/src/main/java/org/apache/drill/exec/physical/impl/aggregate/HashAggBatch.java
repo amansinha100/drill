@@ -32,8 +32,9 @@ import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.CodeGenerator;
-import org.apache.drill.exec.expr.CodeGenerator.BlockType;
-import org.apache.drill.exec.expr.CodeGenerator.HoldingContainer;
+import org.apache.drill.exec.expr.ClassGenerator;
+import org.apache.drill.exec.expr.ClassGenerator.BlockType;
+import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
 import org.apache.drill.exec.expr.TypeHelper;
@@ -73,17 +74,17 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   private TypedFieldId[] groupByFieldIds ;
   private TypedFieldId[] aggrFieldIds ;
 
-  private static final GeneratorMapping UPDATE_AGGR = 
-    GeneratorMapping.create("doSetup" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
-                            null /* reset */, null /* cleanup */) ;
+  private final GeneratorMapping UPDATE_AGGR = 
+    GeneratorMapping.create("setupInterior" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
+                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
-  private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incoming" /* read container */, "aggrValuesContainer" /* write container */, UPDATE_AGGR, UPDATE_AGGR);
+  private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incoming" /* read container */, "aggrValuesContainer" /* write container */, UPDATE_AGGR, UPDATE_AGGR, UPDATE_AGGR);
 
-  private static final GeneratorMapping OUTPUT_RECORD = 
-    GeneratorMapping.create("doSetup" /* setup method */, "outputAllRecords" /* eval method */, 
-                            null /* reset */, null /* cleanup */) ;
+  private final GeneratorMapping OUTPUT_RECORD = 
+    GeneratorMapping.create("setupInterior" /* setup method */, "outputAllRecords" /* eval method */, 
+                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
-  private final MappingSet OutputRecordMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htContainer" /* read container */, "aggrValuesContainer" /* write container */, OUTPUT_RECORD, OUTPUT_RECORD);
+  private final MappingSet OutputRecordMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htContainer" /* read container */, "aggrValuesContainer" /* write container */, OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
 
 
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) {
@@ -172,7 +173,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   }
 
   private HashAggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
-    CodeGenerator<HashAggregator> cg = new CodeGenerator<HashAggregator>(HashAggregator.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    ClassGenerator<HashAggregator> cg = CodeGenerator.getRoot(HashAggregator.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     container.clear();
     List<VectorAllocator> allocators = Lists.newArrayList();
     
@@ -185,7 +186,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     
     for(int i = 0; i < groupByExprs.length; i++){
       NamedExpression ne = popConfig.getGroupByExprs()[i];
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() );
       if(expr == null) continue;
 
       groupByExprs[i] = expr;
@@ -200,7 +201,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     
     for(int i = 0; i < aggrExprs.length; i++){
       NamedExpression ne = popConfig.getAggrExprs()[i];
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() );
       if(expr == null) continue;
       
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
@@ -216,18 +217,20 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     
     if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
 
+    setupUpdateAggrValues(cg);
+    setupOutputAllRecords(cg);
+    setupGetIndex(cg);
+    cg.getBlock("resetValues")._return(JExpr.TRUE);
+
     container.buildSchema(SelectionVectorMode.NONE);
     HashAggregator agg = context.getImplementationClass(cg);
     agg.setup(popConfig, context, incoming, this, allocators.toArray(new VectorAllocator[allocators.size()]));
-
-    setupUpdateAggrValues(cg);
-    setupOutputAllRecords(cg);
 
     return agg;
   }
 
 
-  private void setupUpdateAggrValues(CodeGenerator<HashAggregator> cg) {
+  private void setupUpdateAggrValues(ClassGenerator<HashAggregator> cg) {
     cg.setMappingSet(UpdateAggrValuesMapping);
 
     for (LogicalExpression aggr : aggrExprs) {
@@ -238,7 +241,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
-  private void setupOutputAllRecords(CodeGenerator<HashAggregator> cg) {
+  private void setupOutputAllRecords(ClassGenerator<HashAggregator> cg) {
     cg.setMappingSet(OutputRecordMapping);
 
     for (int i = 0; i < groupByExprs.length; i++) {
@@ -253,6 +256,33 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
     cg.getEvalBlock()._return(JExpr.TRUE);
   }
+
+  private void setupGetIndex(ClassGenerator<HashAggregator> cg){
+    switch(incoming.getSchema().getSelectionVectorMode()){
+    case FOUR_BYTE: {
+      JVar var = cg.declareClassField("sv4_", cg.getModel()._ref(SelectionVector4.class));
+      cg.getBlock("setupInterior").assign(var, JExpr.direct("incoming").invoke("getSelectionVector4"));
+      cg.getBlock("getVectorIndex")._return(var.invoke("get").arg(JExpr.direct("recordIndex")));;
+      return;
+    }
+    case NONE: {
+      cg.getBlock("getVectorIndex")._return(JExpr.direct("recordIndex"));;
+      return;
+    }
+    case TWO_BYTE: {
+      JVar var = cg.declareClassField("sv2_", cg.getModel()._ref(SelectionVector2.class));
+      cg.getBlock("setupInterior").assign(var, JExpr.direct("incoming").invoke("getSelectionVector2"));
+      cg.getBlock("getVectorIndex")._return(var.invoke("get").arg(JExpr.direct("recordIndex")));;
+      return;
+    }
+     
+    default:
+      throw new IllegalStateException();
+      
+    }
+   
+  }
+
 
   @Override
   protected void killIncoming() {

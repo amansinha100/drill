@@ -25,6 +25,7 @@ import org.apache.drill.common.expression.IfExpression;
 import org.apache.drill.common.expression.IfExpression.IfCondition;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
+import org.apache.drill.common.expression.TypedNullConstant;
 import org.apache.drill.common.expression.ValueExpressions.BooleanExpression;
 import org.apache.drill.common.expression.ValueExpressions.DoubleExpression;
 import org.apache.drill.common.expression.ValueExpressions.LongExpression;
@@ -33,8 +34,8 @@ import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.common.types.Types;
-import org.apache.drill.exec.expr.CodeGenerator.BlockType;
-import org.apache.drill.exec.expr.CodeGenerator.HoldingContainer;
+import org.apache.drill.exec.expr.ClassGenerator.BlockType;
+import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.fn.DrillFuncHolder;
 import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
 import org.apache.drill.exec.physical.impl.filter.ReturnValueExpression;
@@ -59,18 +60,18 @@ public class EvaluationVisitor {
     this.registry = registry;
   }
 
-  public HoldingContainer addExpr(LogicalExpression e, CodeGenerator<?> generator){
+  public HoldingContainer addExpr(LogicalExpression e, ClassGenerator<?> generator){
 //    Set<LogicalExpression> constantBoundaries = ConstantExpressionIdentifier.getConstantExpressionSet(e);
     Set<LogicalExpression> constantBoundaries = Collections.emptySet();
     return e.accept(new ConstantFilter(constantBoundaries), generator);
     
   }
 
-  private class EvalVisitor extends AbstractExprVisitor<HoldingContainer, CodeGenerator<?>, RuntimeException> {
+  private class EvalVisitor extends AbstractExprVisitor<HoldingContainer, ClassGenerator<?>, RuntimeException> {
 
     
     @Override
-    public HoldingContainer visitFunctionCall(FunctionCall call, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitFunctionCall(FunctionCall call, ClassGenerator<?> generator) throws RuntimeException {
       DrillFuncHolder holder = registry.getFunction(call);
       JVar[] workspaceVars = holder.renderStart(generator, null);
 
@@ -86,7 +87,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitIfExpression(IfExpression ifExpr, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitIfExpression(IfExpression ifExpr, ClassGenerator<?> generator) throws RuntimeException {
       JBlock local = generator.getEvalBlock();
 
       HoldingContainer output = generator.declare(ifExpr.getMajorType());
@@ -137,26 +138,26 @@ public class EvaluationVisitor {
 
     
     @Override
-    public HoldingContainer visitSchemaPath(SchemaPath path, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitSchemaPath(SchemaPath path, ClassGenerator<?> generator) throws RuntimeException {
       throw new UnsupportedOperationException("All schema paths should have been replaced with ValueVectorExpressions.");
     }
 
     @Override
-    public HoldingContainer visitLongConstant(LongExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitLongConstant(LongExpression e, ClassGenerator<?> generator) throws RuntimeException {
       HoldingContainer out = generator.declare(e.getMajorType());
       generator.getEvalBlock().assign(out.getValue(), JExpr.lit(e.getLong()));
       return out;
     }
 
     @Override
-    public HoldingContainer visitDoubleConstant(DoubleExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitDoubleConstant(DoubleExpression e, ClassGenerator<?> generator) throws RuntimeException {
       HoldingContainer out = generator.declare(e.getMajorType());
       generator.getEvalBlock().assign(out.getValue(), JExpr.lit(e.getDouble()));
       return out;
     }
 
     @Override
-    public HoldingContainer visitBooleanConstant(BooleanExpression e, CodeGenerator<?> generator)
+    public HoldingContainer visitBooleanConstant(BooleanExpression e, ClassGenerator<?> generator)
         throws RuntimeException {
       HoldingContainer out = generator.declare(e.getMajorType());
       generator.getEvalBlock().assign(out.getValue(), JExpr.lit(e.getBoolean() ? 1 : 0));
@@ -164,7 +165,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitUnknown(LogicalExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitUnknown(LogicalExpression e, ClassGenerator<?> generator) throws RuntimeException {
       if (e instanceof ValueVectorReadExpression) {
         return visitValueVectorReadExpression((ValueVectorReadExpression) e, generator);
       } else if (e instanceof ValueVectorWriteExpression) {
@@ -175,13 +176,15 @@ public class EvaluationVisitor {
         return ((HoldingContainerExpression) e).getContainer();
       }else if(e instanceof NullExpression){
         return generator.declare(Types.optional(MinorType.INT));
-      } else {
+      } else if (e instanceof TypedNullConstant) {
+        return generator.declare(e.getMajorType());
+      }    else {
         return super.visitUnknown(e, generator);
       }
 
     }
 
-    private HoldingContainer visitValueVectorWriteExpression(ValueVectorWriteExpression e, CodeGenerator<?> generator) {
+    private HoldingContainer visitValueVectorWriteExpression(ValueVectorWriteExpression e, ClassGenerator<?> generator) {
 
       LogicalExpression child = e.getChild();
       HoldingContainer inputContainer = child.accept(this, generator);
@@ -219,7 +222,7 @@ public class EvaluationVisitor {
       return null;
     }
 
-    private HoldingContainer visitValueVectorReadExpression(ValueVectorReadExpression e, CodeGenerator<?> generator)
+    private HoldingContainer visitValueVectorReadExpression(ValueVectorReadExpression e, ClassGenerator<?> generator)
         throws RuntimeException {
       // declare value vector
       
@@ -257,7 +260,7 @@ public class EvaluationVisitor {
       return out;
     }
 
-    private HoldingContainer visitReturnValueExpression(ReturnValueExpression e, CodeGenerator<?> generator) {
+    private HoldingContainer visitReturnValueExpression(ReturnValueExpression e, ClassGenerator<?> generator) {
       LogicalExpression child = e.getChild();
       // Preconditions.checkArgument(child.getMajorType().equals(Types.REQUIRED_BOOLEAN));
       HoldingContainer hc = child.accept(this, generator);
@@ -271,7 +274,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitQuotedStringConstant(QuotedString e, CodeGenerator<?> generator)
+    public HoldingContainer visitQuotedStringConstant(QuotedString e, ClassGenerator<?> generator)
         throws RuntimeException {
       MajorType majorType = Types.required(MinorType.VARCHAR);
       JBlock setup = generator.getBlock(BlockType.SETUP);
@@ -295,7 +298,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitFunctionCall(FunctionCall e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitFunctionCall(FunctionCall e, ClassGenerator<?> generator) throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
         HoldingContainer c = super.visitFunctionCall(e, generator);
@@ -307,7 +310,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitIfExpression(IfExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitIfExpression(IfExpression e, ClassGenerator<?> generator) throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
         HoldingContainer c = super.visitIfExpression(e, generator);
@@ -319,7 +322,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitSchemaPath(SchemaPath e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitSchemaPath(SchemaPath e, ClassGenerator<?> generator) throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
         HoldingContainer c = super.visitSchemaPath(e, generator);
@@ -331,7 +334,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitLongConstant(LongExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitLongConstant(LongExpression e, ClassGenerator<?> generator) throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
         HoldingContainer c = super.visitLongConstant(e, generator);
@@ -343,7 +346,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitDoubleConstant(DoubleExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitDoubleConstant(DoubleExpression e, ClassGenerator<?> generator) throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
         HoldingContainer c = super.visitDoubleConstant(e, generator);
@@ -355,7 +358,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitBooleanConstant(BooleanExpression e, CodeGenerator<?> generator)
+    public HoldingContainer visitBooleanConstant(BooleanExpression e, ClassGenerator<?> generator)
         throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
@@ -369,7 +372,7 @@ public class EvaluationVisitor {
 
     
     @Override
-    public HoldingContainer visitUnknown(LogicalExpression e, CodeGenerator<?> generator) throws RuntimeException {
+    public HoldingContainer visitUnknown(LogicalExpression e, ClassGenerator<?> generator) throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();
         HoldingContainer c = super.visitUnknown(e, generator);
@@ -381,7 +384,7 @@ public class EvaluationVisitor {
     }
 
     @Override
-    public HoldingContainer visitQuotedStringConstant(QuotedString e, CodeGenerator<?> generator)
+    public HoldingContainer visitQuotedStringConstant(QuotedString e, ClassGenerator<?> generator)
         throws RuntimeException {
       if (constantBoundaries.contains(e)) {
         generator.getMappingSet().enterConstant();

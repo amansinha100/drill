@@ -18,20 +18,24 @@
 package org.apache.drill.exec.physical.impl.partitionsender;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.ClassGenerator;
 import org.apache.drill.exec.expr.CodeGenerator;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.HashPartitionSender;
 import org.apache.drill.exec.physical.impl.RootExec;
+import org.apache.drill.exec.physical.impl.SendingAccountor;
 import org.apache.drill.exec.physical.impl.filter.ReturnValueExpression;
 import org.apache.drill.exec.proto.CoordinationProtos;
+import org.apache.drill.exec.proto.ExecProtos.FragmentHandle;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorWrapper;
@@ -45,7 +49,7 @@ import com.sun.codemodel.JMod;
 import com.sun.codemodel.JType;
 import com.sun.codemodel.JVar;
 
-class PartitionSenderRootExec implements RootExec {
+public class PartitionSenderRootExec implements RootExec {
 
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(PartitionSenderRootExec.class);
   private RecordBatch incoming;
@@ -54,6 +58,9 @@ class PartitionSenderRootExec implements RootExec {
   private Partitioner partitioner;
   private FragmentContext context;
   private boolean ok = true;
+  private AtomicLong batchesSent = new AtomicLong(0);
+  private final SendingAccountor sendCount = new SendingAccountor();
+
 
   public PartitionSenderRootExec(FragmentContext context,
                                  RecordBatch incoming,
@@ -65,8 +72,9 @@ class PartitionSenderRootExec implements RootExec {
     this.outgoing = new OutgoingRecordBatch[operator.getDestinations().size()];
     int fieldId = 0;
     for (CoordinationProtos.DrillbitEndpoint endpoint : operator.getDestinations()) {
-      outgoing[fieldId] = new OutgoingRecordBatch(operator,
-                                                    context.getCommunicator().getTunnel(endpoint),
+      FragmentHandle opposite = context.getHandle().toBuilder().setMajorFragmentId(operator.getOppositeMajorFragmentId()).setMinorFragmentId(fieldId).build();
+      outgoing[fieldId] = new OutgoingRecordBatch(sendCount, operator,
+                                                    context.getDataTunnel(endpoint, opposite),
                                                     incoming,
                                                     context,
                                                     fieldId);
@@ -79,6 +87,7 @@ class PartitionSenderRootExec implements RootExec {
 
     if (!ok) {
       stop();
+      
       return false;
     }
 
@@ -119,8 +128,8 @@ class PartitionSenderRootExec implements RootExec {
         }
       case OK:
         partitioner.partitionBatch(incoming);
-        context.batchesCompleted.inc(1);
-        context.recordsCompleted.inc(incoming.getRecordCount());
+        context.getStats().batchesCompleted.inc(1);
+        context.getStats().recordsCompleted.inc(incoming.getRecordCount());
         return true;
       case NOT_YET:
       default:
@@ -128,18 +137,15 @@ class PartitionSenderRootExec implements RootExec {
     }
   }
 
-  public void stop() {
-    ok = false;
-    incoming.kill();
-  }
+
   
   private void generatePartitionFunction() throws SchemaChangeException {
 
     LogicalExpression filterExpression = operator.getExpr();
     final ErrorCollector collector = new ErrorCollectorImpl();
-    final CodeGenerator<Partitioner> cg = new CodeGenerator<Partitioner>(Partitioner.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    final ClassGenerator<Partitioner> cg = CodeGenerator.get(Partitioner.TEMPLATE_DEFINITION, context.getFunctionRegistry()).getRoot();
 
-    final LogicalExpression expr = ExpressionTreeMaterializer.materialize(filterExpression, incoming, collector);
+    final LogicalExpression expr = ExpressionTreeMaterializer.materialize(filterExpression, incoming, collector,context.getFunctionRegistry());
     if(collector.hasErrors()){
       throw new SchemaChangeException(String.format("Failure while trying to materialize incoming schema.  Errors:\n %s.", collector.toErrorString()));
     }
@@ -161,10 +167,10 @@ class PartitionSenderRootExec implements RootExec {
     // set up partitioning function
     final LogicalExpression expr = operator.getExpr();
     final ErrorCollector collector = new ErrorCollectorImpl();
-    final CodeGenerator<Partitioner> cg = new CodeGenerator<Partitioner>(Partitioner.TEMPLATE_DEFINITION,
+    final ClassGenerator<Partitioner> cg = CodeGenerator.getRoot(Partitioner.TEMPLATE_DEFINITION,
                                                                          context.getFunctionRegistry());
 
-    final LogicalExpression materializedExpr = ExpressionTreeMaterializer.materialize(expr, incoming, collector);
+    final LogicalExpression materializedExpr = ExpressionTreeMaterializer.materialize(expr, incoming, collector, context.getFunctionRegistry());
     if (collector.hasErrors()) {
       throw new SchemaChangeException(String.format(
           "Failure while trying to materialize incoming schema.  Errors:\n %s.",
@@ -178,7 +184,7 @@ class PartitionSenderRootExec implements RootExec {
     JType outgoingBatchArrayType = cg.getModel().ref(OutgoingRecordBatch.class).array();
 
     // generate evaluate expression to determine the hash
-    CodeGenerator.HoldingContainer exprHolder = cg.addExpr(materializedExpr);
+    ClassGenerator.HoldingContainer exprHolder = cg.addExpr(materializedExpr);
     cg.getEvalBlock().decl(JType.parse(cg.getModel(), "int"), "bucket", exprHolder.getValue().mod(JExpr.lit(outgoing.length)));
     cg.getEvalBlock().assign(JExpr.ref("bucket"), cg.getModel().ref(Math.class).staticInvoke("abs").arg(bucket));
     // declare and assign the array of outgoing record batches
@@ -284,5 +290,15 @@ class PartitionSenderRootExec implements RootExec {
         batch.initializeBatch();
       }
     }
+  }
+  
+  public void stop() {
+    logger.debug("Partition sender stopping.");
+    ok = false;
+    for(OutgoingRecordBatch b : outgoing){
+      b.clear();
+    }
+    incoming.cleanup();
+    sendCount.waitForSendComplete();
   }
 }

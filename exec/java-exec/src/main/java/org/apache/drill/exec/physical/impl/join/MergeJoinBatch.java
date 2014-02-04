@@ -31,6 +31,7 @@ import org.apache.drill.common.logical.data.JoinCondition;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.ClassGenerator;
 import org.apache.drill.exec.expr.CodeGenerator;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
@@ -166,7 +167,8 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
       }
 
       // join until we have a complete outgoing batch
-      worker.doJoin(status);
+      if (!worker.doJoin(status))
+        worker = null;
 
       // get the outcome of the join.
       switch(status.getOutcome()){
@@ -214,7 +216,7 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
 
   private JoinWorker generateNewWorker() throws ClassTransformationException, IOException, SchemaChangeException{
 
-    final CodeGenerator<JoinWorker> cg = new CodeGenerator<>(JoinWorker.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    final ClassGenerator<JoinWorker> cg = CodeGenerator.getRoot(JoinWorker.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     final ErrorCollector collector = new ErrorCollectorImpl();
     final LogicalExpression leftFieldExpr = condition.getLeft();
     final LogicalExpression rightFieldExpr = condition.getRight();
@@ -246,12 +248,12 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
     JVar incomingRecordBatch = cg.clazz.field(JMod.NONE, recordBatchClass, "incoming");
 
     // materialize value vector readers from join expression
-    final LogicalExpression materializedLeftExpr = ExpressionTreeMaterializer.materialize(leftFieldExpr, left, collector);
+    final LogicalExpression materializedLeftExpr = ExpressionTreeMaterializer.materialize(leftFieldExpr, left, collector, context.getFunctionRegistry());
     if (collector.hasErrors())
       throw new ClassTransformationException(String.format(
           "Failure while trying to materialize incoming left field.  Errors:\n %s.", collector.toErrorString()));
 
-    final LogicalExpression materializedRightExpr = ExpressionTreeMaterializer.materialize(rightFieldExpr, right, collector);
+    final LogicalExpression materializedRightExpr = ExpressionTreeMaterializer.materialize(rightFieldExpr, right, collector, context.getFunctionRegistry());
     if (collector.hasErrors())
       throw new ClassTransformationException(String.format(
           "Failure while trying to materialize incoming right field.  Errors:\n %s.", collector.toErrorString()));
@@ -261,10 +263,10 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
     ////////////////////////
     cg.setMappingSet(COMPARE_MAPPING);
     cg.getSetupBlock().assign(JExpr._this().ref(incomingRecordBatch), JExpr._this().ref(incomingLeftRecordBatch));
-    CodeGenerator.HoldingContainer compareLeftExprHolder = cg.addExpr(materializedLeftExpr, false);
+    ClassGenerator.HoldingContainer compareLeftExprHolder = cg.addExpr(materializedLeftExpr, false);
     cg.setMappingSet(COMPARE_RIGHT_MAPPING);
     cg.getSetupBlock().assign(JExpr._this().ref(incomingRecordBatch), JExpr._this().ref(incomingRightRecordBatch));
-    CodeGenerator.HoldingContainer compareRightExprHolder = cg.addExpr(materializedRightExpr, false);
+    ClassGenerator.HoldingContainer compareRightExprHolder = cg.addExpr(materializedRightExpr, false);
 
     if (compareLeftExprHolder.isOptional() && compareRightExprHolder.isOptional()) {
       // handle null == null
@@ -321,9 +323,9 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
                        ._return(JExpr.lit(-1));
 
     // generate VV read expressions
-    CodeGenerator.HoldingContainer compareThisLeftExprHolder = cg.addExpr(materializedLeftExpr, false);
+    ClassGenerator.HoldingContainer compareThisLeftExprHolder = cg.addExpr(materializedLeftExpr, false);
     cg.setMappingSet(COMPARE_NEXT_LEFT_MAPPING); // change mapping from 'leftIndex' to 'nextLeftIndex'
-    CodeGenerator.HoldingContainer compareNextLeftExprHolder = cg.addExpr(materializedLeftExpr, false);
+    ClassGenerator.HoldingContainer compareNextLeftExprHolder = cg.addExpr(materializedLeftExpr, false);
 
     if (compareThisLeftExprHolder.isOptional()) {
       // handle null == null
@@ -353,10 +355,12 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
       JVar vvOut = cg.declareVectorValueSetupAndMember("outgoing",
                                                        new TypedFieldId(vw.getField().getType(),vectorId));
       // todo: check result of copyFromSafe and grow allocation
-      cg.getEvalBlock().add(vvOut.invoke("copyFromSafe")
+      cg.getEvalBlock()._if(vvOut.invoke("copyFromSafe")
                                    .arg(COPY_LEFT_MAPPING.getValueReadIndex())
                                    .arg(COPY_LEFT_MAPPING.getValueWriteIndex())
-                                   .arg(vvIn));
+                                   .arg(vvIn).eq(JExpr.FALSE))
+          ._then()
+          ._return(JExpr.FALSE);
       ++vectorId;
     }
     cg.getEvalBlock()._return(JExpr.lit(true));
@@ -372,10 +376,12 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
       JVar vvOut = cg.declareVectorValueSetupAndMember("outgoing",
                                                        new TypedFieldId(vw.getField().getType(),vectorId));
       // todo: check result of copyFromSafe and grow allocation
-      cg.getEvalBlock().add(vvOut.invoke("copyFromSafe")
-          .arg(COPY_RIGHT_MAPPING.getValueReadIndex())
-          .arg(COPY_RIGHT_MAPPING.getValueWriteIndex())
-          .arg(vvIn));
+      cg.getEvalBlock()._if(vvOut.invoke("copyFromSafe")
+                                 .arg(COPY_RIGHT_MAPPING.getValueReadIndex())
+                                 .arg(COPY_RIGHT_MAPPING.getValueWriteIndex())
+                                 .arg(vvIn).eq(JExpr.FALSE))
+          ._then()
+          ._return(JExpr.FALSE);
       ++vectorId;
     }
     cg.getEvalBlock()._return(JExpr.lit(true));
@@ -388,7 +394,6 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
   private void allocateBatch() {
     // allocate new batch space.
     container.clear();
-
     // add fields from both batches
     for (VectorWrapper<?> w : left) {
       ValueVector outgoingVector = TypeHelper.getNewVector(w.getField(), context.getAllocator());

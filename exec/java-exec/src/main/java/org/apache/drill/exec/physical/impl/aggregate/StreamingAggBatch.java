@@ -30,9 +30,10 @@ import org.apache.drill.exec.compile.sig.GeneratorMapping;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.ClassGenerator;
+import org.apache.drill.exec.expr.ClassGenerator.BlockType;
+import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.CodeGenerator;
-import org.apache.drill.exec.expr.CodeGenerator.BlockType;
-import org.apache.drill.exec.expr.CodeGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
 import org.apache.drill.exec.expr.TypeHelper;
@@ -147,7 +148,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
 
   private StreamingAggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
-    CodeGenerator<StreamingAggregator> cg = new CodeGenerator<StreamingAggregator>(StreamingAggTemplate.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    ClassGenerator<StreamingAggregator> cg = CodeGenerator.getRoot(StreamingAggTemplate.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     container.clear();
     List<VectorAllocator> allocators = Lists.newArrayList();
     
@@ -159,7 +160,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     
     for(int i =0; i < keyExprs.length; i++){
       NamedExpression ne = popConfig.getKeys()[i];
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector,context.getFunctionRegistry() );
       if(expr == null) continue;
       keyExprs[i] = expr;
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
@@ -170,7 +171,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     
     for(int i =0; i < valueExprs.length; i++){
       NamedExpression ne = popConfig.getExprs()[i];
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry());
       if(expr == null) continue;
       
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
@@ -203,7 +204,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final MappingSet IS_SAME_I1 = new MappingSet("index1", null, IS_SAME, IS_SAME);
   private final MappingSet IS_SAME_I2 = new MappingSet("index2", null, IS_SAME, IS_SAME);
 
-  private void setupIsSame(CodeGenerator<StreamingAggregator> cg, LogicalExpression[] keyExprs){
+  private void setupIsSame(ClassGenerator<StreamingAggregator> cg, LogicalExpression[] keyExprs){
     cg.setMappingSet(IS_SAME_I1);
     for(LogicalExpression expr : keyExprs){
       // first, we rewrite the evaluation stack for each side of the comparison.
@@ -224,7 +225,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final MappingSet ISA_B1 = new MappingSet("b1Index", null, "b1", null, IS_SAME_PREV_INTERNAL_BATCH_READ, IS_SAME_PREV_INTERNAL_BATCH_READ);
   private final MappingSet ISA_B2 = new MappingSet("b2Index", null, "incoming", null, IS_SAME_PREV, IS_SAME_PREV);
   
-  private void setupIsSameApart(CodeGenerator<StreamingAggregator> cg, LogicalExpression[] keyExprs){
+  private void setupIsSameApart(ClassGenerator<StreamingAggregator> cg, LogicalExpression[] keyExprs){
     cg.setMappingSet(ISA_B1);
     for(LogicalExpression expr : keyExprs){
       // first, we rewrite the evaluation stack for each side of the comparison.
@@ -244,7 +245,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupInterior", "outputRecordValues", "resetValues", "cleanup");
   private final MappingSet EVAL = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
   
-  private void addRecordValues(CodeGenerator<StreamingAggregator> cg, LogicalExpression[] valueExprs){
+  private void addRecordValues(ClassGenerator<StreamingAggregator> cg, LogicalExpression[] valueExprs){
     cg.setMappingSet(EVAL);
     for(LogicalExpression ex : valueExprs){
       HoldingContainer hc = cg.addExpr(ex);
@@ -255,7 +256,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   
   private final MappingSet RECORD_KEYS = new MappingSet(GeneratorMapping.create("setupInterior", "outputRecordKeys", null, null));
   
-  private void outputRecordKeys(CodeGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
+  private void outputRecordKeys(ClassGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
     cg.setMappingSet(RECORD_KEYS);
     for(int i =0; i < keyExprs.length; i++){
       HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(keyOutputIds[i], keyExprs[i], true));
@@ -270,7 +271,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final GeneratorMapping PREVIOUS_KEYS = GeneratorMapping.create("outputRecordKeysPrev", "outputRecordKeysPrev", null, null);
   private final MappingSet RECORD_KEYS_PREV = new MappingSet("previousIndex", "outIndex", "previous", null, PREVIOUS_KEYS, PREVIOUS_KEYS);
   
-  private void outputRecordKeysPrev(CodeGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
+  private void outputRecordKeysPrev(ClassGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs){
     cg.setMappingSet(RECORD_KEYS_PREV);
 
     for(int i =0; i < keyExprs.length; i++){
@@ -287,7 +288,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
   }
   
-  private void getIndex(CodeGenerator<StreamingAggregator> g){
+  private void getIndex(ClassGenerator<StreamingAggregator> g){
     switch(incoming.getSchema().getSelectionVectorMode()){
     case FOUR_BYTE: {
       JVar var = g.declareClassField("sv4_", g.getModel()._ref(SelectionVector4.class));

@@ -76,21 +76,20 @@ public abstract class HashTableTemplate implements HashTable {
 
   private MaterializedField[] keyFields;
 
+  // Container of vectors to hold type-specific key and value vectors
+  private VectorContainer htContainer;
+
+
   // This class encapsulates the links, keys and values for up to BATCH_SIZE
   // *unique* records. Thus, suppose there are N incoming record batches, each 
   // of size BATCH_SIZE..but they have M unique keys altogether, the number of 
   // BatchHolders will be (M/BATCH_SIZE) + 1
   private class BatchHolder {
 
-    // Container of vectors to hold type-specific key and value vectors
-    private VectorContainer htContainer;
-
     // Array of 'link' values 
     private int links[]; 
 
     private BatchHolder() {
-
-      htContainer = new VectorContainer(); 
 
       for(int i = 0; i < keyFields.length; i++) {
         MaterializedField outputField = keyFields[i];
@@ -179,12 +178,14 @@ public abstract class HashTableTemplate implements HashTable {
     for(int i = 0; i < keyExprs.length; i++) {
       NamedExpression ne = keyExprs[i] ;
       final LogicalExpression expr = 
-        ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector) ;
+        ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry()) ;
 
       if(expr == null) continue ;
       
       keyFields[i] = MaterializedField.create(ne.getRef(), expr.getMajorType()) ;
     }
+
+    htContainer = new VectorContainer(); 
 
     // Create the first batch holder 
     batchHolders = new ArrayList<BatchHolder>();
@@ -399,6 +400,9 @@ public abstract class HashTableTemplate implements HashTable {
     hashValues = newHashValues;
   }
 
+  public VectorContainer getHtContainer() { 
+    return htContainer;
+  }
 
   // These methods will be code-generated 
   protected abstract void doSetup(@Named("incoming") RecordBatch incoming, 

@@ -20,6 +20,8 @@
 
 
 <#list cast.types as type>
+<#if type.major == "Fixed">
+
 <@pp.changeOutputFile name="/org/apache/drill/exec/expr/fn/impl/gcast/Cast${type.from}${type.to}.java" />
 
 <#include "/@includes/license.ftl" />
@@ -35,13 +37,13 @@ import org.apache.drill.exec.expr.holders.*;
 import org.apache.drill.exec.record.RecordBatch;
 
 @SuppressWarnings("unused")
-@FunctionTemplate(name = "cast", scope = FunctionTemplate.FunctionScope.SIMPLE, nulls=NullHandling.NULL_IF_NULL)
+@FunctionTemplate(name = "cast${type.to?upper_case}", scope = FunctionTemplate.FunctionScope.SIMPLE, nulls=NullHandling.NULL_IF_NULL)
 public class Cast${type.from}${type.to} implements DrillSimpleFunc{
 
   @Param ${type.from}Holder in;
   @Output ${type.to}Holder out;
 
-  public void setup(RecordBatch b) {}
+  public void setup(RecordBatch incoming) {}
 
   public void eval() {
     <#if type.explicit??>
@@ -51,5 +53,7 @@ public class Cast${type.from}${type.to} implements DrillSimpleFunc{
     </#if>
   }
 }
+
+</#if> <#-- type.major -->
 </#list>
 

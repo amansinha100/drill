@@ -73,21 +73,20 @@ public abstract class HashAggTemplate implements HashAggregator {
   private ArrayList<BatchHolder> batchHolders;
   private IntHolder htIdxHolder; // holder for the Hashtable's internal index returned by put()
 
+  private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
+
   private class BatchHolder {
 
-    private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
     // TypedFieldId[] aggrFieldIds; 
 
     private BatchHolder() {
-
-      aggrValuesContainer = new VectorContainer();
 
       ErrorCollector collector = new ErrorCollectorImpl();
 
       for(int i = 0; i < hashAggrConfig.getAggrExprs().length; i++) { 
         NamedExpression ne = hashAggrConfig.getAggrExprs()[i] ;
         final LogicalExpression expr = 
-          ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector) ;
+          ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() ) ;
         if(expr == null) continue ;
       
         final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType()) ;
@@ -105,7 +104,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
 
     private void setup() {
-      doSetup(incoming, outgoing, aggrValuesContainer);
+      setupInterior(incoming, outgoing, aggrValuesContainer, htable.getHtContainer());
     }
   }
 
@@ -124,9 +123,9 @@ public abstract class HashAggTemplate implements HashAggregator {
     ChainedHashTable ht = new ChainedHashTable(hashAggrConfig.getHtConfig(), context, incoming);
     this.htable = ht.createAndSetupHashTable();
 
-
     this.htIdxHolder = new IntHolder();
 
+    aggrValuesContainer = new VectorContainer();
     addBatchHolder(); 
   }
 
@@ -239,6 +238,23 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
   }
 
+  @Override
+  public IterOutcome getOutcome() {
+    return outcome;
+  }
+
+  @Override
+  public int getOutputCount() {
+    return outputCount;
+  }
+
+  @Override
+  public void cleanup(){
+    // TODO: 
+  }
+
+
+
   private AggOutcome tooBigFailure(){
     context.fail(new Exception(TOO_BIG_ERROR));
     this.outcome = IterOutcome.STOP;
@@ -312,7 +328,7 @@ public abstract class HashAggTemplate implements HashAggregator {
 
   // Code-generated methods (implemented in HashAggBatch)
 
-  public abstract void doSetup(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer); 
+  public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer, @Named("htContainer") VectorContainer htContainer) ; 
 
   public abstract void updateAggrValuesInternal(@Named("incomingRowIdx") int incomingRowIdx, @Named("incoming") RecordBatch incoming, @Named("htRowIdx") int htRowIdx, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer);
 
@@ -320,5 +336,5 @@ public abstract class HashAggTemplate implements HashAggregator {
 
   public abstract void outputAllRecords();
   public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
-
+  public abstract boolean resetValues();
 }

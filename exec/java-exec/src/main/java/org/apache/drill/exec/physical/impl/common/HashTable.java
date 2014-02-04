@@ -21,6 +21,7 @@ import org.apache.drill.exec.compile.TemplateClassDefinition;
 import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.VectorContainer;
 
 public interface HashTable {
 
@@ -50,6 +51,11 @@ public interface HashTable {
   public int size();
   public boolean isEmpty();
   public void clear();
+
+  // Ideally, we should not expose this container but the hash aggregate needs access to it 
+  // in order to produce the output records...
+  // TODO: explore better options that preserve encapsulation. 
+  public VectorContainer getHtContainer() ;
 }
 
 

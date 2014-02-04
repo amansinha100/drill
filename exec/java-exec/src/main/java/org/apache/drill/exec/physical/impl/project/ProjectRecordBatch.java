@@ -22,12 +22,15 @@ import java.util.List;
 
 import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
+import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.PathSegment;
+import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.ClassGenerator;
 import org.apache.drill.exec.expr.CodeGenerator;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.TypeHelper;
@@ -67,7 +70,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project>{
   protected void doWork() {
     int recordCount = incoming.getRecordCount();
     for(ValueVector v : this.allocationVectors){
-      AllocationHelper.allocate(v, recordCount, 50);
+      AllocationHelper.allocate(v, recordCount, 250);
     }
     projector.projectRecords(recordCount, 0);
     for(VectorWrapper<?> v : container){
@@ -94,11 +97,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project>{
     final ErrorCollector collector = new ErrorCollectorImpl();
     final List<TransferPair> transfers = Lists.newArrayList();
     
-    final CodeGenerator<Projector> cg = new CodeGenerator<Projector>(Projector.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    final ClassGenerator<Projector> cg = CodeGenerator.getRoot(Projector.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     
     for(int i = 0; i < exprs.size(); i++){
       final NamedExpression namedExpression = exprs.get(i);
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(namedExpression.getExpr(), incoming, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(namedExpression.getExpr(), incoming, collector, context.getFunctionRegistry());
       final MaterializedField outputField = MaterializedField.create(getRef(namedExpression), expr.getMajorType());
       if(collector.hasErrors()){
         throw new SchemaChangeException(String.format("Failure while trying to materialize incoming schema.  Errors:\n %s.", collector.toErrorString()));
@@ -129,7 +132,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project>{
     container.buildSchema(incoming.getSchema().getSelectionVectorMode());
     
     try {
-      this.projector = context.getImplementationClass(cg);
+      this.projector = context.getImplementationClass(cg.getClassGenerator());
       projector.setup(context, incoming, this, transfers);
     } catch (ClassTransformationException | IOException e) {
       throw new SchemaChangeException("Failure while attempting to load generated class", e);

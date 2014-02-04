@@ -44,13 +44,13 @@ public class HashAggregate extends AbstractSingle {
   private final HashTableConfig htConfig;
   
   @JsonCreator
-  public HashAggregate(@JsonProperty("child") PhysicalOperator child, @JsonProperty("groupByExprs") NamedExpression[] groupByExprs, @JsonProperty("aggrExprs") NamedExpression[] aggrExprs, @JsonProperty("cardinality") float cardinality) {
+  public HashAggregate(@JsonProperty("child") PhysicalOperator child, @JsonProperty("keys") NamedExpression[] groupByExprs, @JsonProperty("exprs") NamedExpression[] aggrExprs, @JsonProperty("cardinality") float cardinality) {
     super(child);
     this.groupByExprs = groupByExprs;
     this.aggrExprs = aggrExprs;
     this.cardinality = cardinality;
 
-    this.htConfig = new HashTableConfig((int) this.cardinality /* using this as initial estimated groups */, HashTable.DEFAULT_LOAD_FACTOR, groupByExprs);
+    this.htConfig = new HashTableConfig((int) cardinality /* using this as initial estimated groups */, HashTable.DEFAULT_LOAD_FACTOR, groupByExprs);
   }
 
   public NamedExpression[] getGroupByExprs() {

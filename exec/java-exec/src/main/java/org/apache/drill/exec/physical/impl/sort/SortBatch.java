@@ -27,18 +27,23 @@ import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.logical.data.Order.Direction;
+import org.apache.drill.common.logical.data.Order.Ordering;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.ClassGenerator;
+import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.CodeGenerator;
-import org.apache.drill.exec.expr.CodeGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
 import org.apache.drill.exec.expr.fn.impl.ComparatorFunctions;
 import org.apache.drill.exec.ops.FragmentContext;
-import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.Sort;
-import org.apache.drill.exec.record.*;
+import org.apache.drill.exec.record.AbstractRecordBatch;
+import org.apache.drill.exec.record.BatchSchema;
+import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.VectorAccessible;
+import org.apache.drill.exec.record.WritableBatch;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 
@@ -49,31 +54,32 @@ import com.sun.codemodel.JExpr;
 public class SortBatch extends AbstractRecordBatch<Sort> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SortBatch.class);
 
-  public final MappingSet MAIN_MAPPING = new MappingSet( (String) null, null, CodeGenerator.DEFAULT_SCALAR_MAP, CodeGenerator.DEFAULT_SCALAR_MAP);
-  public final MappingSet LEFT_MAPPING = new MappingSet("leftIndex", null, CodeGenerator.DEFAULT_SCALAR_MAP, CodeGenerator.DEFAULT_SCALAR_MAP);
-  public final MappingSet RIGHT_MAPPING = new MappingSet("rightIndex", null, CodeGenerator.DEFAULT_SCALAR_MAP, CodeGenerator.DEFAULT_SCALAR_MAP);
+  public final MappingSet MAIN_MAPPING = new MappingSet( (String) null, null, ClassGenerator.DEFAULT_SCALAR_MAP, ClassGenerator.DEFAULT_SCALAR_MAP);
+  public final MappingSet LEFT_MAPPING = new MappingSet("leftIndex", null, ClassGenerator.DEFAULT_SCALAR_MAP, ClassGenerator.DEFAULT_SCALAR_MAP);
+  public final MappingSet RIGHT_MAPPING = new MappingSet("rightIndex", null, ClassGenerator.DEFAULT_SCALAR_MAP, ClassGenerator.DEFAULT_SCALAR_MAP);
 
   private static long MAX_SORT_BYTES = 8l * 1024 * 1024 * 1024;
 
   private final RecordBatch incoming;
-  private SortRecordBatchBuilder builder;
-  private SelectionVector4 sv4;
+  private final SortRecordBatchBuilder builder;
   private Sorter sorter;
   private BatchSchema schema;
   
   public SortBatch(Sort popConfig, FragmentContext context, RecordBatch incoming) {
     super(popConfig, context);
     this.incoming = incoming;
+    this.builder = new SortRecordBatchBuilder(context.getAllocator(), MAX_SORT_BYTES);
   }
 
   @Override
   public int getRecordCount() {
-    return sv4.getCount();
+    return builder.getSv4().getCount();
   }
 
   @Override
   public void kill() {
     incoming.kill();
+    cleanup();
   }
 
   @Override
@@ -83,22 +89,22 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
 
   @Override
   public SelectionVector4 getSelectionVector4() {
-    return sv4;
+    return builder.getSv4();
   }
 
   
   
   @Override
-  protected void cleanup() {
+  public void cleanup() {
     super.cleanup();
-    container.zeroVectors();;
-    sv4.clear();
+    incoming.cleanup();
+    builder.clear();
   }
 
   @Override
   public IterOutcome next() {
-    if(builder != null){
-      if(sv4.next()){
+    if(schema != null){
+      if(getSelectionVector4().next()){
         return IterOutcome.OK;
       }else{
         return IterOutcome.NONE;
@@ -113,14 +119,14 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
         case NONE:
           break outer;
         case NOT_YET:
+          throw new UnsupportedOperationException();
         case STOP:
-          container.zeroVectors();
+          cleanup();
           return upstream;
         case OK_NEW_SCHEMA:
           // only change in the case that the schema truly changes.  Artificial schema changes are ignored.
           if(!incoming.getSchema().equals(schema)){
-            if (builder != null) throw new UnsupportedOperationException("Sort doesn't currently support sorts with changing schemas.");
-            builder = new SortRecordBatchBuilder(context.getAllocator(), MAX_SORT_BYTES, container);
+            if (schema != null) throw new UnsupportedOperationException("Sort doesn't currently support sorts with changing schemas.");
             this.schema = incoming.getSchema();
           }
           // fall through.
@@ -134,18 +140,16 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
         }
       }
       
-      if (builder == null)
+      if (schema == null){
         // builder may be null at this point if the first incoming batch is empty
         return IterOutcome.NONE;
-
-      builder.build(context);
-      sv4 = builder.getSv4();
+      }
+        
+      builder.build(context, container);
 
       sorter = createNewSorter();
-      sorter.setup(context, this.getSelectionVector4(), this.container);
-      long t1 = System.nanoTime();
-      sorter.sort(sv4, container);
-      logger.debug("Sorted {} records in {} micros.", sv4.getTotalCount(), (System.nanoTime() - t1)/1000);
+      sorter.setup(context, getSelectionVector4(), this.container);
+      sorter.sort(getSelectionVector4(), this.container);
       
       return IterOutcome.OK_NEW_SCHEMA;
       
@@ -162,21 +166,22 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
   }
 
   public static Sorter createNewSorter(FragmentContext context, List<OrderDef> orderings, VectorAccessible batch) throws ClassTransformationException, IOException, SchemaChangeException {
-    final MappingSet mainMapping = new MappingSet( (String) null, null, CodeGenerator.DEFAULT_SCALAR_MAP, CodeGenerator.DEFAULT_SCALAR_MAP);
-    final MappingSet leftMapping = new MappingSet("leftIndex", null, CodeGenerator.DEFAULT_SCALAR_MAP, CodeGenerator.DEFAULT_SCALAR_MAP);
-    final MappingSet rightMapping = new MappingSet("rightIndex", null, CodeGenerator.DEFAULT_SCALAR_MAP, CodeGenerator.DEFAULT_SCALAR_MAP);
+    final MappingSet mainMapping = new MappingSet( (String) null, null, ClassGenerator.DEFAULT_SCALAR_MAP, ClassGenerator.DEFAULT_SCALAR_MAP);
+    final MappingSet leftMapping = new MappingSet("leftIndex", null, ClassGenerator.DEFAULT_SCALAR_MAP, ClassGenerator.DEFAULT_SCALAR_MAP);
+    final MappingSet rightMapping = new MappingSet("rightIndex", null, ClassGenerator.DEFAULT_SCALAR_MAP, ClassGenerator.DEFAULT_SCALAR_MAP);
     return createNewSorter(context, orderings, batch, mainMapping, leftMapping, rightMapping);
   }
   
   public static Sorter createNewSorter(FragmentContext context, List<OrderDef> orderings, VectorAccessible batch, MappingSet mainMapping, MappingSet leftMapping, MappingSet rightMapping)
           throws ClassTransformationException, IOException, SchemaChangeException{
-    CodeGenerator<Sorter> g = new CodeGenerator<Sorter>(Sorter.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    CodeGenerator<Sorter> cg = CodeGenerator.get(Sorter.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    ClassGenerator<Sorter> g = cg.getRoot();
     g.setMappingSet(mainMapping);
     
     for(OrderDef od : orderings){
       // first, we rewrite the evaluation stack for each side of the comparison.
       ErrorCollector collector = new ErrorCollectorImpl(); 
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(od.getExpr(), batch, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(od.getExpr(), batch, collector,context.getFunctionRegistry());
       if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
       g.setMappingSet(leftMapping);
       HoldingContainer left = g.addExpr(expr, false);
@@ -189,7 +194,6 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
       HoldingContainer out = g.addExpr(f, false);
       JConditional jc = g.getEvalBlock()._if(out.getValue().ne(JExpr.lit(0)));
       
-      //TODO: is this the right order...
       if(od.getDirection() == Direction.ASC){
         jc._then()._return(out.getValue());
       }else{
@@ -199,7 +203,7 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
     
     g.getEvalBlock()._return(JExpr.lit(0));
     
-    return context.getImplementationClass(g);
+    return context.getImplementationClass(cg);
 
 
   }

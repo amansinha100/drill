@@ -31,7 +31,8 @@ import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.CodeGenerator;
-import org.apache.drill.exec.expr.CodeGenerator.HoldingContainer;
+import org.apache.drill.exec.expr.ClassGenerator;
+import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
 import org.apache.drill.exec.expr.fn.impl.BitFunctions;
@@ -83,7 +84,7 @@ public class ChainedHashTable {
   }
 
   public HashTable createAndSetupHashTable () throws ClassTransformationException, IOException, SchemaChangeException {
-    CodeGenerator<HashTable> cg = new CodeGenerator<HashTable>(HashTable.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    ClassGenerator<HashTable> cg = CodeGenerator.getRoot(HashTable.TEMPLATE_DEFINITION, context.getFunctionRegistry());
 
     LogicalExpression[] keyExprs = new LogicalExpression[htConfig.getKeyExprs().length];
     // TypedFieldId[] keyFieldIds = new TypedFieldId[htConfig.getKeyExprs().length];
@@ -91,7 +92,7 @@ public class ChainedHashTable {
     ErrorCollector collector = new ErrorCollectorImpl();
     int i = 0;
     for (NamedExpression ne : htConfig.getKeyExprs()) { 
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector);
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry());
       if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
       if (expr == null) continue;
       keyExprs[i++] = expr; 
@@ -108,7 +109,7 @@ public class ChainedHashTable {
     return ht;
   }
 
-  private void setupIsKeyMatchInternal(CodeGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
+  private void setupIsKeyMatchInternal(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
     cg.setMappingSet(KeyMatchIncomingMapping);
 
     for (LogicalExpression expr : keyExprs) { 
@@ -138,7 +139,7 @@ public class ChainedHashTable {
     cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
-  private void setupSetValue(CodeGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
+  private void setupSetValue(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
     cg.setMappingSet(SetValueMapping);
     
     for (LogicalExpression expr : keyExprs) {
@@ -146,7 +147,7 @@ public class ChainedHashTable {
     }
   }
 
-  private void setupGetHash(CodeGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
+  private void setupGetHash(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
 
     cg.setMappingSet(GetHashIncomingMapping);
      
