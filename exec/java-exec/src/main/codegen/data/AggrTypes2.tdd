@@ -17,14 +17,14 @@
 {
   aggrtypes: [
     {className: "Avg", funcName: "avg", types: [
-      {inputType: "Int", outputType: "Float8", sumRunningType: "long", countRunningType: "long"},
-      {inputType: "BigInt", outputType: "Float8", sumRunningType: "long", countRunningType: "long"},
-      {inputType: "NullableInt", outputType: "Float8", sumRunningType: "long", countRunningType: "long"},
-      {inputType: "NullableBigInt", outputType: "Float8", sumRunningType: "long", countRunningType: "long"},     
-      {inputType: "Float4", outputType: "Float8", sumRunningType: "long", countRunningType: "long"},
-      {inputType: "Float8", outputType: "Float8", sumRunningType: "long", countRunningType: "long"}, 
-      {inputType: "NullableFloat4", outputType: "Float8", sumRunningType: "long", countRunningType: "long"},
-      {inputType: "NullableFloat8", outputType: "Float8", sumRunningType: "long", countRunningType: "long"}
+      {inputType: "Int", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"},
+      {inputType: "BigInt", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"},
+      {inputType: "NullableInt", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"},
+      {inputType: "NullableBigInt", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"},     
+      {inputType: "Float4", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"},
+      {inputType: "Float8", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"}, 
+      {inputType: "NullableFloat4", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"},
+      {inputType: "NullableFloat8", outputType: "Float8", sumRunningType: "BigInt", countRunningType: "BigInt"}
      ]
    }
   ]

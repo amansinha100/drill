@@ -75,11 +75,6 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   private LogicalExpression[] aggrExprs;
   private TypedFieldId[] groupByOutFieldIds ;
   private TypedFieldId[] aggrOutFieldIds ;      // field ids for the outgoing batch
-  private TypedFieldId[] aggrInternalFieldIds ; // field ids for workspace container 
-
-  private final GeneratorMapping UPDATE_AGGR = 
-    GeneratorMapping.create("setupInterior" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
-                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
   private final GeneratorMapping UPDATE_AGGR_INSIDE = 
     GeneratorMapping.create("setupInterior" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
@@ -91,24 +86,10 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
    
   private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* workspace index */, "incoming" /* read container */, "outgoing" /* write container */, "aggrValuesContainer" /* workspace container */, UPDATE_AGGR_INSIDE, UPDATE_AGGR_OUTSIDE, UPDATE_AGGR_INSIDE);
 
-  private final GeneratorMapping OUTPUT_RECORD = 
-    GeneratorMapping.create("setupInterior" /* setup method */, "outputAllRecords" /* eval method */, 
-                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
-
-  private final MappingSet OutputRecordKeysMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* Workspace index */, "htContainer" /* read container */, "outgoing" /* write container */, "aggrValuesContainer", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
-
-  private final MappingSet OutputRecordValuesMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "outRowIdx", "aggrValuesContainer" /* read container */, "outgoing" /* write container */, "outgoing", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
 
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) {
     super(popConfig, context);
     this.incoming = incoming;
-  }
-
-  private int getInitialCapacity() {
-    // TODO: confirm if cardinality is indeed providing the estimated number of groups
-    double estimatedGroups = popConfig.getCardinality();  
-    return ( (estimatedGroups > (double) HashTable.MAXIMUM_CAPACITY) ? 
-             HashTable.MAXIMUM_CAPACITY : (int) estimatedGroups );
   }
 
   @Override
@@ -142,12 +123,17 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
       }
     }
 
+    if (aggregator.allFlushed()) {
+      return IterOutcome.NONE;
+    }
+
     while(true){
       AggOutcome out = aggregator.doWork();
       logger.debug("Aggregator response {}, records {}", out, aggregator.getOutputCount());
       switch(out){
       case CLEANUP_AND_RETURN:
         container.zeroVectors();
+        aggregator.cleanup(); 
         done = true;
         return aggregator.getOutcome();
       case RETURN_OUTCOME:
@@ -197,12 +183,10 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     aggrExprs = new LogicalExpression[popConfig.getAggrExprs().length];
     groupByOutFieldIds = new TypedFieldId[popConfig.getGroupByExprs().length];
     aggrOutFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
-    aggrInternalFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
 
     ErrorCollector collector = new ErrorCollectorImpl();
 
     int i;
-    int maxGBFieldId = 0;
 
     for(i = 0; i < groupByExprs.length; i++){
       NamedExpression ne = popConfig.getGroupByExprs()[i];
@@ -215,9 +199,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
       // add this group-by vector to the output container 
       groupByOutFieldIds[i] = container.add(vv);
-      maxGBFieldId = groupByOutFieldIds[i].getFieldId(); 
 
-      // groupByExprs[i] = expr;
       groupByExprs[i] = new ValueVectorWriteExpression(groupByOutFieldIds[i], expr, true);
     }
 
@@ -234,17 +216,10 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
       valueAllocators.add(VectorAllocator.getAllocator(vv, 50));
       aggrOutFieldIds[i] = container.add(vv);
 
-      // aggrInternalFieldIds[i] = cgInner.getWorkspaceTypes().get(i); 
-      aggrInternalFieldIds[i] = new TypedFieldId(aggrOutFieldIds[i].getType(), aggrOutFieldIds[i].getFieldId() - maxGBFieldId);
-
       aggrExprs[i] = new ValueVectorWriteExpression(aggrOutFieldIds[i], expr, true);
-      // aggrExprs[i] = new ValueVectorWriteExpression(aggrInternalFieldIds[i], expr, true);
     }
 
     setupUpdateAggrValues(cgInner);
-
-    // setupOutputAllRecords(cgInner);
-
     setupGetIndex(cg);
     cg.getBlock("resetValues")._return(JExpr.TRUE);
 
@@ -254,7 +229,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     agg.setup(popConfig, context, incoming, this, 
               aggrExprs, 
               cgInner.getWorkspaceTypes(),
-              keyAllocators.toArray(new VectorAllocator[keyAllocators.size()]), // TODO: is it necessary to pass in the allocators ?
+              keyAllocators.toArray(new VectorAllocator[keyAllocators.size()]), 
               valueAllocators.toArray(new VectorAllocator[valueAllocators.size()]));
 
     return agg;
@@ -272,34 +247,11 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
   }
 
-  /* 
-  private void setupOutputAllRecords(ClassGenerator<HashAggregator> cg) {
-
-    cg.setMappingSet(OutputRecordKeysMapping);
-
-    for (LogicalExpression expr : groupByExprs)  {
-      HoldingContainer hc = cg.addExpr(expr);
-      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
-    }
-
-    cg.setMappingSet(OutputRecordValuesMapping);
-
-    int i = 0;
-    for (LogicalExpression expr : aggrExprs) { 
-      // HoldingContainer hc = cg.addExpr(expr);
-      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(aggrFieldIds[i++], expr, true)) ;
-      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
-    }
-
-    cg.getEvalBlock()._return(JExpr.TRUE);
- } 
-  */
-
   private void setupGetIndex(ClassGenerator<HashAggregator> cg){
     switch(incoming.getSchema().getSelectionVectorMode()){
     case FOUR_BYTE: {
       JVar var = cg.declareClassField("sv4_", cg.getModel()._ref(SelectionVector4.class));
-      cg.getBlock("setupInterior").assign(var, JExpr.direct("incoming").invoke("getSelectionVector4"));
+      cg.getBlock("doSetup").assign(var, JExpr.direct("incoming").invoke("getSelectionVector4"));
       cg.getBlock("getVectorIndex")._return(var.invoke("get").arg(JExpr.direct("recordIndex")));;
       return;
     }
@@ -309,8 +261,8 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     }
     case TWO_BYTE: {
       JVar var = cg.declareClassField("sv2_", cg.getModel()._ref(SelectionVector2.class));
-      cg.getBlock("setupInterior").assign(var, JExpr.direct("incoming").invoke("getSelectionVector2"));
-      cg.getBlock("getVectorIndex")._return(var.invoke("get").arg(JExpr.direct("recordIndex")));;
+      cg.getBlock("doSetup").assign(var, JExpr.direct("incoming").invoke("getSelectionVector2"));
+      cg.getBlock("getVectorIndex")._return(var.invoke("getIndex").arg(JExpr.direct("recordIndex")));;
       return;
     }
      

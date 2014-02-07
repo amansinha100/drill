@@ -29,34 +29,35 @@ public interface HashTable {
   public static TemplateClassDefinition<HashTable> TEMPLATE_DEFINITION = new TemplateClassDefinition<HashTable>(HashTable.class, HashTableTemplate.class);
 
   /** The initial default capacity of the hash table (in terms of number of buckets). */
-  static final public int DEFAULT_INITIAL_CAPACITY = 1 << 4; 
+  static final public int DEFAULT_INITIAL_CAPACITY = 1 << 8; 
 
   /** The maximum capacity of the hash table (in terms of number of buckets). */
   static final public int MAXIMUM_CAPACITY = 1 << 30; 
 
   /** The default load factor of a hash table. */
-  final public float DEFAULT_LOAD_FACTOR = 0.75f;
+  static final public float DEFAULT_LOAD_FACTOR = 0.75f;
 
-  public static enum PutStatus {KEY_PRESENT, KEY_ADDED, PUT_FAILED ;}
+  static public enum PutStatus {KEY_PRESENT, KEY_ADDED, PUT_FAILED ;}
 
-  public static final int BATCH_SIZE = Character.MAX_VALUE;
+  /** The batch size used for internal batch holders */
+  static final public int BATCH_SIZE = Character.MAX_VALUE;
+  static final public int BATCH_MASK = 0x0000FFFF;
 
-  public void setup(HashTableConfig htConfig, FragmentContext context, RecordBatch incoming, LogicalExpression[] keyExprs);
+  public void setup(HashTableConfig htConfig, FragmentContext context, 
+                    RecordBatch incoming, RecordBatch outgoing, 
+                    LogicalExpression[] keyExprs);
 
   public PutStatus put(int incomingRowIdx, IntHolder htIdxHolder);
   
-  // public boolean get(int incomingRowIdx, VectorContainer outValue);
-
   public boolean containsKey(int incomingRowIdx);
 
   public int size();
+
   public boolean isEmpty();
+
   public void clear();
 
-  // Ideally, we should not expose this container but the hash aggregate needs access to it 
-  // in order to produce the output records...
-  // TODO: explore better options that preserve encapsulation. 
-  public VectorContainer getHtContainer(int batchIdx) ;
+  public boolean outputKeys();
 }
 
 

@@ -50,31 +50,29 @@ import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
 import org.apache.drill.exec.compile.sig.RuntimeOverridden;
+import org.apache.drill.exec.vector.BigIntVector;
+import org.apache.drill.exec.expr.holders.BigIntHolder;
 
 import com.google.common.collect.Lists;
 
 public abstract class HashAggTemplate implements HashAggregator {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggregator.class);
   
-  private static final boolean EXTRA_DEBUG = true;
+  private static final boolean EXTRA_DEBUG = false;
   private static final String TOO_BIG_ERROR = "Couldn't add value to an empty batch.  This likely means that a single value is too long for a varlen field.";
-  // private IterOutcome lastOutcome = null;
   private boolean first = true;
   private boolean newSchema = false;
-  private int previousIndex = 0;
   private int underlyingIndex = 0;
-  private int currentIndex;
-  // private int addedRecordCount = 0;
-  private boolean pendingOutput = false;
+  private int currentIndex = 0;
   private IterOutcome outcome;
   private int outputCount = 0;
+  private int numGroupedRecords = 0;
   private RecordBatch incoming;
   private BatchSchema schema;
   private RecordBatch outgoing;
   private VectorAllocator[] keyAllocators;
   private VectorAllocator[] valueAllocators;
   private FragmentContext context;
-  private InternalBatch remainderBatch;
 
   private HashAggregate hashAggrConfig;
   private HashTable htable;
@@ -85,12 +83,11 @@ public abstract class HashAggTemplate implements HashAggregator {
   ErrorCollector collector = new ErrorCollectorImpl();
   
   private MaterializedField[] materializedValueFields;
+  private boolean allFlushed = false;
 
   public class BatchHolder {
 
     private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
-    // TypedFieldId[] aggrFieldIds; 
-
     int maxOccupiedIdx = 0;
 
     private BatchHolder() {
@@ -118,40 +115,38 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
 
     private void setup(int idx) {
-      setupInterior(incoming, outgoing, aggrValuesContainer, htable.getHtContainer(idx));
+      setupInterior(incoming, outgoing, aggrValuesContainer);
     }
 
-    private void outputRecords() { 
+    private boolean outputValues() { 
       for (int i = 0; i <= maxOccupiedIdx; i++) { 
-        if (outputRecordValues(outputCount, i)) {
-          // if (outputAllRecords(outputCount, i)) {
+        if (outputRecordValues(i, outputCount) ) {
           if (EXTRA_DEBUG) logger.debug("Outputting values to {}", outputCount) ;
           outputCount++;
+        } else {
+          return false;
         }
       }
+      return true;
     }
 
     // Code-generated methods (implemented in HashAggBatch)
 
     @RuntimeOverridden
-    public void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer, @Named("htContainer") VectorContainer htContainer) {}
+    public void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer) {}
 
     @RuntimeOverridden
     public void updateAggrValuesInternal(@Named("incomingRowIdx") int incomingRowIdx, @Named("htRowIdx") int htRowIdx) {}
 
     @RuntimeOverridden
-    public boolean outputRecordValues(@Named("outRowIdx") int outRowIdx, @Named("htRowIdx") int htRowIdx) {return true;} 
-
-    // @RuntimeOverridden
-    // public boolean outputAllRecords(@Named("outRowIdx") int outRowIdx, @Named("htRowIdx") int htRowIdx) {return false;} 
-
+    public boolean outputRecordValues(@Named("htRowIdx") int htRowIdx, @Named("outRowIdx") int outRowIdx) {return true;}
   }
 
 
   @Override
   public void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, RecordBatch outgoing, 
                     LogicalExpression[] valueExprs, 
-                    ArrayList<TypedFieldId> valueFieldIds, 
+                    List<TypedFieldId> valueFieldIds, 
                     VectorAllocator[] keyAllocators, VectorAllocator[] valueAllocators) 
     throws SchemaChangeException, ClassTransformationException, IOException {
 
@@ -166,6 +161,16 @@ public abstract class HashAggTemplate implements HashAggregator {
     
     this.hashAggrConfig = hashAggrConfig;
 
+    // currently, hash aggregation is only applicable if there are group-by expressions. 
+    // For non-grouped (a.k.a Plain) aggregations that don't involve DISTINCT, there is no 
+    // need to create hash table.  However, for plain aggregations with DISTINCT ..
+    //      e.g SELECT COUNT(DISTINCT a1) FROM t1 ;
+    // we need to build a hash table on the aggregation column a1.
+    // TODO:  This functionality will be added later.
+    if (hashAggrConfig.getGroupByExprs().length == 0) {
+      throw new IllegalArgumentException("Currently, hash aggregation is only applicable if there are group-by expressions.");
+    }
+
     this.htIdxHolder = new IntHolder(); 
     materializedValueFields = new MaterializedField[valueFieldIds.size()];
 
@@ -175,49 +180,23 @@ public abstract class HashAggTemplate implements HashAggregator {
       materializedValueFields[i++] = MaterializedField.create(ref, id.getType());
     }
 
-    ChainedHashTable ht = new ChainedHashTable(hashAggrConfig.getHtConfig(), context, incoming);
-    this.htable = ht.createAndSetupHashTable();
+    ChainedHashTable ht = new ChainedHashTable(hashAggrConfig.getHtConfig(), context, incoming, outgoing) ;
+    this.htable = ht.createAndSetupHashTable() ;
 
     batchHolders = new ArrayList<BatchHolder>();
     addBatchHolder(); 
+
+    doSetup(incoming);
   }
 
   @Override
   public AggOutcome doWork() {
-    try{ // outside loop to ensure that first is set to false after the first run.
-      
-      // if we're in the first state, allocate outgoing.
-      if(first){
-        allocateOutgoing();
-      }
+    try{
+      // Note: Keeping the outer and inner try blocks here to maintain some similarity with 
+      // StreamingAggregate which does somethings conditionally in the outer try block. 
+      // In the future HashAggregate may also need to perform some actions conditionally
+      // in the outer try block. 
 
-      /*       
-      // pick up a remainder batch if we have one.
-      if(remainderBatch != null){
-        if (!outputToBatch( previousIndex )) return tooBigFailure();
-        remainderBatch.clear();
-        remainderBatch = null;
-        return setOkAndReturn();
-      }
-      
-      
-      // setup for new output and pick any remainder.
-      if (pendingOutput) {
-        allocateOutgoing();
-        pendingOutput = false;
-        if (!outputToBatch( previousIndex)) return tooBigFailure();
-      }
-      */
-  
-      if(newSchema){
-        return AggOutcome.UPDATE_AGGREGATOR;
-      }
-      
-      // if(lastOutcome != null){
-      //  outcome = lastOutcome;
-      //  return AggOutcome.CLEANUP_AND_RETURN;
-      // }
-      
       outside: while(true) {
         // loop through existing records, aggregating the values as necessary.
         for (; underlyingIndex < incoming.getRecordCount(); incIndex()) {
@@ -225,12 +204,9 @@ public abstract class HashAggTemplate implements HashAggregator {
           checkGroupAndAggrValues(currentIndex); 
         }
 
-        // InternalBatch previous = null;
-        
         try{
-          while(true){
-            // previous = new InternalBatch(incoming);
 
+          while(true){
             IterOutcome out = incoming.next();
             if(EXTRA_DEBUG) logger.debug("Received IterOutcome of {}", out);
             switch(out){
@@ -240,33 +216,29 @@ public abstract class HashAggTemplate implements HashAggregator {
               
             case OK_NEW_SCHEMA:
               if(EXTRA_DEBUG) logger.debug("Received new schema.  Batch has {} records.", incoming.getRecordCount());
-              // if(addedRecordCount > 0){
-              //  if( !outputToBatchPrev( previous, previousIndex, outputCount) ) remainderBatch = previous;
-              //  if(EXTRA_DEBUG) logger.debug("Wrote out end of previous batch, returning.");
+              newSchema = true;
+              
+              // TODO: new schema case needs to be handled appropriately
+              return AggOutcome.UPDATE_AGGREGATOR;
 
-              //  newSchema = true;
-              //  return setOkAndReturn();
-
-                // }
-
-              cleanup();
-              return AggOutcome.UPDATE_AGGREGATOR;   
             case OK:
-              // resetIndex();
+              resetIndex();
               if(incoming.getRecordCount() == 0){
                 continue;
               } else {
                 checkGroupAndAggrValues(currentIndex);
                 incIndex();
-
+                
                 if(EXTRA_DEBUG) logger.debug("Continuing outside loop");
                 continue outside;
               }
 
             case NONE:
               outcome = out;
-              outputRecordValues() ; 
+              outputKeysAndValues() ; 
+
               return setOkAndReturn();
+
             case STOP:
             default:
               outcome = out;
@@ -275,10 +247,7 @@ public abstract class HashAggTemplate implements HashAggregator {
           }
 
         } finally {
-          // make sure to clear previous if we haven't saved it.
-          //if(remainderBatch == null && previous != null) {
-          //   previous.clear();
-          // }
+          // placeholder...
         }
       }
     } finally{
@@ -288,13 +257,13 @@ public abstract class HashAggTemplate implements HashAggregator {
 
   private void allocateOutgoing() {
     for (VectorAllocator a : keyAllocators) {
-      if(EXTRA_DEBUG) logger.debug("Allocating {} with {} records.", a, 20000);
-      a.alloc(20000);
+      if(EXTRA_DEBUG) logger.debug("Outgoing batch: Allocating {} with {} records.", a, numGroupedRecords);
+      a.alloc(numGroupedRecords);
     }
 
     for (VectorAllocator a : valueAllocators) {
-      if(EXTRA_DEBUG) logger.debug("Allocating {} with {} records.", a, 20000);
-      a.alloc(20000);
+      if(EXTRA_DEBUG) logger.debug("Outgoing batch: Allocating {} with {} records.", a, numGroupedRecords);
+      a.alloc(numGroupedRecords);
     }
   }
 
@@ -310,10 +279,13 @@ public abstract class HashAggTemplate implements HashAggregator {
 
   @Override
   public void cleanup(){
-    // TODO: 
+    htable.clear();
+    htable = null;
+    htIdxHolder = null; 
+    materializedValueFields = null;
+    batchHolders.clear();
+    batchHolders = null; 
   }
-
-
 
   private AggOutcome tooBigFailure(){
     context.fail(new Exception(TOO_BIG_ERROR));
@@ -350,43 +322,87 @@ public abstract class HashAggTemplate implements HashAggregator {
   private void addBatchHolder() {
     BatchHolder bh = new BatchHolder(); 
     batchHolders.add(bh);
-    int batchIdx = batchHolders.size() - 1;
 
+    if (EXTRA_DEBUG) logger.debug("HashAggregate: Added new batch; num batches = {}.", batchHolders.size());
+
+    int batchIdx = batchHolders.size() - 1;
     bh.setup(batchIdx); 
   }
 
-  private void outputRecordValues() {
+  private boolean outputKeysAndValues() {
+
+    allocateOutgoing();
+
+    this.htable.outputKeys();
 
     for (BatchHolder bh : batchHolders) {
-      bh.outputRecords();
+      if (! bh.outputValues() ) {
+        return false;
+      }
     }
+
+    allFlushed = true ;
+    return true;
+  }
+
+  public boolean allFlushed() {
+    return allFlushed;
   }
 
   // Check if a group is present in the hash table; if not, insert it in the hash table. 
   // The htIdxHolder contains the index of the group in the hash table container; this same 
   // index is also used for the aggregation values maintained by the hash aggregate. 
   private boolean checkGroupAndAggrValues(int incomingRowIdx) {
-    
+    if (incomingRowIdx < 0) {
+      throw new IllegalArgumentException("Invalid incoming row index.");
+    }
+
+    /** for debugging 
+    Object tmp = (incoming).getValueAccessorById(0, BigIntVector.class).getValueVector();
+    BigIntVector vv0 = null;
+    BigIntHolder holder = null;
+
+    if (tmp != null) { 
+      vv0 = ((BigIntVector) tmp);
+      holder = new BigIntHolder();
+      holder.value = vv0.getAccessor().get(incomingRowIdx) ;
+    }
+    */
+
     HashTable.PutStatus putStatus = htable.put(incomingRowIdx, htIdxHolder) ;
 
     if (putStatus != HashTable.PutStatus.PUT_FAILED) {
       int currentIdx = htIdxHolder.value;
 
       // get the batch index and index within the batch
-      if (currentIdx > batchHolders.size() * HashTable.BATCH_SIZE) {
+      if (currentIdx >= batchHolders.size() * HashTable.BATCH_SIZE) {
         addBatchHolder();
       }
-      BatchHolder bh = batchHolders.get(currentIdx / HashTable.BATCH_SIZE);
-      int idxWithinBatch = currentIdx % HashTable.BATCH_SIZE;
+      BatchHolder bh = batchHolders.get( (currentIdx >>> 16) & HashTable.BATCH_MASK);
+      int idxWithinBatch = currentIdx & HashTable.BATCH_MASK;
 
       if (putStatus == HashTable.PutStatus.KEY_PRESENT) {
         if (EXTRA_DEBUG) logger.debug("Group-by key already present in hash table, updating the aggregate values");
+
+        // debugging
+        //if (holder.value == 100018 || holder.value == 100021) {
+        //  logger.debug("group-by key = {} already present at hash table index = {}", holder.value, currentIdx) ;
+        //}
+
       } 
       else if (putStatus == HashTable.PutStatus.KEY_ADDED) {
         if (EXTRA_DEBUG) logger.debug("Group-by key was added to hash table, inserting new aggregate values") ;
+
+        // debugging
+        // if (holder.value == 100018 || holder.value == 100021) {
+        //  logger.debug("group-by key = {} added at hash table index = {}", holder.value, currentIdx) ;
+        //}
       }
       
-      return bh.updateAggrValues(incomingRowIdx, idxWithinBatch);
+      if (bh.updateAggrValues(incomingRowIdx, idxWithinBatch)) {
+        numGroupedRecords++;
+        return true;
+      }
       
     } 
 
@@ -394,6 +410,7 @@ public abstract class HashAggTemplate implements HashAggregator {
   }
  
   // Code-generated methods (implemented in HashAggBatch)
+  public abstract void doSetup(@Named("incoming") RecordBatch incoming);
   public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
   public abstract boolean resetValues();
 
