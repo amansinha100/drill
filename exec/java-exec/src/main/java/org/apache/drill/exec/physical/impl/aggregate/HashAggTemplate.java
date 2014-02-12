@@ -19,11 +19,15 @@ package org.apache.drill.exec.physical.impl.aggregate;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import javax.inject.Named;
 
 import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
+import org.apache.drill.common.expression.ExpressionPosition;
+import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.exception.ClassTransformationException;
@@ -45,11 +49,14 @@ import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
+import org.apache.drill.exec.compile.sig.RuntimeOverridden;
+
+import com.google.common.collect.Lists;
 
 public abstract class HashAggTemplate implements HashAggregator {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggregator.class);
   
-  private static final boolean EXTRA_DEBUG = false;
+  private static final boolean EXTRA_DEBUG = true;
   private static final String TOO_BIG_ERROR = "Couldn't add value to an empty batch.  This likely means that a single value is too long for a varlen field.";
   // private IterOutcome lastOutcome = null;
   private boolean first = true;
@@ -64,7 +71,8 @@ public abstract class HashAggTemplate implements HashAggregator {
   private RecordBatch incoming;
   private BatchSchema schema;
   private RecordBatch outgoing;
-  private VectorAllocator[] allocators;
+  private VectorAllocator[] keyAllocators;
+  private VectorAllocator[] valueAllocators;
   private FragmentContext context;
   private InternalBatch remainderBatch;
 
@@ -73,59 +81,104 @@ public abstract class HashAggTemplate implements HashAggregator {
   private ArrayList<BatchHolder> batchHolders;
   private IntHolder htIdxHolder; // holder for the Hashtable's internal index returned by put()
 
-  private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
+  List<VectorAllocator> wsAllocators = Lists.newArrayList();  // allocators for the workspace vectors
+  ErrorCollector collector = new ErrorCollectorImpl();
+  
+  private MaterializedField[] materializedValueFields;
 
-  private class BatchHolder {
+  public class BatchHolder {
 
+    private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
     // TypedFieldId[] aggrFieldIds; 
+
+    int maxOccupiedIdx = 0;
 
     private BatchHolder() {
 
-      ErrorCollector collector = new ErrorCollectorImpl();
+      aggrValuesContainer = new VectorContainer();
 
-      for(int i = 0; i < hashAggrConfig.getAggrExprs().length; i++) { 
-        NamedExpression ne = hashAggrConfig.getAggrExprs()[i] ;
-        final LogicalExpression expr = 
-          ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() ) ;
-        if(expr == null) continue ;
+      ValueVector vector ;
       
-        final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType()) ;
-        
+      for(int i = 0; i < materializedValueFields.length; i++) { 
+        MaterializedField outputField = materializedValueFields[i];
         // Create a type-specific ValueVector for this value
-        ValueVector vector = TypeHelper.getNewVector(outputField, context.getAllocator()) ;
+        vector = TypeHelper.getNewVector(outputField, context.getAllocator()) ;
         int avgBytes = 50; // TODO: do proper calculation for variable width fields
         VectorAllocator.getAllocator(vector, avgBytes).alloc(HashTable.BATCH_SIZE) ;
+        
         aggrValuesContainer.add(vector) ;
+      }
+
+    }
+
+    private boolean updateAggrValues(int incomingRowIdx, int idxWithinBatch) {
+      updateAggrValuesInternal(incomingRowIdx, idxWithinBatch);
+      maxOccupiedIdx = Math.max(maxOccupiedIdx, idxWithinBatch);
+      return true;
+    }
+
+    private void setup(int idx) {
+      setupInterior(incoming, outgoing, aggrValuesContainer, htable.getHtContainer(idx));
+    }
+
+    private void outputRecords() { 
+      for (int i = 0; i <= maxOccupiedIdx; i++) { 
+        if (outputRecordValues(outputCount, i)) {
+          // if (outputAllRecords(outputCount, i)) {
+          if (EXTRA_DEBUG) logger.debug("Outputting values to {}", outputCount) ;
+          outputCount++;
+        }
       }
     }
 
-    private void updateAggrValues(int incomingRowIdx, int idxWithinBatch) {
-      updateAggrValuesInternal(incomingRowIdx, incoming, idxWithinBatch, aggrValuesContainer);
-    }
+    // Code-generated methods (implemented in HashAggBatch)
 
-    private void setup() {
-      setupInterior(incoming, outgoing, aggrValuesContainer, htable.getHtContainer());
-    }
+    @RuntimeOverridden
+    public void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer, @Named("htContainer") VectorContainer htContainer) {}
+
+    @RuntimeOverridden
+    public void updateAggrValuesInternal(@Named("incomingRowIdx") int incomingRowIdx, @Named("htRowIdx") int htRowIdx) {}
+
+    @RuntimeOverridden
+    public boolean outputRecordValues(@Named("outRowIdx") int outRowIdx, @Named("htRowIdx") int htRowIdx) {return true;} 
+
+    // @RuntimeOverridden
+    // public boolean outputAllRecords(@Named("outRowIdx") int outRowIdx, @Named("htRowIdx") int htRowIdx) {return false;} 
+
   }
 
 
   @Override
-  public void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, RecordBatch outgoing, VectorAllocator[] allocators) throws SchemaChangeException, ClassTransformationException, IOException {
+  public void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, RecordBatch outgoing, 
+                    LogicalExpression[] valueExprs, 
+                    ArrayList<TypedFieldId> valueFieldIds, 
+                    VectorAllocator[] keyAllocators, VectorAllocator[] valueAllocators) 
+    throws SchemaChangeException, ClassTransformationException, IOException {
 
-    this.allocators = allocators;
+    if (valueFieldIds.size() < valueExprs.length) throw new IllegalArgumentException("Wrong number of workspace variables.");
+
     this.context = context;
     this.incoming = incoming;
     this.schema = incoming.getSchema();
-    this.allocators = allocators;
+    this.keyAllocators = keyAllocators;
+    this.valueAllocators = valueAllocators;
     this.outgoing = outgoing;
     
     this.hashAggrConfig = hashAggrConfig;
+
+    this.htIdxHolder = new IntHolder(); 
+    materializedValueFields = new MaterializedField[valueFieldIds.size()];
+
+    int i = 0;
+    FieldReference ref = new FieldReference("dummy", ExpressionPosition.UNKNOWN, valueFieldIds.get(0).getType());
+    for (TypedFieldId id : valueFieldIds) {
+      materializedValueFields[i++] = MaterializedField.create(ref, id.getType());
+    }
+
     ChainedHashTable ht = new ChainedHashTable(hashAggrConfig.getHtConfig(), context, incoming);
     this.htable = ht.createAndSetupHashTable();
 
-    this.htIdxHolder = new IntHolder();
-
-    aggrValuesContainer = new VectorContainer();
+    batchHolders = new ArrayList<BatchHolder>();
     addBatchHolder(); 
   }
 
@@ -211,10 +264,12 @@ public abstract class HashAggTemplate implements HashAggregator {
               }
 
             case NONE:
+              outcome = out;
+              outputRecordValues() ; 
+              return setOkAndReturn();
             case STOP:
             default:
               outcome = out;
-              outputAllRecords() ; 
               return AggOutcome.CLEANUP_AND_RETURN;
             }
           }
@@ -232,7 +287,12 @@ public abstract class HashAggTemplate implements HashAggregator {
   }
 
   private void allocateOutgoing() {
-    for (VectorAllocator a : allocators) {
+    for (VectorAllocator a : keyAllocators) {
+      if(EXTRA_DEBUG) logger.debug("Allocating {} with {} records.", a, 20000);
+      a.alloc(20000);
+    }
+
+    for (VectorAllocator a : valueAllocators) {
       if(EXTRA_DEBUG) logger.debug("Allocating {} with {} records.", a, 20000);
       a.alloc(20000);
     }
@@ -290,7 +350,16 @@ public abstract class HashAggTemplate implements HashAggregator {
   private void addBatchHolder() {
     BatchHolder bh = new BatchHolder(); 
     batchHolders.add(bh);
-    bh.setup(); 
+    int batchIdx = batchHolders.size() - 1;
+
+    bh.setup(batchIdx); 
+  }
+
+  private void outputRecordValues() {
+
+    for (BatchHolder bh : batchHolders) {
+      bh.outputRecords();
+    }
   }
 
   // Check if a group is present in the hash table; if not, insert it in the hash table. 
@@ -300,7 +369,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     
     HashTable.PutStatus putStatus = htable.put(incomingRowIdx, htIdxHolder) ;
 
-    if (putStatus != HashTable.PutStatus.FAILED) {
+    if (putStatus != HashTable.PutStatus.PUT_FAILED) {
       int currentIdx = htIdxHolder.value;
 
       // get the batch index and index within the batch
@@ -316,25 +385,16 @@ public abstract class HashAggTemplate implements HashAggregator {
       else if (putStatus == HashTable.PutStatus.KEY_ADDED) {
         if (EXTRA_DEBUG) logger.debug("Group-by key was added to hash table, inserting new aggregate values") ;
       }
-
-      bh.updateAggrValues(incomingRowIdx, idxWithinBatch);
       
-      return true;
-
+      return bh.updateAggrValues(incomingRowIdx, idxWithinBatch);
+      
     } 
 
     return false;
   }
-
+ 
   // Code-generated methods (implemented in HashAggBatch)
-
-  public abstract void setupInterior(@Named("incoming") RecordBatch incoming, @Named("outgoing") RecordBatch outgoing, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer, @Named("htContainer") VectorContainer htContainer) ; 
-
-  public abstract void updateAggrValuesInternal(@Named("incomingRowIdx") int incomingRowIdx, @Named("incoming") RecordBatch incoming, @Named("htRowIdx") int htRowIdx, @Named("aggrValuesContainer") VectorContainer aggrValuesContainer);
-
-  //  public abstract void outputRecord(@Named("htRowIdx") int htRowIdx, @Named("outRowIdx") int outRowIdx);
-
-  public abstract void outputAllRecords();
   public abstract int getVectorIndex(@Named("recordIndex") int recordIndex);
   public abstract boolean resetValues();
+
 }

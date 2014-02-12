@@ -35,12 +35,14 @@ import org.apache.drill.exec.expr.ClassGenerator;
 import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
+import org.apache.drill.exec.expr.ValueVectorWriteExpression;
 import org.apache.drill.exec.expr.fn.impl.BitFunctions;
 import org.apache.drill.exec.expr.fn.impl.ComparatorFunctions;
 import org.apache.drill.exec.expr.fn.impl.HashFunctions;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.impl.filter.ReturnValueExpression;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.vector.*;
 
 import com.google.common.collect.ImmutableList;
@@ -55,14 +57,14 @@ public class ChainedHashTable {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ChainedHashTable.class);
 
   private static final GeneratorMapping KEY_MATCH = 
-	  GeneratorMapping.create("doSetup" /* setup method */, "isKeyMatchInternal" /* eval method */, 
+	  GeneratorMapping.create("setupInterior" /* setup method */, "isKeyMatchInternal" /* eval method */, 
                             null /* reset */, null /* cleanup */);
 
   private static final GeneratorMapping GET_HASH = 
 	  GeneratorMapping.create("doSetup" /* setup method */, "getHash" /* eval method */, 
                             null /* reset */, null /* cleanup */);
   private static final GeneratorMapping SET_VALUE = 
-	  GeneratorMapping.create("doSetup" /* setup method */, "setValue" /* eval method */, 
+	  GeneratorMapping.create("setupInterior" /* setup method */, "setValue" /* eval method */, 
                             null /* reset */, null /* cleanup */);
   
   private final MappingSet KeyMatchIncomingMapping = new MappingSet("incomingRowIdx", null, "incoming", null, KEY_MATCH, KEY_MATCH);
@@ -84,7 +86,9 @@ public class ChainedHashTable {
   }
 
   public HashTable createAndSetupHashTable () throws ClassTransformationException, IOException, SchemaChangeException {
-    ClassGenerator<HashTable> cg = CodeGenerator.getRoot(HashTable.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    CodeGenerator<HashTable> top = CodeGenerator.get(HashTable.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+    ClassGenerator<HashTable> cg = top.getRoot();
+    ClassGenerator<HashTable> cgInner = cg.getInnerGenerator("BatchHolder");
 
     LogicalExpression[] keyExprs = new LogicalExpression[htConfig.getKeyExprs().length];
     // TypedFieldId[] keyFieldIds = new TypedFieldId[htConfig.getKeyExprs().length];
@@ -95,16 +99,19 @@ public class ChainedHashTable {
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry());
       if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
       if (expr == null) continue;
-      keyExprs[i++] = expr; 
+      keyExprs[i] = expr;
+      i++;
     }
 
-    HashTable ht = context.getImplementationClass(cg); 
-    ht.setup(htConfig, context, incoming);
-
     // generate code for isKeyMatch(), setValue(), getHash()
-    setupIsKeyMatchInternal(cg, keyExprs);
-    setupSetValue(cg, keyExprs);
+    setupIsKeyMatchInternal(cgInner, keyExprs);
+    setupSetValue(cgInner, keyExprs);
+
+    // use top level code generator since getHash() is defined in the scope of the outer class
     setupGetHash(cg, keyExprs);
+
+    HashTable ht = context.getImplementationClass(top); 
+    ht.setup(htConfig, context, incoming, keyExprs);
 
     return ht;
   }
@@ -141,10 +148,17 @@ public class ChainedHashTable {
 
   private void setupSetValue(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
     cg.setMappingSet(SetValueMapping);
-    
+
+    int i = 0;
     for (LogicalExpression expr : keyExprs) {
-      cg.addExpr(expr, false); // this will write to the htContainer at htRowIdx
+      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(new TypedFieldId(expr.getMajorType(), i++), expr, true);
+
+      HoldingContainer hc = cg.addExpr(vvwExpr, false); // this will write to the htContainer at htRowIdx
+      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);      
     }
+
+    cg.getEvalBlock()._return(JExpr.TRUE);
+
   }
 
   private void setupGetHash(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {

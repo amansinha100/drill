@@ -50,7 +50,10 @@ public class HashAggregate extends AbstractSingle {
     this.aggrExprs = aggrExprs;
     this.cardinality = cardinality;
 
-    this.htConfig = new HashTableConfig((int) cardinality /* using this as initial estimated groups */, HashTable.DEFAULT_LOAD_FACTOR, groupByExprs);
+    int initial_capacity = cardinality > 0 ? (int) cardinality : HashTable.DEFAULT_INITIAL_CAPACITY;
+    this.htConfig = new HashTableConfig(initial_capacity,                                        
+                                        HashTable.DEFAULT_LOAD_FACTOR, 
+                                        groupByExprs) ;
   }
 
   public NamedExpression[] getGroupByExprs() {
@@ -76,7 +79,18 @@ public class HashAggregate extends AbstractSingle {
 
   @Override
   public OperatorCost getCost() {
-    return child.getCost();
+    // return child.getCost();
+
+    final float hashCpuCost = (float)0.001;
+    Size childSize = child.getSize();
+    long n = childSize.getRecordCount();
+    long width = childSize.getRecordSize();
+    int numExprs = getGroupByExprs().length;
+
+    double cpuCost = n * numExprs * hashCpuCost;
+    double diskCost = 0;      // assume hash table fits in memory 
+        
+    return new OperatorCost(0, (float) diskCost, (float) n*width, (float) cpuCost);
   }
 
   @Override

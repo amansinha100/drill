@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.physical.impl.common;
 
+import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.compile.TemplateClassDefinition;
 import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.ops.FragmentContext;
@@ -36,11 +37,11 @@ public interface HashTable {
   /** The default load factor of a hash table. */
   final public float DEFAULT_LOAD_FACTOR = 0.75f;
 
-  public static enum PutStatus {KEY_PRESENT, KEY_ADDED, FAILED ;}
+  public static enum PutStatus {KEY_PRESENT, KEY_ADDED, PUT_FAILED ;}
 
   public static final int BATCH_SIZE = Character.MAX_VALUE;
 
-  public void setup(HashTableConfig htConfig, FragmentContext context, RecordBatch incoming);
+  public void setup(HashTableConfig htConfig, FragmentContext context, RecordBatch incoming, LogicalExpression[] keyExprs);
 
   public PutStatus put(int incomingRowIdx, IntHolder htIdxHolder);
   
@@ -55,7 +56,7 @@ public interface HashTable {
   // Ideally, we should not expose this container but the hash aggregate needs access to it 
   // in order to produce the output records...
   // TODO: explore better options that preserve encapsulation. 
-  public VectorContainer getHtContainer() ;
+  public VectorContainer getHtContainer(int batchIdx) ;
 }
 
 

@@ -53,7 +53,7 @@ public class ${aggrtype.className}Functions {
 public static class ${type.inputType}${aggrtype.className} implements DrillAggFunc{
 
   @Param ${type.inputType}Holder in;
-  @Workspace ${type.runningType} value;
+  @Workspace ${type.runningType}Holder value;
   @Output ${type.outputType}Holder out;
 
   public void setup(RecordBatch b) {
@@ -70,13 +70,13 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 	    }  
 	  </#if>
 	  <#if aggrtype.funcName == "min">
-	    value = Math.min(value, in.value);
+	    value.value = Math.min(value.value, in.value);
 	  <#elseif aggrtype.funcName == "max">
-	    value = Math.max(value,  in.value);
+	    value.value = Math.max(value.value,  in.value);
 	  <#elseif aggrtype.funcName == "sum">
-	    value += in.value;
+	    value.value += in.value;
 	  <#elseif aggrtype.funcName == "count">
-	    value++;
+	    value.value++;
 	  <#else>
 	  // TODO: throw an error ? 
 	  </#if>
@@ -87,12 +87,12 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 
   @Override
   public void output() {
-    out.value = value;
+    out.value = value.value;
   }
 
   @Override
   public void reset() {
-    value = 0;
+    value.value = 0;
   }
  
  }

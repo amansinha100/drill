@@ -174,10 +174,10 @@ public class BasicOptimizer extends Optimizer{
       // of Sort). Return the operator with lower cost;  note that currently, this is a 
       // simplistic way of generating the plan; we would ideally want to base this decision
       // on interesting sort orders as needed by the parent...
-      if (totalHACost.compare(totalSACost) < 0)
-        return hashAggr ;
-      else 
-    	  return streamingAggr;
+//      if (totalHACost.compare(totalSACost) < 0)
+//        return hashAggr ;
+//      else 
+    	return streamingAggr;
     }
 
 

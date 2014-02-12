@@ -17,47 +17,47 @@
 {
   aggrtypes: [
     {className: "Min", funcName: "min", types: [
-      {inputType: "Int", outputType: "Int", runningType: "int"},
-      {inputType: "BigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableInt", outputType: "Int", runningType: "int"},
-      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "long"},    
-      {inputType: "Float4", outputType: "Float4", runningType: "float"},
-      {inputType: "Float8", outputType: "Float8", runningType: "double"},
-      {inputType: "NullableFloat4", outputType: "Float4", runningType: "float"},
-      {inputType: "NullableFloat8", outputType: "Float8", runningType: "double"}
+      {inputType: "Int", outputType: "Int", runningType: "Int"},
+      {inputType: "BigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableInt", outputType: "Int", runningType: "Int"},
+      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "BigInt"},    
+      {inputType: "Float4", outputType: "Float4", runningType: "Float4"},
+      {inputType: "Float8", outputType: "Float8", runningType: "Float8"},
+      {inputType: "NullableFloat4", outputType: "Float4", runningType: "Float4"},
+      {inputType: "NullableFloat8", outputType: "Float8", runningType: "Float8"}
      ]
    },
    {className: "Max", funcName: "max", types: [
-      {inputType: "Int", outputType: "Int", runningType: "int"},
-      {inputType: "BigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableInt", outputType: "Int", runningType: "int"},
-      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "Float4", outputType: "Float4", runningType: "float"},
-      {inputType: "Float8", outputType: "Float8", runningType: "double"},
-      {inputType: "NullableFloat4", outputType: "Float4", runningType: "float"},
-      {inputType: "NullableFloat8", outputType: "Float8", runningType: "double"}
+      {inputType: "Int", outputType: "Int", runningType: "Int"},
+      {inputType: "BigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableInt", outputType: "Int", runningType: "Int"},
+      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "Float4", outputType: "Float4", runningType: "Float4"},
+      {inputType: "Float8", outputType: "Float8", runningType: "Float8"},
+      {inputType: "NullableFloat4", outputType: "Float4", runningType: "Float4"},
+      {inputType: "NullableFloat8", outputType: "Float8", runningType: "Float8"}
      ]
    },
    {className: "Sum", funcName: "sum", types: [   
-      {inputType: "Int", outputType: "BigInt", runningType: "long"},
-      {inputType: "BigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "Float4", outputType: "Float8", runningType: "double"},
-      {inputType: "Float8", outputType: "Float8", runningType: "double"},
-      {inputType: "NullableFloat4", outputType: "Float8", runningType: "double"},
-      {inputType: "NullableFloat8", outputType: "Float8", runningType: "double"}    
+      {inputType: "Int", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "BigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "Float4", outputType: "Float8", runningType: "Float8"},
+      {inputType: "Float8", outputType: "Float8", runningType: "Float8"},
+      {inputType: "NullableFloat4", outputType: "Float8", runningType: "Float8"},
+      {inputType: "NullableFloat8", outputType: "Float8", runningType: "Float8"}    
      ]
    }, 
    {className: "Count", funcName: "count", types: [
-      {inputType: "Int", outputType: "BigInt", runningType: "long"},
-      {inputType: "BigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "long"},
-      {inputType: "Float4", outputType: "BigInt", runningType: "long"},
-      {inputType: "Float8", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableFloat4", outputType: "BigInt", runningType: "long"},
-      {inputType: "NullableFloat8", outputType: "BigInt", runningType: "long"}               
+      {inputType: "Int", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "BigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableBigInt", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "Float4", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "Float8", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableFloat4", outputType: "BigInt", runningType: "BigInt"},
+      {inputType: "NullableFloat8", outputType: "BigInt", runningType: "BigInt"}               
      ]
    }
   ]

@@ -18,6 +18,8 @@
 package org.apache.drill.exec.physical.impl.aggregate;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.drill.common.expression.ErrorCollector;
@@ -71,21 +73,31 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   private boolean done = false;
   private LogicalExpression[] groupByExprs;
   private LogicalExpression[] aggrExprs;
-  private TypedFieldId[] groupByFieldIds ;
-  private TypedFieldId[] aggrFieldIds ;
+  private TypedFieldId[] groupByOutFieldIds ;
+  private TypedFieldId[] aggrOutFieldIds ;      // field ids for the outgoing batch
+  private TypedFieldId[] aggrInternalFieldIds ; // field ids for workspace container 
 
   private final GeneratorMapping UPDATE_AGGR = 
     GeneratorMapping.create("setupInterior" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
                             "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
-  private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incoming" /* read container */, "aggrValuesContainer" /* write container */, UPDATE_AGGR, UPDATE_AGGR, UPDATE_AGGR);
+  private final GeneratorMapping UPDATE_AGGR_INSIDE = 
+    GeneratorMapping.create("setupInterior" /* setup method */, "updateAggrValuesInternal" /* eval method */, 
+                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
+
+  private final GeneratorMapping UPDATE_AGGR_OUTSIDE = 
+    GeneratorMapping.create("setupInterior" /* setup method */, "outputRecordValues" /* eval method */, 
+                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
+   
+  private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* workspace index */, "incoming" /* read container */, "outgoing" /* write container */, "aggrValuesContainer" /* workspace container */, UPDATE_AGGR_INSIDE, UPDATE_AGGR_OUTSIDE, UPDATE_AGGR_INSIDE);
 
   private final GeneratorMapping OUTPUT_RECORD = 
     GeneratorMapping.create("setupInterior" /* setup method */, "outputAllRecords" /* eval method */, 
                             "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
-  private final MappingSet OutputRecordMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htContainer" /* read container */, "aggrValuesContainer" /* write container */, OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
+  private final MappingSet OutputRecordKeysMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* Workspace index */, "htContainer" /* read container */, "outgoing" /* write container */, "aggrValuesContainer", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
 
+  private final MappingSet OutputRecordValuesMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "outRowIdx", "aggrValuesContainer" /* read container */, "outgoing" /* write container */, "outgoing", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
 
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) {
     super(popConfig, context);
@@ -173,58 +185,77 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   }
 
   private HashAggregator createAggregatorInternal() throws SchemaChangeException, ClassTransformationException, IOException{
-    ClassGenerator<HashAggregator> cg = CodeGenerator.getRoot(HashAggregator.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+  	CodeGenerator<HashAggregator> top = CodeGenerator.get(HashAggregator.TEMPLATE_DEFINITION, context.getFunctionRegistry());
+  	ClassGenerator<HashAggregator> cg = top.getRoot();
+    ClassGenerator<HashAggregator> cgInner = cg.getInnerGenerator("BatchHolder");
+
     container.clear();
-    List<VectorAllocator> allocators = Lists.newArrayList();
+    List<VectorAllocator> keyAllocators = Lists.newArrayList();
+    List<VectorAllocator> valueAllocators = Lists.newArrayList();
     
     groupByExprs = new LogicalExpression[popConfig.getGroupByExprs().length];
     aggrExprs = new LogicalExpression[popConfig.getAggrExprs().length];
-    groupByFieldIds = new TypedFieldId[popConfig.getGroupByExprs().length];
-    aggrFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
+    groupByOutFieldIds = new TypedFieldId[popConfig.getGroupByExprs().length];
+    aggrOutFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
+    aggrInternalFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
 
     ErrorCollector collector = new ErrorCollectorImpl();
-    
-    for(int i = 0; i < groupByExprs.length; i++){
+
+    int i;
+    int maxGBFieldId = 0;
+
+    for(i = 0; i < groupByExprs.length; i++){
       NamedExpression ne = popConfig.getGroupByExprs()[i];
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() );
       if(expr == null) continue;
 
-      groupByExprs[i] = expr;
-
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
       ValueVector vv = TypeHelper.getNewVector(outputField, context.getAllocator());
-      allocators.add(VectorAllocator.getAllocator(vv, 50));
+      keyAllocators.add(VectorAllocator.getAllocator(vv, 50));
 
       // add this group-by vector to the output container 
-      groupByFieldIds[i] = container.add(vv);
+      groupByOutFieldIds[i] = container.add(vv);
+      maxGBFieldId = groupByOutFieldIds[i].getFieldId(); 
+
+      // groupByExprs[i] = expr;
+      groupByExprs[i] = new ValueVectorWriteExpression(groupByOutFieldIds[i], expr, true);
     }
-    
-    for(int i = 0; i < aggrExprs.length; i++){
+
+    for(i = 0; i < aggrExprs.length; i++){
       NamedExpression ne = popConfig.getAggrExprs()[i];
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() );
+  
+      if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
+
       if(expr == null) continue;
       
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
       ValueVector vv = TypeHelper.getNewVector(outputField, context.getAllocator());
-      allocators.add(VectorAllocator.getAllocator(vv, 50));
-      aggrFieldIds[i] = container.add(vv);
-      aggrExprs[i] = new ValueVectorWriteExpression(aggrFieldIds[i], expr, true);
+      valueAllocators.add(VectorAllocator.getAllocator(vv, 50));
+      aggrOutFieldIds[i] = container.add(vv);
 
-      //ValueVector tmpvector = TypeHelper.getNewVector(outputField, context.getAllocator());
-      // allocators.add(VectorAllocator.getAllocator(tmpvector, 50));
-      // aggrValuesContainer.add(tmpvector); 
+      // aggrInternalFieldIds[i] = cgInner.getWorkspaceTypes().get(i); 
+      aggrInternalFieldIds[i] = new TypedFieldId(aggrOutFieldIds[i].getType(), aggrOutFieldIds[i].getFieldId() - maxGBFieldId);
+
+      aggrExprs[i] = new ValueVectorWriteExpression(aggrOutFieldIds[i], expr, true);
+      // aggrExprs[i] = new ValueVectorWriteExpression(aggrInternalFieldIds[i], expr, true);
     }
-    
-    if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
 
-    setupUpdateAggrValues(cg);
-    setupOutputAllRecords(cg);
+    setupUpdateAggrValues(cgInner);
+
+    // setupOutputAllRecords(cgInner);
+
     setupGetIndex(cg);
     cg.getBlock("resetValues")._return(JExpr.TRUE);
 
     container.buildSchema(SelectionVectorMode.NONE);
-    HashAggregator agg = context.getImplementationClass(cg);
-    agg.setup(popConfig, context, incoming, this, allocators.toArray(new VectorAllocator[allocators.size()]));
+    HashAggregator agg = context.getImplementationClass(top);
+
+    agg.setup(popConfig, context, incoming, this, 
+              aggrExprs, 
+              cgInner.getWorkspaceTypes(),
+              keyAllocators.toArray(new VectorAllocator[keyAllocators.size()]), // TODO: is it necessary to pass in the allocators ?
+              valueAllocators.toArray(new VectorAllocator[valueAllocators.size()]));
 
     return agg;
   }
@@ -235,27 +266,34 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
     for (LogicalExpression aggr : aggrExprs) {
       HoldingContainer hc = cg.addExpr(aggr);
-      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
+      cg.getBlock(BlockType.EVAL)._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
 
-    cg.getEvalBlock()._return(JExpr.TRUE);
+    cg.getBlock(BlockType.EVAL)._return(JExpr.TRUE);
   }
 
+  /* 
   private void setupOutputAllRecords(ClassGenerator<HashAggregator> cg) {
-    cg.setMappingSet(OutputRecordMapping);
 
-    for (int i = 0; i < groupByExprs.length; i++) {
-      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(groupByFieldIds[i], groupByExprs[i], true));
+    cg.setMappingSet(OutputRecordKeysMapping);
+
+    for (LogicalExpression expr : groupByExprs)  {
+      HoldingContainer hc = cg.addExpr(expr);
       cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
 
-    for (int i = 0; i < aggrExprs.length; i++) {
-      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(aggrFieldIds[i], aggrExprs[i], true));
+    cg.setMappingSet(OutputRecordValuesMapping);
+
+    int i = 0;
+    for (LogicalExpression expr : aggrExprs) { 
+      // HoldingContainer hc = cg.addExpr(expr);
+      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(aggrFieldIds[i++], expr, true)) ;
       cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
 
     cg.getEvalBlock()._return(JExpr.TRUE);
-  }
+ } 
+  */
 
   private void setupGetIndex(ClassGenerator<HashAggregator> cg){
     switch(incoming.getSchema().getSelectionVectorMode()){

@@ -18,7 +18,10 @@
 package org.apache.drill.exec.physical.impl.aggregate;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 
+import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.compile.TemplateClassDefinition;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.SchemaChangeException;
@@ -26,6 +29,7 @@ import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.HashAggregate;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
+import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.vector.allocator.VectorAllocator;
 
 public interface HashAggregator {
@@ -37,7 +41,9 @@ public interface HashAggregator {
 	  }
   
   public abstract void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, 
-                             RecordBatch outgoing, VectorAllocator[] allocators) 
+                             RecordBatch outgoing, LogicalExpression[] valueExprs, 
+                             ArrayList<TypedFieldId> valueFieldIds,
+                             VectorAllocator[] keyAllocators, VectorAllocator[] valueAllocators)
     throws SchemaChangeException, IOException, ClassTransformationException;
 
   public abstract IterOutcome getOutcome();
