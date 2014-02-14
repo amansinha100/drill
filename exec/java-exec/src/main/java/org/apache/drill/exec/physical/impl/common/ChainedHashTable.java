@@ -67,22 +67,31 @@ public class ChainedHashTable {
 	  GeneratorMapping.create("setupInterior" /* setup method */, "setValue" /* eval method */, 
                             null /* reset */, null /* cleanup */);
   
+private static final GeneratorMapping OUTPUT_KEYS = 
+  GeneratorMapping.create("setupInterior" /* setup method */, "outputRecordKeys" /* eval method */,
+                          null /* reset */, null /* cleanup */);
+
   private final MappingSet KeyMatchIncomingMapping = new MappingSet("incomingRowIdx", null, "incoming", null, KEY_MATCH, KEY_MATCH);
   private final MappingSet KeyMatchHtableMapping = new MappingSet("htRowIdx", null, "htContainer", null, KEY_MATCH, KEY_MATCH);
   private final MappingSet GetHashIncomingMapping = new MappingSet("incomingRowIdx", null, "incoming", null, GET_HASH, GET_HASH);
   private final MappingSet SetValueMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incoming" /* read container */, "htContainer" /* write container */, SET_VALUE, SET_VALUE);
 
+  private final MappingSet OutputRecordKeysMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htContainer" /* read container */, "outgoing" /* write container */, OUTPUT_KEYS, OUTPUT_KEYS);
+
   private HashTableConfig htConfig;
   private final FragmentContext context;
   private final RecordBatch incoming;
+  private final RecordBatch outgoing;
 
   public ChainedHashTable(HashTableConfig htConfig, 
                           FragmentContext context,
-                          RecordBatch incoming)  {
+                          RecordBatch incoming, 
+                          RecordBatch outgoing)  {
 
     this.htConfig = htConfig;
     this.context = context;
     this.incoming = incoming;
+    this.outgoing = outgoing;
   }
 
   public HashTable createAndSetupHashTable () throws ClassTransformationException, IOException, SchemaChangeException {
@@ -91,7 +100,6 @@ public class ChainedHashTable {
     ClassGenerator<HashTable> cgInner = cg.getInnerGenerator("BatchHolder");
 
     LogicalExpression[] keyExprs = new LogicalExpression[htConfig.getKeyExprs().length];
-    // TypedFieldId[] keyFieldIds = new TypedFieldId[htConfig.getKeyExprs().length];
     
     ErrorCollector collector = new ErrorCollectorImpl();
     int i = 0;
@@ -103,15 +111,14 @@ public class ChainedHashTable {
       i++;
     }
 
-    // generate code for isKeyMatch(), setValue(), getHash()
+    // generate code for isKeyMatch(), setValue(), getHash() and outputRecordKeys()
     setupIsKeyMatchInternal(cgInner, keyExprs);
     setupSetValue(cgInner, keyExprs);
-
-    // use top level code generator since getHash() is defined in the scope of the outer class
-    setupGetHash(cg, keyExprs);
+    setupOutputRecordKeys(cgInner, keyExprs);    
+    setupGetHash(cg /* use top level code generator for getHash */,  keyExprs);
 
     HashTable ht = context.getImplementationClass(top); 
-    ht.setup(htConfig, context, incoming, keyExprs);
+    ht.setup(htConfig, context, incoming, outgoing, keyExprs);
 
     return ht;
   }
@@ -160,6 +167,21 @@ public class ChainedHashTable {
     cg.getEvalBlock()._return(JExpr.TRUE);
 
   }
+
+  private void setupOutputRecordKeys(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) {
+
+    cg.setMappingSet(OutputRecordKeysMapping);
+
+    int i = 0;
+    for (LogicalExpression expr : keyExprs)  {
+      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(new TypedFieldId(expr.getMajorType(), i++), expr, true);
+      HoldingContainer hc = cg.addExpr(vvwExpr);
+      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
+    }
+
+    cg.getEvalBlock()._return(JExpr.TRUE);
+ } 
+
 
   private void setupGetHash(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
 

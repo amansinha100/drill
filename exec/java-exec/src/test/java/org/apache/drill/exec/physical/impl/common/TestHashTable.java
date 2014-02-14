@@ -83,7 +83,7 @@ private SimpleRootExec doTest(final DrillbitContext bitContext, UserClientConnec
     keyExprs[0] = new NamedExpression(regionkey, new FieldReference(regionkey));
 
     HashTableConfig htConfig = new HashTableConfig(HashTable.DEFAULT_INITIAL_CAPACITY, HashTable.DEFAULT_LOAD_FACTOR, keyExprs);
-    ChainedHashTable cht = new ChainedHashTable(htConfig, exec.getContext(), exec.getIncoming());
+    ChainedHashTable cht = new ChainedHashTable(htConfig, exec.getContext(), exec.getIncoming(), null);
     HashTable htable = cht.createAndSetupHashTable();
     IntHolder htIdxHolder = new IntHolder();
 

@@ -57,6 +57,30 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
   @Output ${type.outputType}Holder out;
 
   public void setup(RecordBatch b) {
+	value = new ${type.runningType}Holder();  
+	<#if aggrtype.funcName == "sum" || aggrtype.funcName == "count">
+	  value.value = 0;
+	<#elseif aggrtype.funcName == "min">
+	  <#if type.runningType?starts_with("Int")>
+	    value.value = Integer.MAX_VALUE;
+	  <#elseif type.runningType?starts_with("BigInt")>
+	    value.value = Long.MAX_VALUE;
+	  <#elseif type.runningType?starts_with("Float4")>
+		value.value = Float.MAX_VALUE;
+	  <#elseif type.runningType?starts_with("Float8")>
+		value.value = Double.MAX_VALUE;	    
+	  </#if>
+	<#elseif aggrtype.funcName == "max">
+	  <#if type.runningType?starts_with("Int")>
+	    value.value = Integer.MIN_VALUE;
+	  <#elseif type.runningType?starts_with("BigInt")>
+	    value.value = Long.MIN_VALUE;
+	  <#elseif type.runningType?starts_with("Float4")>
+		value.value = Float.MIN_VALUE;
+	  <#elseif type.runningType?starts_with("Float8")>
+		value.value = Double.MIN_VALUE;	    
+	  </#if>
+	</#if>
 	  
   }
   
@@ -92,7 +116,31 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 
   @Override
   public void reset() {
-    value.value = 0;
+	
+	<#if aggrtype.funcName == "sum" || aggrtype.funcName == "count">
+	  value.value = 0;
+	<#elseif aggrtype.funcName == "min">
+	  <#if type.runningType?starts_with("Int")>
+	    value.value = Integer.MAX_VALUE;
+	  <#elseif type.runningType?starts_with("BigInt")>
+	    value.value = Long.MAX_VALUE;
+	  <#elseif type.runningType?starts_with("Float4")>
+		value.value = Float.MAX_VALUE;
+	  <#elseif type.runningType?starts_with("Float8")>
+		value.value = Double.MAX_VALUE;	    
+	  </#if>
+	<#elseif aggrtype.funcName == "max">
+	  <#if type.runningType?starts_with("Int")>
+	    value.value = Integer.MIN_VALUE;
+	  <#elseif type.runningType?starts_with("BigInt")>
+	    value.value = Long.MIN_VALUE;
+	  <#elseif type.runningType?starts_with("Float4")>
+		value.value = Float.MIN_VALUE;
+	  <#elseif type.runningType?starts_with("Float8")>
+		value.value = Double.MIN_VALUE;	    
+	  </#if>
+	</#if>
+	  
   }
  
  }

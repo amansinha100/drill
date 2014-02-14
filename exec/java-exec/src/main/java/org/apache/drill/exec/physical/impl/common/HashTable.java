@@ -41,7 +41,9 @@ public interface HashTable {
 
   public static final int BATCH_SIZE = Character.MAX_VALUE;
 
-  public void setup(HashTableConfig htConfig, FragmentContext context, RecordBatch incoming, LogicalExpression[] keyExprs);
+  public void setup(HashTableConfig htConfig, FragmentContext context, 
+                    RecordBatch incoming, RecordBatch outgoing, 
+                    LogicalExpression[] keyExprs);
 
   public PutStatus put(int incomingRowIdx, IntHolder htIdxHolder);
   
@@ -57,6 +59,8 @@ public interface HashTable {
   // in order to produce the output records...
   // TODO: explore better options that preserve encapsulation. 
   public VectorContainer getHtContainer(int batchIdx) ;
+
+  public boolean outputKeys();
 }
 
 

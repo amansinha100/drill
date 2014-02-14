@@ -18,7 +18,7 @@
 package org.apache.drill.exec.physical.impl.aggregate;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Collection;
 
 import org.apache.drill.common.expression.LogicalExpression;
@@ -37,12 +37,12 @@ public interface HashAggregator {
   public static TemplateClassDefinition<HashAggregator> TEMPLATE_DEFINITION = new TemplateClassDefinition<HashAggregator>(HashAggregator.class, HashAggTemplate.class);
 
   public static enum AggOutcome {
-	    RETURN_OUTCOME, CLEANUP_AND_RETURN, UPDATE_AGGREGATOR;
+    RETURN_OUTCOME, CLEANUP_AND_RETURN, UPDATE_AGGREGATOR
 	  }
   
   public abstract void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, 
                              RecordBatch outgoing, LogicalExpression[] valueExprs, 
-                             ArrayList<TypedFieldId> valueFieldIds,
+                             List<TypedFieldId> valueFieldIds,
                              VectorAllocator[] keyAllocators, VectorAllocator[] valueAllocators)
     throws SchemaChangeException, IOException, ClassTransformationException;
 
@@ -54,4 +54,5 @@ public interface HashAggregator {
 
   public abstract void cleanup();
 
+  public abstract boolean allFlushed();
 }

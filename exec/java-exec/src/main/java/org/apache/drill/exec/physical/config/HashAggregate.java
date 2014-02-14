@@ -88,7 +88,7 @@ public class HashAggregate extends AbstractSingle {
     int numExprs = getGroupByExprs().length;
 
     double cpuCost = n * numExprs * hashCpuCost;
-    double diskCost = 0;      // assume hash table fits in memory 
+    double diskCost = 0;      // for now assume hash table fits in memory 
         
     return new OperatorCost(0, (float) diskCost, (float) n*width, (float) cpuCost);
   }

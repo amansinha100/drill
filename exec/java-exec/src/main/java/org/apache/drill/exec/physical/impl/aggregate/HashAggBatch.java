@@ -91,13 +91,14 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
    
   private final MappingSet UpdateAggrValuesMapping = new MappingSet("incomingRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* workspace index */, "incoming" /* read container */, "outgoing" /* write container */, "aggrValuesContainer" /* workspace container */, UPDATE_AGGR_INSIDE, UPDATE_AGGR_OUTSIDE, UPDATE_AGGR_INSIDE);
 
-  private final GeneratorMapping OUTPUT_RECORD = 
-    GeneratorMapping.create("setupInterior" /* setup method */, "outputAllRecords" /* eval method */, 
-                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
-  private final MappingSet OutputRecordKeysMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* Workspace index */, "htContainer" /* read container */, "outgoing" /* write container */, "aggrValuesContainer", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
+  //  private final GeneratorMapping OUTPUT_RECORD = 
+  //    GeneratorMapping.create("setupInterior" /* setup method */, "outputAllRecords" /* eval method */, 
+  //                            "resetValues" /* reset */, "cleanup" /* cleanup */) ;
 
-  private final MappingSet OutputRecordValuesMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "outRowIdx", "aggrValuesContainer" /* read container */, "outgoing" /* write container */, "outgoing", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
+
+//private final MappingSet OutputRecordKeysMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htRowIdx" /* Workspace index */, "htContainer" /* read container */, "outgoing" /* write container */, "aggrValuesContainer", OUTPUT_RECORD, OUTPUT_RECORD, OUTPUT_RECORD);
+
 
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) {
     super(popConfig, context);
@@ -140,6 +141,10 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
       default:
         throw new IllegalStateException(String.format("unknown outcome %s", outcome));
       }
+    }
+
+    if (aggregator.allFlushed()) {
+      return IterOutcome.NONE;
     }
 
     while(true){
@@ -243,7 +248,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
     setupUpdateAggrValues(cgInner);
 
-    // setupOutputAllRecords(cgInner);
+    // setupOutputRecordKeys(cgInner);
 
     setupGetIndex(cg);
     cg.getBlock("resetValues")._return(JExpr.TRUE);
@@ -273,7 +278,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   }
 
   /* 
-  private void setupOutputAllRecords(ClassGenerator<HashAggregator> cg) {
+  private void setupOutputRecordKeys(ClassGenerator<HashAggregator> cg) {
 
     cg.setMappingSet(OutputRecordKeysMapping);
 
@@ -282,18 +287,10 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
       cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
 
-    cg.setMappingSet(OutputRecordValuesMapping);
-
-    int i = 0;
-    for (LogicalExpression expr : aggrExprs) { 
-      // HoldingContainer hc = cg.addExpr(expr);
-      HoldingContainer hc = cg.addExpr(new ValueVectorWriteExpression(aggrFieldIds[i++], expr, true)) ;
-      cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
-    }
-
     cg.getEvalBlock()._return(JExpr.TRUE);
  } 
   */
+
 
   private void setupGetIndex(ClassGenerator<HashAggregator> cg){
     switch(incoming.getSchema().getSelectionVectorMode()){
