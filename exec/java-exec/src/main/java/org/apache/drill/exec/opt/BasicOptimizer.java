@@ -167,17 +167,22 @@ public class BasicOptimizer extends Optimizer{
       StreamingAggregate streamingAggr = new StreamingAggregate(sort, keyArr, agg.getAggregations(), 1.0f);
       OperatorCost totalSACost = sort.getCost().add(streamingAggr.getCost());
       
-      HashAggregate hashAggr = new HashAggregate(segment.getInput().accept(this, value), keyArr, agg.getAggregations(), 1.0f);
-      OperatorCost totalHACost = hashAggr.getCost();
-     
-      // Compare the total cost of HashAggr vs. StreamingAggr (which includes cost
-      // of Sort). Return the operator with lower cost;  note that currently, this is a 
-      // simplistic way of generating the plan; we would ideally want to base this decision
-      // on interesting sort orders as needed by the parent...
-//      if (totalHACost.compare(totalSACost) < 0)
-//        return hashAggr ;
-//      else 
-    	return streamingAggr;
+      if (keyArr.length > 0) { // for now hash aggr is only applicable when group-by keys are present
+        HashAggregate hashAggr = new HashAggregate(segment.getInput().accept(this, value), keyArr, agg.getAggregations(), 1.0f);
+        OperatorCost totalHACost = hashAggr.getCost();
+      
+        hashAggr.logCostInfo(totalHACost, totalSACost);
+      
+        // Compare the total cost of HashAggr vs. StreamingAggr (which includes cost
+        // of Sort). Return the operator with lower cost;  note that this is a temporary
+        // and simplistic approach
+        if (totalHACost.compare(totalSACost) < 0)
+          return hashAggr ;
+        else 
+          return streamingAggr;
+      }
+
+      return streamingAggr;
     }
 
 

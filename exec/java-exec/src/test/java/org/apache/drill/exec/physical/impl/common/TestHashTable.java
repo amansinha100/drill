@@ -70,7 +70,7 @@ private SimpleRootExec doTest(final DrillbitContext bitContext, UserClientConnec
     SimpleRootExec exec = new SimpleRootExec(ImplCreator.getExec(context, (FragmentRoot) plan.getSortedOperators(false).iterator().next()));
     return exec;
   }
-
+/* 
   @Test
   public void testHashTable1(@Injectable final DrillbitContext bitContext, @Injectable UserClientConnection connection) throws Throwable {
     String plan_path = "/common/test_hashtable1.json";
@@ -93,4 +93,5 @@ private SimpleRootExec doTest(final DrillbitContext bitContext, UserClientConnec
     }
     assertEquals(htable.size(), 5);
   }
+  */
 }

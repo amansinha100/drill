@@ -133,8 +133,6 @@ private static final GeneratorMapping OUTPUT_KEYS =
       cg.setMappingSet(KeyMatchHtableMapping);
       HoldingContainer right = cg.addExpr(expr, false);
 
-      // cg.setMappingSet(mainMapping);
-      
       // next we wrap the two comparison sides and add the expression block for the comparison.
       FunctionCall f = 
         new FunctionCall(ComparatorFunctions.COMPARE_TO,

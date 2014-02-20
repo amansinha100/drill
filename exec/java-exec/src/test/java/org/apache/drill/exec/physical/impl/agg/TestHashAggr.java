@@ -24,12 +24,27 @@ import org.apache.drill.exec.client.QuerySubmitter;
 import org.junit.AfterClass;
 import org.junit.Test;
 
+ 
 public class TestHashAggr {
 
+	/*
 	@Test
 	public void test1() throws Exception {
 		String[] strArr = {"-f",
-				            "/Users/asinha/queries/q5.json", 
+				          //  "/Users/asinha/queries/hashaggr/q8.json",
+				         // "/Users/asinha/queries/hashaggr/q8_1.json",
+				// "/Users/asinha/queries/hashaggr/q8_2.json",
+				// "/Users/asinha/queries/hashaggr/q8_3.json",
+				//"/Users/asinha/queries/streamaggr/q8_2.json",
+				// "/Users/asinha/queries/hashaggr/q5.json",
+				//"/Users/asinha/queries/hashaggr/q5_1.json",
+				// "/Users/asinha/queries/hashaggr/q5_2.json",
+				// "/Users/asinha/queries/streamaggr/q4_1.json",
+				// "/Users/asinha/queries/streamaggr/q4_3.json",
+				// "/Users/asinha/queries/hashaggr/q6.json",
+				// "/Users/asinha/queries/hashaggr/q9.json",
+				// "/Users/asinha/queries/hashaggr/q9_1.json",
+				"/Users/asinha/queries/hashaggr/q7_2.json",
 				           "-t",
 				            "physical",
 				           "-local" };
@@ -41,5 +56,6 @@ public class TestHashAggr {
 	public static void tearDown() throws Exception{
 	  // pause to get logger to catch up.
 	  Thread.sleep(1000);
-	}	
+	}
+	*/	
 }

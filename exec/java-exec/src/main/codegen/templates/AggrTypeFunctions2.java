@@ -55,12 +55,15 @@ public class ${aggrtype.className}Functions {
 public static class ${type.inputType}${aggrtype.className} implements DrillAggFunc{
 
   @Param ${type.inputType}Holder in;
-  @Workspace ${type.sumRunningType} sum;
-  @Workspace ${type.countRunningType} count;
+  @Workspace ${type.sumRunningType}Holder sum;
+  @Workspace ${type.countRunningType}Holder count;
   @Output ${type.outputType}Holder out;
 
   public void setup(RecordBatch b) {
-	  
+  	sum = new ${type.sumRunningType}Holder();  
+    count = new ${type.countRunningType}Holder();  
+    sum.value = 0;
+    count.value = 0;
   }
   
   @Override
@@ -73,8 +76,8 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 	    }  
 	  </#if>
 	  <#if aggrtype.funcName == "avg">
- 	    sum += in.value;
- 	    count++;
+ 	    sum.value += in.value;
+ 	    count.value++;
 	  <#else>
 	  // TODO: throw an error ? 
 	  </#if>
@@ -85,13 +88,13 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 
   @Override
   public void output() {
-    out.value = sum/count;
+    out.value = sum.value/count.value;
   }
 
   @Override
   public void reset() {
-    sum = 0;
-    count = 0;
+    sum.value = 0;
+    count.value = 0;
   }
  
  }

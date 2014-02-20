@@ -81,7 +81,7 @@ public class HashAggregate extends AbstractSingle {
   public OperatorCost getCost() {
     // return child.getCost();
 
-    final float hashCpuCost = (float)0.001;
+    final float hashCpuCost = (float) 10000.0; // temporarily set this high until we calibrate hashaggr vs. streaming-aggr costs.
     Size childSize = child.getSize();
     long n = childSize.getRecordCount();
     long width = childSize.getRecordSize();
@@ -93,6 +93,11 @@ public class HashAggregate extends AbstractSingle {
     return new OperatorCost(0, (float) diskCost, (float) n*width, (float) cpuCost);
   }
 
+  public void logCostInfo(OperatorCost HACost, OperatorCost SACost) {
+	  logger.debug("HashAggregate cost: cpu = {}, disk = {}, memory = {}, network = {}.", HACost.getCpu(), HACost.getDisk(), HACost.getMemory(), HACost.getNetwork());
+	  logger.debug("Streaming aggregate cost: cpu = {}, disk = {}, memory = {}, network = {}.", SACost.getCpu(), SACost.getDisk(), SACost.getMemory(), SACost.getNetwork());
+  }
+  
   @Override
   protected PhysicalOperator getNewWithChild(PhysicalOperator child) {
     return new HashAggregate(child, groupByExprs, aggrExprs, cardinality);
