@@ -55,7 +55,6 @@ public class EasyGroupScan extends AbstractGroupScan{
 
   private final FileSelection selection;
   private final EasyFormatPlugin<?> formatPlugin;
-  private final FieldReference ref;
   private final int maxWidth;
   private final List<SchemaPath> columns;
   
@@ -69,27 +68,23 @@ public class EasyGroupScan extends AbstractGroupScan{
       @JsonProperty("storage") StoragePluginConfig storageConfig, //
       @JsonProperty("format") FormatPluginConfig formatConfig, //
       @JacksonInject StoragePluginRegistry engineRegistry, // 
-      @JsonProperty("ref") FieldReference ref, //
       @JsonProperty("columns") List<SchemaPath> columns
       ) throws IOException, ExecutionSetupException {
     
     this.formatPlugin = (EasyFormatPlugin<?>) engineRegistry.getFormatPlugin(storageConfig, formatConfig);
     this.selection = new FileSelection(files, true);
     this.maxWidth = selection.getFileStatusList(formatPlugin.getFileSystem()).size();
-    this.ref = ref;
     this.columns = columns;
   }
   
   public EasyGroupScan(
       FileSelection selection, //
       EasyFormatPlugin<?> formatPlugin, // 
-      FieldReference ref, //
       List<SchemaPath> columns
       ) throws IOException{
     this.selection = selection;
     this.maxWidth = selection.getFileStatusList(formatPlugin.getFileSystem()).size();
     this.formatPlugin = formatPlugin;
-    this.ref = ref;
     this.columns = columns;
   }
 
@@ -160,7 +155,7 @@ public class EasyGroupScan extends AbstractGroupScan{
     Preconditions.checkArgument(!filesForMinor.isEmpty(),
         String.format("MinorFragmentId %d has no read entries assigned", minorFragmentId));
 
-    return new EasySubScan(convert(filesForMinor), formatPlugin, ref, columns);
+    return new EasySubScan(convert(filesForMinor), formatPlugin, columns);
   }
   
   private List<FileWorkImpl> convert(List<CompleteFileWork> list){
