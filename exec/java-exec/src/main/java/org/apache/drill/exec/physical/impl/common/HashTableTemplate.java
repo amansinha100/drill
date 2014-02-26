@@ -474,14 +474,15 @@ public abstract class HashTableTemplate implements HashTable {
     return false;
   }
 
-  public boolean containsKey(int incomingRowIdx) {
+  // Return -1 if key is not found in the hash table. Otherwise, return the global index of the key
+  public int containsKey(int incomingRowIdx) {
     int hash = getHash(incomingRowIdx);
     int i = getBucketIndex(hash, numBuckets());
 
     int currentIdx = startIndices[i];
 
     if (currentIdx == EMPTY_SLOT)
-      return false;
+      return -1;
     
     BatchHolder bh = batchHolders.get( (currentIdx >>> 16) & BATCH_MASK);
     currentIdxHolder.value = currentIdx;
@@ -499,7 +500,7 @@ public abstract class HashTableTemplate implements HashTable {
       }
     }
    
-    return found;
+    return found ? currentIdxHolder.value : -1;
   }
 
 
