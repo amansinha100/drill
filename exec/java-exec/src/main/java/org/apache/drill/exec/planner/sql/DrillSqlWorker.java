@@ -38,8 +38,10 @@ import org.apache.drill.exec.planner.logical.DrillScreenRel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.store.StoragePluginRegistry.DrillSchemaFactory;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.sql.SqlExplain;
+import org.eigenbase.sql.SqlExplainLevel;
 import org.eigenbase.sql.SqlKind;
 import org.eigenbase.sql.SqlLiteral;
 import org.eigenbase.sql.SqlNode;
@@ -69,11 +71,15 @@ public class DrillSqlWorker {
       this.node = node;
     }
   }
-  
+
+  /*
+   * Return the logical DrillRel tree 
+   */
   private RelResult getRel(String sql) throws SqlParseException, ValidationException, RelConversionException{
     SqlNode sqlNode = planner.parse(sql);
 
     ResultMode resultMode = ResultMode.EXEC;
+    /*
     if(sqlNode.getKind() == SqlKind.EXPLAIN){
       SqlExplain explain = (SqlExplain) sqlNode;
       sqlNode = explain.operands[0];
@@ -89,24 +95,26 @@ public class DrillSqlWorker {
       default:
       }
     }
-    
+    */
     SqlNode validatedNode = planner.validate(sqlNode);
     RelNode relNode = planner.convert(validatedNode);
-    return new RelResult(resultMode, relNode);
+    RelNode convertedRelNode = planner.transform(LOGICAL_RULES, planner.getEmptyTraitSet().plus(DrillRel.DRILL_LOGICAL), relNode);
+    if(convertedRelNode instanceof DrillStoreRel){
+      throw new UnsupportedOperationException();
+    }else{
+      convertedRelNode = new DrillScreenRel(convertedRelNode.getCluster(), convertedRelNode.getTraitSet(), convertedRelNode);
+    }
+
+    return new RelResult(resultMode, convertedRelNode);
   }
   
   
   
   public LogicalPlan getLogicalPlan(String sql) throws SqlParseException, ValidationException, RelConversionException{
     RelResult result = getRel(sql);
-    RelNode convertedRelNode = planner.transform(LOGICAL_RULES, planner.getEmptyTraitSet().plus(DrillRel.DRILL_LOGICAL), result.node);
-    if(convertedRelNode instanceof DrillStoreRel){
-      throw new UnsupportedOperationException();
-    }else{
-      convertedRelNode = new DrillScreenRel(convertedRelNode.getCluster(), convertedRelNode.getTraitSet(), convertedRelNode);
-    }
+    
     DrillImplementor implementor = new DrillImplementor(new DrillParseContext(registry), result.mode);
-    implementor.go( (DrillRel) convertedRelNode);
+    implementor.go( (DrillRel) result.node);
     planner.close();
     planner.reset();
     return implementor.getPlan();
@@ -116,16 +124,13 @@ public class DrillSqlWorker {
   
   public PhysicalPlan getPhysicalPlan(String sql) throws SqlParseException, ValidationException, RelConversionException{
     RelResult result = getRel(sql);
-    RelNode convertedRelNode = planner.transform(LOGICAL_RULES, planner.getEmptyTraitSet().plus(DrillRel.DRILL_LOGICAL), result.node);
-    if(convertedRelNode instanceof DrillStoreRel){
-      throw new UnsupportedOperationException();
-    }else{
-      convertedRelNode = new DrillScreenRel(convertedRelNode.getCluster(), convertedRelNode.getTraitSet(), convertedRelNode);
-    }
     
     RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(Prel.DRILL_PHYSICAL);
     Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);
-    phyRelNode.getClass();
+    //phyRelNode.toString();
+    String msg = RelOptUtil.toString(phyRelNode, SqlExplainLevel.ALL_ATTRIBUTES);
+    System.err.print(msg);
+    logger.debug(msg);
     return null;
     
 /*    

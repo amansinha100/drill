@@ -21,6 +21,7 @@ import java.util.Iterator;
 
 import net.hydromatic.optiq.tools.RuleSet;
 
+import org.apache.drill.exec.planner.physical.DrillInsertExchUnderScreenRule;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
 import org.apache.drill.exec.planner.physical.ScanPrule;
 import org.eigenbase.rel.rules.MergeProjectRule;
@@ -59,17 +60,18 @@ public class DrillRuleSets {
       ));
   
   public static final RuleSet DRILL_PHYSICAL_MEM = new DrillRuleSet(ImmutableSet.of( //
-      DrillScanRule.INSTANCE,
-      DrillFilterRule.INSTANCE,
-      DrillProjectRule.INSTANCE,
-      DrillAggregateRule.INSTANCE,
-
-      DrillLimitRule.INSTANCE,
-      DrillSortRule.INSTANCE,
-      DrillJoinRule.INSTANCE,
-      DrillUnionRule.INSTANCE,
+//      DrillScanRule.INSTANCE,
+//      DrillFilterRule.INSTANCE,
+//      DrillProjectRule.INSTANCE,
+//      DrillAggregateRule.INSTANCE,
+//
+//      DrillLimitRule.INSTANCE,
+//      DrillSortRule.INSTANCE,
+//      DrillJoinRule.INSTANCE,
+//      DrillUnionRule.INSTANCE,
       ProjectPrule.INSTANCE,
-      ScanPrule.INSTANCE
+      ScanPrule.INSTANCE,
+      DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,
 //    SwapJoinRule.instance,

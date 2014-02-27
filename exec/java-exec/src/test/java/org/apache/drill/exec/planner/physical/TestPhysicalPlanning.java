@@ -8,6 +8,7 @@ import org.apache.drill.exec.memory.TopLevelAllocator;
 import org.apache.drill.exec.planner.sql.DrillSqlWorker;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.StoragePluginRegistry;
+import org.junit.AfterClass;
 import org.junit.Test;
 
 import com.codahale.metrics.MetricRegistry;
@@ -37,4 +38,11 @@ public class TestPhysicalPlanning {
     worker.getPhysicalPlan("select R_REGIONKEY, cast(R_NAME as varchar(15)) as region, cast(R_COMMENT as varchar(255)) as comment from dfs.`/Users/jni/work/incubator-drill/sample-data/region.parquet`");
     
   }
+  
+  @AfterClass
+  public static void tearDown() throws Exception{
+    // pause to get logger to catch up.
+    Thread.sleep(1000);
+  }
+
 }
