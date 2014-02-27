@@ -91,6 +91,7 @@
   <build>
 
     <plugins>
+    <!--
       <plugin>
         <groupId>org.apache.rat</groupId>
         <artifactId>apache-rat-plugin</artifactId>
@@ -121,6 +122,7 @@
           </excludes>
         </configuration>
       </plugin>
+			-->
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
