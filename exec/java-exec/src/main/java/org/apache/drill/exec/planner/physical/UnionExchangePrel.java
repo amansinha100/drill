@@ -11,9 +11,9 @@ import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 
-public class DrillUnionExchangePrel extends SingleRel implements Prel {
+public class UnionExchangePrel extends SingleRel implements Prel {
 
-  public DrillUnionExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input) {
+  public UnionExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input) {
     super(cluster, traitSet, input);
     assert input.getConvention() == Prel.DRILL_PHYSICAL;
   }
@@ -26,7 +26,7 @@ public class DrillUnionExchangePrel extends SingleRel implements Prel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new DrillUnionExchangePrel(getCluster(), traitSet, sole(inputs));
+    return new UnionExchangePrel(getCluster(), traitSet, sole(inputs));
   }
   
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {

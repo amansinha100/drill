@@ -31,7 +31,7 @@ public class ProjectPrule extends RelOptRule {
   public static final RelOptRule INSTANCE = new ProjectPrule();
 
   private ProjectPrule() {
-    super(RelOptHelper.some(BaseProjectRel.class, DrillRel.DRILL_LOGICAL, RelOptHelper.any(RelNode.class)), "ProjectPrule");
+    super(RelOptHelper.some(BaseProjectRel.class, RelOptHelper.any(RelNode.class)), "ProjectPrule");
   }
 
   @Override
@@ -40,6 +40,6 @@ public class ProjectPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     final RelTraitSet traits = project.getTraitSet().replace(Prel.DRILL_PHYSICAL);
     final RelNode convertedInput = convert(input, traits);
-    call.transformTo(new ProjectPrel(project.getCluster(), traits, convertedInput, project.getProjects(), project.getRowType()));
+    call.transformTo(new ProjectPrel(project.getCluster(), convertedInput.getTraitSet(), convertedInput, project.getProjects(), project.getRowType()));
   }
 }
