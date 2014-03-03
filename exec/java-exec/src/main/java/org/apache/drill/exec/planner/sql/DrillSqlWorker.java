@@ -127,12 +127,46 @@ public class DrillSqlWorker {
     
   }
 
+  /*
+   * Return the logical DrillRel tree 
+   */
+  private RelResult getRel2(String sql) throws SqlParseException, ValidationException, RelConversionException{
+    SqlNode sqlNode = planner.parse(sql);
+
+    //Add new TraintDef to planner.
+    //Temp solution. Framework only create planner after "parse", only after that, can add traitDef to planner. 
+    this.planner.addRelTraitDef(DrillMuxModeDef.INSTANCE);
+    
+    ResultMode resultMode = ResultMode.EXEC;
+    /*
+    if(sqlNode.getKind() == SqlKind.EXPLAIN){
+      SqlExplain explain = (SqlExplain) sqlNode;
+      sqlNode = explain.operands[0];
+      SqlLiteral op = (SqlLiteral) explain.operands[2];
+      SqlExplain.Depth depth = (SqlExplain.Depth) op.getValue();
+      switch(depth){
+      case Logical:
+        resultMode = ResultMode.LOGICAL;
+        break;
+      case Physical:
+        resultMode = ResultMode.PHYSICAL;
+        break;
+      default:
+      }
+    }
+    */
+    SqlNode validatedNode = planner.validate(sqlNode);
+    RelNode relNode = planner.convert(validatedNode);
+    RelNode convertedRelNode = planner.transform(LOGICAL_RULES, planner.getEmptyTraitSet().plus(DrillRel.DRILL_LOGICAL), relNode);
+
+    return new RelResult(resultMode, convertedRelNode);
+  }
   
   public PhysicalPlan getPhysicalPlan(String sql) throws SqlParseException, ValidationException, RelConversionException{
-    RelResult result = getRel(sql);
+    RelResult result = getRel2(sql);
 
 
-    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.EXCHANGE_SIMPLEX);
+    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SCAN_MULTIPLEX);
     
     Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);
     

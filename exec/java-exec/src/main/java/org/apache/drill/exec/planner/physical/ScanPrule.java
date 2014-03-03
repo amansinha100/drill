@@ -35,7 +35,8 @@ public class ScanPrule extends RelOptRule{
   public void onMatch(RelOptRuleCall call) {
     final BaseScanRel scan = (BaseScanRel) call.rel(0);
     final RelTraitSet traits = scan.getTraitSet().replace(Prel.DRILL_PHYSICAL).replace(DrillMuxMode.SCAN_MULTIPLEX);
-    call.transformTo(new ScanPrel(scan.getCluster(), traits, scan.getTable()));
+    BaseScanRel newScan = new ScanPrel(scan.getCluster(), traits, scan.getTable());
+    call.transformTo(newScan);
   }
 
   

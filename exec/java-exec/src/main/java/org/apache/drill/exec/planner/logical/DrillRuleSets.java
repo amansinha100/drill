@@ -70,8 +70,8 @@ public class DrillRuleSets {
 //      DrillJoinRule.INSTANCE,
 //      DrillUnionRule.INSTANCE,
       ProjectPrule.INSTANCE,
-      ScanPrule.INSTANCE,
-      DrillInsertExchUnderScreenRule.INSTANCE
+      ScanPrule.INSTANCE
+      //DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,
 //    SwapJoinRule.instance,
