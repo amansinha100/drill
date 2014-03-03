@@ -30,13 +30,17 @@ public class HashTableConfig  {
 
   private final int initialCapacity;
   private final float loadFactor;
-  private final NamedExpression[] keyExprs;
+  private final NamedExpression[] keyExprsBuild;
+  private final NamedExpression[] keyExprsProbe;
 
   @JsonCreator
-  public HashTableConfig(@JsonProperty("initialCapacity") int initialCapacity, @JsonProperty("loadFactor") float loadFactor, @JsonProperty("keyExprs") NamedExpression[] keyExprs) {
+  public HashTableConfig(@JsonProperty("initialCapacity") int initialCapacity, @JsonProperty("loadFactor") float loadFactor, 
+                         @JsonProperty("keyExprsBuild") NamedExpression[] keyExprsBuild, 
+                         @JsonProperty("keyExprsProbe") NamedExpression[] keyExprsProbe) {
     this.initialCapacity = initialCapacity;
     this.loadFactor = loadFactor;
-    this.keyExprs = keyExprs;
+    this.keyExprsBuild = keyExprsBuild;
+    this.keyExprsProbe = keyExprsProbe;
   }
 
   public int getInitialCapacity() {
@@ -47,8 +51,12 @@ public class HashTableConfig  {
     return loadFactor;
   }
 
-  public NamedExpression[] getKeyExprs() { 
-    return keyExprs;
+  public NamedExpression[] getKeyExprsBuild() { 
+    return keyExprsBuild;
+  }
+
+  public NamedExpression[] getKeyExprsProbe() { 
+    return keyExprsProbe;
   }
 
 }

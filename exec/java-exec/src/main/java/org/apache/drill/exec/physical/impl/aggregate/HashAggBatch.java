@@ -71,7 +71,6 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   private HashAggregator aggregator;
   private final RecordBatch incoming;
   private boolean done = false;
-  private LogicalExpression[] groupByExprs;
   private LogicalExpression[] aggrExprs;
   private TypedFieldId[] groupByOutFieldIds ;
   private TypedFieldId[] aggrOutFieldIds ;      // field ids for the outgoing batch
@@ -179,7 +178,6 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     List<VectorAllocator> keyAllocators = Lists.newArrayList();
     List<VectorAllocator> valueAllocators = Lists.newArrayList();
     
-    groupByExprs = new LogicalExpression[popConfig.getGroupByExprs().length];
     aggrExprs = new LogicalExpression[popConfig.getAggrExprs().length];
     groupByOutFieldIds = new TypedFieldId[popConfig.getGroupByExprs().length];
     aggrOutFieldIds = new TypedFieldId[popConfig.getAggrExprs().length];    
@@ -188,7 +186,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
     int i;
 
-    for(i = 0; i < groupByExprs.length; i++){
+    for(i = 0; i < popConfig.getGroupByExprs().length; i++) {
       NamedExpression ne = popConfig.getGroupByExprs()[i];
       final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry() );
       if(expr == null) continue;
@@ -199,8 +197,6 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
       // add this group-by vector to the output container 
       groupByOutFieldIds[i] = container.add(vv);
-
-      groupByExprs[i] = new ValueVectorWriteExpression(groupByOutFieldIds[i], expr, true);
     }
 
     for(i = 0; i < aggrExprs.length; i++){
@@ -229,6 +225,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     agg.setup(popConfig, context, incoming, this, 
               aggrExprs, 
               cgInner.getWorkspaceTypes(),
+              groupByOutFieldIds,
               keyAllocators.toArray(new VectorAllocator[keyAllocators.size()]), 
               valueAllocators.toArray(new VectorAllocator[valueAllocators.size()]));
 

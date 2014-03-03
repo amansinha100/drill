@@ -43,6 +43,7 @@ public interface HashAggregator {
   public abstract void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, 
                              RecordBatch outgoing, LogicalExpression[] valueExprs, 
                              List<TypedFieldId> valueFieldIds,
+                             TypedFieldId[] keyFieldIds,
                              VectorAllocator[] keyAllocators, VectorAllocator[] valueAllocators)
     throws SchemaChangeException, IOException, ClassTransformationException;
 

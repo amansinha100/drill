@@ -1,11 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed
+ * with this work for additional information regarding copyright
+ * ownership.  The ASF licenses this file to you under the Apache
+ * License, Version 2.0 (the "License"); you may not use this file
+ * except in compliance with the License.  You may obtain a copy of
+ * the License at
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -18,7 +18,6 @@
 package org.apache.drill.exec.physical.impl.common;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
@@ -35,103 +34,162 @@ import org.apache.drill.exec.expr.ClassGenerator;
 import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
+import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.ValueVectorWriteExpression;
+import org.apache.drill.exec.expr.ValueVectorReadExpression;
 import org.apache.drill.exec.expr.fn.impl.BitFunctions;
 import org.apache.drill.exec.expr.fn.impl.ComparatorFunctions;
 import org.apache.drill.exec.expr.fn.impl.HashFunctions;
 import org.apache.drill.exec.ops.FragmentContext;
-import org.apache.drill.exec.physical.impl.filter.ReturnValueExpression;
+import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TypedFieldId;
+import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.vector.*;
+import org.apache.drill.exec.vector.allocator.VectorAllocator;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.hash.HashCode;
 import com.sun.codemodel.JExpr;
-import com.sun.codemodel.JFieldRef;
-import com.sun.codemodel.JVar;
 import com.sun.codemodel.JConditional;
 
 
 public class ChainedHashTable {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ChainedHashTable.class);
 
-  private static final GeneratorMapping KEY_MATCH = 
-	  GeneratorMapping.create("setupInterior" /* setup method */, "isKeyMatchInternal" /* eval method */, 
+  private static final GeneratorMapping KEY_MATCH_BUILD = 
+	  GeneratorMapping.create("setupInterior" /* setup method */, "isKeyMatchInternalBuild" /* eval method */, 
                             null /* reset */, null /* cleanup */);
 
-  private static final GeneratorMapping GET_HASH = 
-	  GeneratorMapping.create("doSetup" /* setup method */, "getHash" /* eval method */, 
+  private static final GeneratorMapping KEY_MATCH_PROBE = 
+	  GeneratorMapping.create("setupInterior" /* setup method */, "isKeyMatchInternalProbe" /* eval method */, 
                             null /* reset */, null /* cleanup */);
+
+  private static final GeneratorMapping GET_HASH_BUILD = 
+	  GeneratorMapping.create("doSetup" /* setup method */, "getHashBuild" /* eval method */, 
+                            null /* reset */, null /* cleanup */);
+
+  private static final GeneratorMapping GET_HASH_PROBE = 
+	  GeneratorMapping.create("doSetup" /* setup method */, "getHashProbe" /* eval method */, 
+                            null /* reset */, null /* cleanup */);
+
   private static final GeneratorMapping SET_VALUE = 
 	  GeneratorMapping.create("setupInterior" /* setup method */, "setValue" /* eval method */, 
                             null /* reset */, null /* cleanup */);
   
-private static final GeneratorMapping OUTPUT_KEYS = 
-  GeneratorMapping.create("setupInterior" /* setup method */, "outputRecordKeys" /* eval method */,
-                          null /* reset */, null /* cleanup */);
+  private static final GeneratorMapping OUTPUT_KEYS = 
+    GeneratorMapping.create("setupInterior" /* setup method */, "outputRecordKeys" /* eval method */,
+                            null /* reset */, null /* cleanup */) ;
 
-  private final MappingSet KeyMatchIncomingMapping = new MappingSet("incomingRowIdx", null, "incoming", null, KEY_MATCH, KEY_MATCH);
-  private final MappingSet KeyMatchHtableMapping = new MappingSet("htRowIdx", null, "htContainer", null, KEY_MATCH, KEY_MATCH);
-  private final MappingSet GetHashIncomingMapping = new MappingSet("incomingRowIdx", null, "incoming", null, GET_HASH, GET_HASH);
-  private final MappingSet SetValueMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incoming" /* read container */, "htContainer" /* write container */, SET_VALUE, SET_VALUE);
+  private final MappingSet KeyMatchIncomingBuildMapping = new MappingSet("incomingRowIdx", null, "incomingBuild", null, KEY_MATCH_BUILD, KEY_MATCH_BUILD);
+  private final MappingSet KeyMatchIncomingProbeMapping = new MappingSet("incomingRowIdx", null, "incomingProbe", null, KEY_MATCH_PROBE, KEY_MATCH_PROBE);
+  private final MappingSet KeyMatchHtableMapping = new MappingSet("htRowIdx", null, "htContainer", null, KEY_MATCH_BUILD, KEY_MATCH_BUILD);
+  private final MappingSet GetHashIncomingBuildMapping = new MappingSet("incomingRowIdx", null, "incomingBuild", null, GET_HASH_BUILD, GET_HASH_BUILD);
+  private final MappingSet GetHashIncomingProbeMapping = new MappingSet("incomingRowIdx", null, "incomingProbe", null, GET_HASH_PROBE, GET_HASH_PROBE);
+  private final MappingSet SetValueMapping = new MappingSet("incomingRowIdx" /* read index */, "htRowIdx" /* write index */, "incomingBuild" /* read container */, "htContainer" /* write container */, SET_VALUE, SET_VALUE);
 
   private final MappingSet OutputRecordKeysMapping = new MappingSet("htRowIdx" /* read index */, "outRowIdx" /* write index */, "htContainer" /* read container */, "outgoing" /* write container */, OUTPUT_KEYS, OUTPUT_KEYS);
 
   private HashTableConfig htConfig;
   private final FragmentContext context;
-  private final RecordBatch incoming;
+  private final RecordBatch incomingBuild;
+  private final RecordBatch incomingProbe;
   private final RecordBatch outgoing;
 
   public ChainedHashTable(HashTableConfig htConfig, 
                           FragmentContext context,
-                          RecordBatch incoming, 
+                          RecordBatch incomingBuild, 
+                          RecordBatch incomingProbe,
                           RecordBatch outgoing)  {
 
     this.htConfig = htConfig;
     this.context = context;
-    this.incoming = incoming;
+    this.incomingBuild = incomingBuild;
+    this.incomingProbe = incomingProbe;
     this.outgoing = outgoing;
   }
 
-  public HashTable createAndSetupHashTable () throws ClassTransformationException, IOException, SchemaChangeException {
+  public HashTable createAndSetupHashTable (TypedFieldId[] outKeyFieldIds) throws ClassTransformationException, IOException, SchemaChangeException {
     CodeGenerator<HashTable> top = CodeGenerator.get(HashTable.TEMPLATE_DEFINITION, context.getFunctionRegistry());
     ClassGenerator<HashTable> cg = top.getRoot();
     ClassGenerator<HashTable> cgInner = cg.getInnerGenerator("BatchHolder");
 
-    LogicalExpression[] keyExprs = new LogicalExpression[htConfig.getKeyExprs().length];
+    if (outKeyFieldIds.length > htConfig.getKeyExprsBuild().length) {
+      throw new IllegalArgumentException("Mismatched number of output key fields.");
+    }
+
+    LogicalExpression[] keyExprsBuild = new LogicalExpression[htConfig.getKeyExprsBuild().length];
+    LogicalExpression[] keyExprsProbe = null;
+    boolean isProbe = (htConfig.getKeyExprsProbe() != null) ;
+    if (isProbe) {
+      keyExprsProbe = new LogicalExpression[htConfig.getKeyExprsProbe().length];
+    }
     
     ErrorCollector collector = new ErrorCollectorImpl();
+    VectorContainer htContainerOrig = new VectorContainer(); // original ht container from which others may be cloned
+    LogicalExpression[] htKeyExprs = new LogicalExpression[htConfig.getKeyExprsBuild().length];
+    TypedFieldId[] htKeyFieldIds = new TypedFieldId[htConfig.getKeyExprsBuild().length];
+
     int i = 0;
-    for (NamedExpression ne : htConfig.getKeyExprs()) { 
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry());
+    for (NamedExpression ne : htConfig.getKeyExprsBuild()) { 
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incomingBuild, collector, context.getFunctionRegistry());
       if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
       if (expr == null) continue;
-      keyExprs[i] = expr;
+      keyExprsBuild[i] = expr;
+      
+      final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
+      // create a type-specific ValueVector for this key
+      ValueVector vv = TypeHelper.getNewVector(outputField, context.getAllocator());
+      VectorAllocator.getAllocator(vv, 50).alloc(HashTable.BATCH_SIZE);
+      htKeyFieldIds[i] = htContainerOrig.add(vv);
+      
       i++;
     }
 
+    if (isProbe) { 
+      for (NamedExpression ne : htConfig.getKeyExprsProbe()) { 
+        final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incomingProbe, collector, context.getFunctionRegistry());
+        if(collector.hasErrors()) throw new SchemaChangeException("Failure while materializing expression. " + collector.toErrorString());
+        if (expr == null) continue;
+        keyExprsProbe[i] = expr;
+      }
+    }
+
     // generate code for isKeyMatch(), setValue(), getHash() and outputRecordKeys()
-    setupIsKeyMatchInternal(cgInner, keyExprs);
-    setupSetValue(cgInner, keyExprs);
-    setupOutputRecordKeys(cgInner, keyExprs);    
-    setupGetHash(cg /* use top level code generator for getHash */,  keyExprs);
+
+    setupIsKeyMatchInternal(cgInner, KeyMatchIncomingBuildMapping, KeyMatchHtableMapping, keyExprsBuild, htKeyFieldIds);
+    setupIsKeyMatchInternal(cgInner, KeyMatchIncomingProbeMapping, KeyMatchHtableMapping, keyExprsProbe, htKeyFieldIds) ;
+
+    setupSetValue(cgInner, keyExprsBuild, htKeyFieldIds);
+    setupOutputRecordKeys(cgInner, htKeyFieldIds, outKeyFieldIds);    
+
+    setupGetHash(cg /* use top level code generator for getHash */,  GetHashIncomingBuildMapping, keyExprsBuild);
+    setupGetHash(cg /* use top level code generator for getHash */,  GetHashIncomingProbeMapping, keyExprsProbe);
 
     HashTable ht = context.getImplementationClass(top); 
-    ht.setup(htConfig, context, incoming, outgoing, keyExprs);
+    ht.setup(htConfig, context, incomingBuild, incomingProbe, outgoing, htContainerOrig);
 
     return ht;
   }
+   
 
-  private void setupIsKeyMatchInternal(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
-    cg.setMappingSet(KeyMatchIncomingMapping);
+  private void setupIsKeyMatchInternal(ClassGenerator<HashTable> cg, MappingSet incomingMapping, MappingSet htableMapping, 
+                                       LogicalExpression[] keyExprs, TypedFieldId[] htKeyFieldIds)
+    throws SchemaChangeException {
+    cg.setMappingSet(incomingMapping);
 
+    if (keyExprs == null || keyExprs.length == 0) {
+      cg.getEvalBlock()._return(JExpr.FALSE);
+      return;
+    }
+
+    int i = 0;
     for (LogicalExpression expr : keyExprs) { 
-      cg.setMappingSet(KeyMatchIncomingMapping);
+      cg.setMappingSet(incomingMapping);
       HoldingContainer left = cg.addExpr(expr, false);
         
-      cg.setMappingSet(KeyMatchHtableMapping);
-      HoldingContainer right = cg.addExpr(expr, false);
+      cg.setMappingSet(htableMapping);
+      ValueVectorReadExpression vvrExpr = new ValueVectorReadExpression(htKeyFieldIds[i++]);
+      HoldingContainer right = cg.addExpr(vvrExpr, false);
 
       // next we wrap the two comparison sides and add the expression block for the comparison.
       FunctionCall f = 
@@ -151,12 +209,14 @@ private static final GeneratorMapping OUTPUT_KEYS =
     cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
-  private void setupSetValue(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
+  private void setupSetValue(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs, TypedFieldId[] htKeyFieldIds) 
+    throws SchemaChangeException {
+
     cg.setMappingSet(SetValueMapping);
 
     int i = 0;
     for (LogicalExpression expr : keyExprs) {
-      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(new TypedFieldId(expr.getMajorType(), i++), expr, true);
+      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(htKeyFieldIds[i++], expr, true) ;
 
       HoldingContainer hc = cg.addExpr(vvwExpr, false); // this will write to the htContainer at htRowIdx
       cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);      
@@ -166,31 +226,35 @@ private static final GeneratorMapping OUTPUT_KEYS =
 
   }
 
-  private void setupOutputRecordKeys(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) {
+  private void setupOutputRecordKeys(ClassGenerator<HashTable> cg, TypedFieldId[] htKeyFieldIds, TypedFieldId[] outKeyFieldIds) {
 
     cg.setMappingSet(OutputRecordKeysMapping);
 
-    int i = 0;
-    for (LogicalExpression expr : keyExprs)  {
-      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(new TypedFieldId(expr.getMajorType(), i++), expr, true);
+    for (int i = 0; i < outKeyFieldIds.length; i++) {
+      ValueVectorReadExpression vvrExpr = new ValueVectorReadExpression(htKeyFieldIds[i]);
+      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(outKeyFieldIds[i], vvrExpr, true);
       HoldingContainer hc = cg.addExpr(vvwExpr);
       cg.getEvalBlock()._if(hc.getValue().eq(JExpr.lit(0)))._then()._return(JExpr.FALSE);
     }
 
     cg.getEvalBlock()._return(JExpr.TRUE);
- } 
+  }
 
+  private void setupGetHash(ClassGenerator<HashTable> cg, MappingSet incomingMapping, LogicalExpression[] keyExprs) throws SchemaChangeException {
 
-  private void setupGetHash(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs) throws SchemaChangeException {
+    cg.setMappingSet(incomingMapping);
 
-    cg.setMappingSet(GetHashIncomingMapping);
+    if (keyExprs == null || keyExprs.length == 0) {
+      cg.getEvalBlock()._return(JExpr.lit(0));
+      return;
+    }
      
     HoldingContainer combinedHashValue = null;
 
     for (int i = 0; i < keyExprs.length; i++) {
       LogicalExpression expr = keyExprs[i];
       
-      cg.setMappingSet(GetHashIncomingMapping);
+      cg.setMappingSet(incomingMapping);
       HoldingContainer input = cg.addExpr(expr, false);
 
       // compute the hash(expr)
@@ -216,9 +280,12 @@ private static final GeneratorMapping OUTPUT_KEYS =
       }
     }
 
-    cg.getEvalBlock()._return(combinedHashValue.getValue()) ; 
-    
+    if (combinedHashValue != null) {
+      cg.getEvalBlock()._return(combinedHashValue.getValue()) ;
+    }
+    else {
+      cg.getEvalBlock()._return(JExpr.lit(0));
+    }
   }
-
 }
 

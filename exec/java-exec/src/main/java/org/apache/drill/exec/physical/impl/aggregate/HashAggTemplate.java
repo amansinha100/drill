@@ -146,7 +146,8 @@ public abstract class HashAggTemplate implements HashAggregator {
   @Override
   public void setup(HashAggregate hashAggrConfig, FragmentContext context, RecordBatch incoming, RecordBatch outgoing, 
                     LogicalExpression[] valueExprs, 
-                    List<TypedFieldId> valueFieldIds, 
+                    List<TypedFieldId> valueFieldIds,
+                    TypedFieldId[] groupByOutFieldIds,
                     VectorAllocator[] keyAllocators, VectorAllocator[] valueAllocators) 
     throws SchemaChangeException, ClassTransformationException, IOException {
 
@@ -180,8 +181,8 @@ public abstract class HashAggTemplate implements HashAggregator {
       materializedValueFields[i++] = MaterializedField.create(ref, id.getType());
     }
 
-    ChainedHashTable ht = new ChainedHashTable(hashAggrConfig.getHtConfig(), context, incoming, outgoing) ;
-    this.htable = ht.createAndSetupHashTable() ;
+    ChainedHashTable ht = new ChainedHashTable(hashAggrConfig.getHtConfig(), context, incoming, null /* no incoming probe */, outgoing) ;
+    this.htable = ht.createAndSetupHashTable(groupByOutFieldIds) ;
 
     batchHolders = new ArrayList<BatchHolder>();
     addBatchHolder(); 

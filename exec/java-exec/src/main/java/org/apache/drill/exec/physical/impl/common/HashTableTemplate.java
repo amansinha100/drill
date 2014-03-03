@@ -67,8 +67,11 @@ public abstract class HashTableTemplate implements HashTable {
 
   private FragmentContext context;
 
-  // The incoming record batch
-  private RecordBatch incoming;
+  // The incoming build side record batch
+  private RecordBatch incomingBuild;
+
+  // The incoming probe side record batch (may be null)
+  private RecordBatch incomingProbe;
 
   // The outgoing record batch
   private RecordBatch outgoing;
@@ -76,7 +79,8 @@ public abstract class HashTableTemplate implements HashTable {
   // Hash table configuration parameters
   private HashTableConfig htConfig; 
 
-  private MaterializedField[] materializedKeyFields;
+  // The original container from which others may be cloned
+  private VectorContainer htContainerOrig;
 
   private int outputCount = 0;
 
@@ -99,18 +103,8 @@ public abstract class HashTableTemplate implements HashTable {
 
     private BatchHolder() {
 
-      htContainer = new VectorContainer();
-      ValueVector vector;
-
-      for(int i = 0; i < materializedKeyFields.length; i++) {
-        MaterializedField outputField = materializedKeyFields[i];
-
-        // Create a type-specific ValueVector for this key
-        vector = TypeHelper.getNewVector(outputField, context.getAllocator()) ;
-        int avgBytes = 50;  // TODO: do proper calculation for variable width fields 
-        VectorAllocator.getAllocator(vector, avgBytes).alloc(BATCH_SIZE) ;
-        htContainer.add(vector) ;
-      }
+      // htContainer = new VectorContainer();
+      htContainer = VectorContainer.clone(htContainerOrig);
 
       links = new int[BATCH_SIZE];
       hashValues = new int[BATCH_SIZE];
@@ -128,22 +122,28 @@ public abstract class HashTableTemplate implements HashTable {
     }
 
     private void setup() {
-      setupInterior(incoming, outgoing, htContainer);
+      setupInterior(incomingBuild, incomingProbe, outgoing, htContainer);
     }
 
     // Check if the key at the currentIdx position in hash table matches the key
     // at the incomingRowIdx. if the key does not match, update the 
     // currentIdxHolder with the index of the next link.
     private boolean isKeyMatch(int incomingRowIdx, 
-                               IntHolder currentIdxHolder) {
+                               IntHolder currentIdxHolder, 
+                               boolean isProbe) {
 
       int currentIdxWithinBatch = currentIdxHolder.value & BATCH_MASK;
+      boolean match = false;
 
-      if (! isKeyMatchInternal(incomingRowIdx, currentIdxWithinBatch)) {
+      if (isProbe)
+        match = isKeyMatchInternalProbe(incomingRowIdx, currentIdxWithinBatch);
+      else 
+        match = isKeyMatchInternalBuild(incomingRowIdx, currentIdxWithinBatch);
+
+      if (! match) {
         currentIdxHolder.value = links[currentIdxWithinBatch];
-        return false;
       }
-      return true;
+      return match;
     }
 
     // Insert a new <key1, key2...keyN> entry coming from the incoming batch into the hash table 
@@ -277,12 +277,16 @@ public abstract class HashTableTemplate implements HashTable {
     // These methods will be code-generated 
 
     @RuntimeOverridden
-    protected void setupInterior(@Named("incoming") RecordBatch incoming, 
+    protected void setupInterior(@Named("incomingBuild") RecordBatch incomingBuild, 
+                                 @Named("incomingProbe") RecordBatch incomingProbe,
                                  @Named("outgoing") RecordBatch outgoing,
                                  @Named("htContainer") VectorContainer htContainer) {}
 
     @RuntimeOverridden
-    protected boolean isKeyMatchInternal(@Named("incomingRowIdx") int incomingRowIdx, @Named("htRowIdx") int htRowIdx) {return false;} 
+    protected boolean isKeyMatchInternalBuild(@Named("incomingRowIdx") int incomingRowIdx, @Named("htRowIdx") int htRowIdx) {return false;} 
+
+    @RuntimeOverridden
+    protected boolean isKeyMatchInternalProbe(@Named("incomingRowIdx") int incomingRowIdx, @Named("htRowIdx") int htRowIdx) {return false;} 
 
     @RuntimeOverridden
     protected boolean setValue(@Named("incomingRowIdx") int incomingRowIdx, @Named("htRowIdx") int htRowIdx) {return false;} 
@@ -294,8 +298,9 @@ public abstract class HashTableTemplate implements HashTable {
 
 
   @Override
-  public void setup(HashTableConfig htConfig, FragmentContext context, RecordBatch incoming, 
-                    RecordBatch outgoing, LogicalExpression[] keyExprs) {
+  public void setup(HashTableConfig htConfig, FragmentContext context, 
+                    RecordBatch incomingBuild, RecordBatch incomingProbe,
+                    RecordBatch outgoing, VectorContainer htContainerOrig) {
     float loadf = htConfig.getLoadFactor(); 
     int initialCap = htConfig.getInitialCapacity();
 
@@ -303,12 +308,14 @@ public abstract class HashTableTemplate implements HashTable {
     if (initialCap <= 0) throw new IllegalArgumentException("The initial capacity must be greater than 0");
     if (initialCap > MAXIMUM_CAPACITY) throw new IllegalArgumentException("The initial capacity must be less than maximum capacity allowed");
 
-    if (htConfig.getKeyExprs() == null || htConfig.getKeyExprs().length == 0) throw new IllegalArgumentException("Hash table must have at least 1 key expression");
+    if (htConfig.getKeyExprsBuild() == null || htConfig.getKeyExprsBuild().length == 0) throw new IllegalArgumentException("Hash table must have at least 1 key expression");
 
     this.htConfig = htConfig;
     this.context = context;
-    this.incoming = incoming;
+    this.incomingBuild = incomingBuild;
+    this.incomingProbe = incomingProbe;
     this.outgoing = outgoing;
+    this.htContainerOrig = htContainerOrig;
 
     // round up the initial capacity to nearest highest power of 2
     tableSize = roundUpToPowerOf2(initialCap);
@@ -319,19 +326,11 @@ public abstract class HashTableTemplate implements HashTable {
 
     startIndices = new int[tableSize];
 
-    materializedKeyFields = new MaterializedField[keyExprs.length];
-
-    for(int i = 0; i < keyExprs.length; i++) {
-      LogicalExpression expr = keyExprs[i];	
-      NamedExpression ne = htConfig.getKeyExprs()[i];
-      materializedKeyFields[i] = MaterializedField.create(ne.getRef(), expr.getMajorType()) ;
-    }
-
     // Create the first batch holder 
     batchHolders = new ArrayList<BatchHolder>();
     addBatchHolder();
 
-    doSetup(incoming);
+    doSetup(incomingBuild, incomingProbe);
 
     currentIdxHolder = new IntHolder();    
     initBuckets();
@@ -362,7 +361,6 @@ public abstract class HashTableTemplate implements HashTable {
     batchHolders.clear();
     batchHolders = null;
     startIndices = null;
-    materializedKeyFields = null;
     currentIdxHolder = null; 
     numEntries = 0;
   }
@@ -383,7 +381,7 @@ public abstract class HashTableTemplate implements HashTable {
 
   public PutStatus put(int incomingRowIdx, IntHolder htIdxHolder) {
 
-    int hash = getHash(incomingRowIdx);
+    int hash = getHashBuild(incomingRowIdx);
     int i = getBucketIndex(hash, numBuckets()); 
     int startIdx = startIndices[i];
     int currentIdx;
@@ -413,17 +411,15 @@ public abstract class HashTableTemplate implements HashTable {
     currentIdx = startIdx;
     boolean found = false;
 
-    // bh = batchHolders.get(currentIdx / BATCH_SIZE);
     bh = batchHolders.get( (currentIdx >>> 16) & BATCH_MASK);
     currentIdxHolder.value = currentIdx;
     
     // if startIdx is non-empty, follow the hash chain links until we find a matching 
     // key or reach the end of the chain
     while (true) {
-      // currentIdxWithinBatch = currentIdxHolder.value % BATCH_SIZE;
       currentIdxWithinBatch = currentIdxHolder.value & BATCH_MASK;
 
-      if (bh.isKeyMatch(incomingRowIdx, currentIdxHolder)) {
+      if (bh.isKeyMatch(incomingRowIdx, currentIdxHolder, false)) {
         htIdxHolder.value = currentIdxHolder.value;
         found = true;
         break;        
@@ -433,7 +429,6 @@ public abstract class HashTableTemplate implements HashTable {
         lastEntryIdxWithinBatch = currentIdxWithinBatch;
         break;
       } else {
-        // bh = batchHolders.get(currentIdxHolder.value / BATCH_SIZE);
         bh = batchHolders.get( (currentIdxHolder.value >>> 16) & HashTable.BATCH_MASK);
         lastEntryBatch = bh;
       }
@@ -475,8 +470,8 @@ public abstract class HashTableTemplate implements HashTable {
   }
 
   // Return -1 if key is not found in the hash table. Otherwise, return the global index of the key
-  public int containsKey(int incomingRowIdx) {
-    int hash = getHash(incomingRowIdx);
+  public int containsKey(int incomingRowIdx, boolean isProbe) {
+    int hash = isProbe ? getHashProbe(incomingRowIdx) : getHashBuild(incomingRowIdx);
     int i = getBucketIndex(hash, numBuckets());
 
     int currentIdx = startIndices[i];
@@ -490,7 +485,7 @@ public abstract class HashTableTemplate implements HashTable {
     boolean found = false;
 
     while (true) {
-      if (bh.isKeyMatch(incomingRowIdx, currentIdxHolder)) {
+      if (bh.isKeyMatch(incomingRowIdx, currentIdxHolder, isProbe)) {
         found = true; 
         break;
       } else if (currentIdxHolder.value == EMPTY_SLOT) {
@@ -503,14 +498,13 @@ public abstract class HashTableTemplate implements HashTable {
     return found ? currentIdxHolder.value : -1;
   }
 
-
   // Add a new BatchHolder to the list of batch holders if needed. This is based on the supplied 
   // currentIdx; since each BatchHolder can hold up to BATCH_SIZE entries, if the currentIdx exceeds
   // the capacity, we will add a new BatchHolder. 
   private BatchHolder addBatchIfNeeded(int currentIdx) {
     int totalBatchSize = batchHolders.size() * BATCH_SIZE;
     
-    if (currentIdx >= batchHolders.size() * BATCH_SIZE) {
+    if (currentIdx >= totalBatchSize) {
       BatchHolder bh = addBatchHolder(); 
       if (EXTRA_DEBUG) logger.debug("HashTable: Added new batch. Num batches = {}.", batchHolders.size());
       return bh;
@@ -591,8 +585,9 @@ public abstract class HashTableTemplate implements HashTable {
   }
 
   // These methods will be code-generated in the context of the outer class 
-  protected abstract void doSetup(@Named("incoming") RecordBatch incoming);
-  protected abstract int getHash(@Named("incomingRowIdx") int incomingRowIdx);
+  protected abstract void doSetup(@Named("incomingBuild") RecordBatch incomingBuild, @Named("incomingProbe") RecordBatch incomingProbe);
+  protected abstract int getHashBuild(@Named("incomingRowIdx") int incomingRowIdx) ;
+  protected abstract int getHashProbe(@Named("incomingRowIdx") int incomingRowIdx) ;
 
 } 
 

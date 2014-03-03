@@ -40,12 +40,12 @@ public interface HashTable {
   static public enum PutStatus {KEY_PRESENT, KEY_ADDED, PUT_FAILED ;}
 
   /** The batch size used for internal batch holders */
-  static final public int BATCH_SIZE = Character.MAX_VALUE;
+  static final public int BATCH_SIZE = Character.MAX_VALUE+1;
   static final public int BATCH_MASK = 0x0000FFFF;
 
   public void setup(HashTableConfig htConfig, FragmentContext context, 
-                    RecordBatch incoming, RecordBatch outgoing, 
-                    LogicalExpression[] keyExprs);
+                    RecordBatch incomingBuild, RecordBatch incomingProbe, 
+                    RecordBatch outgoing, VectorContainer htContainerOrig);
 
   public PutStatus put(int incomingRowIdx, IntHolder htIdxHolder);
   

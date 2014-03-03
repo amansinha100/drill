@@ -50,10 +50,13 @@ public class HashAggregate extends AbstractSingle {
     this.aggrExprs = aggrExprs;
     this.cardinality = cardinality;
 
-    int initial_capacity = cardinality > 0 ? (int) cardinality : HashTable.DEFAULT_INITIAL_CAPACITY;
+    int initial_capacity = cardinality > HashTable.DEFAULT_INITIAL_CAPACITY ? 
+      (int) cardinality : HashTable.DEFAULT_INITIAL_CAPACITY;
+
     this.htConfig = new HashTableConfig(initial_capacity,                                        
                                         HashTable.DEFAULT_LOAD_FACTOR, 
-                                        groupByExprs) ;
+                                        groupByExprs, 
+                                        null /* no probe exprs */) ;
   }
 
   public NamedExpression[] getGroupByExprs() {
@@ -79,7 +82,6 @@ public class HashAggregate extends AbstractSingle {
 
   @Override
   public OperatorCost getCost() {
-    // return child.getCost();
 
     final float hashCpuCost = (float) 10000.0; // temporarily set this high until we calibrate hashaggr vs. streaming-aggr costs.
     Size childSize = child.getSize();
