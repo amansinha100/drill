@@ -163,13 +163,20 @@ public class DrillSqlWorker {
   }
   
   public PhysicalPlan getPhysicalPlan(String sql) throws SqlParseException, ValidationException, RelConversionException{
+    RelResult result = getRel(sql);
+
+    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL);
+    
+    Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);
+
+    /*
     RelResult result = getRel2(sql);
 
 
-    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SCAN_MULTIPLEX);
+    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.EXCHANGE_MULTIPLEX);
     
     Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);
-    
+    */
     //Debug. 
     String msg = RelOptUtil.toString(phyRelNode, SqlExplainLevel.ALL_ATTRIBUTES);
     System.err.print(msg);

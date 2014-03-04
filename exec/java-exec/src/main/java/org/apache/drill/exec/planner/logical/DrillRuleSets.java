@@ -24,6 +24,7 @@ import net.hydromatic.optiq.tools.RuleSet;
 import org.apache.drill.exec.planner.physical.DrillInsertExchUnderScreenRule;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
 import org.apache.drill.exec.planner.physical.ScanPrule;
+import org.apache.drill.exec.planner.physical.ScreenPrule;
 import org.eigenbase.rel.rules.MergeProjectRule;
 import org.eigenbase.rel.rules.PushFilterPastJoinRule;
 import org.eigenbase.rel.rules.PushFilterPastProjectRule;
@@ -39,6 +40,7 @@ import org.eigenbase.rel.rules.SwapJoinRule;
 import org.eigenbase.rel.rules.TableAccessRule;
 import org.eigenbase.rel.rules.UnionToDistinctRule;
 import org.eigenbase.relopt.RelOptRule;
+import org.eigenbase.relopt.volcano.AbstractConverter;
 import org.eigenbase.relopt.volcano.AbstractConverter.ExpandConversionRule;
 
 import com.google.common.collect.ImmutableSet;
@@ -70,7 +72,9 @@ public class DrillRuleSets {
 //      DrillJoinRule.INSTANCE,
 //      DrillUnionRule.INSTANCE,
       ProjectPrule.INSTANCE,
-      ScanPrule.INSTANCE
+      ScanPrule.INSTANCE,
+      ScreenPrule.INSTANCE,
+      AbstractConverter.ExpandConversionRule.INSTANCE
       //DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,

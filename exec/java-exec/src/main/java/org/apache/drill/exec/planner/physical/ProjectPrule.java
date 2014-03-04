@@ -40,8 +40,8 @@ public class ProjectPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     
     //Requires child under "screen" is NOT simplex mode. Otherwise, this rule should not be fired.
-    if (input.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(DrillMuxMode.SIMPLEX))
-      return;
+    //if (input.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(DrillMuxMode.SIMPLEX))
+    //  return;
    
     final RelTraitSet traits = input.getTraitSet().replace(Prel.DRILL_PHYSICAL);
     final RelNode convertedInput = convert(input, traits);

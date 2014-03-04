@@ -39,8 +39,13 @@ public class DrillMuxModeDef extends RelTraitDef<DrillMuxMode>{
       boolean allowInfiniteCostConverters) {
     if (rel.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(toMuxMode)) {
       return rel;
+    } else if (rel.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(DrillMuxMode.SIMPLEX)){
+      final RelNode unionExch = new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().replace(DrillMuxMode.EXCHANGE_MULTIPLEX), rel);
+      
+      return unionExch;
+      //return rel.copy(rel.getTraitSet().replace(toMuxMode), rel.getInputs());
     } else {
-      return rel.copy(rel.getTraitSet().replace(toMuxMode), rel.getInputs());
+      return null;
     }
     //TODO
     //throw new Exception("not support convert for DrillMuxMode");
