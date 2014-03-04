@@ -139,7 +139,7 @@ public class ChainedHashTable {
       final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
       // create a type-specific ValueVector for this key
       ValueVector vv = TypeHelper.getNewVector(outputField, context.getAllocator());
-      VectorAllocator.getAllocator(vv, 50).alloc(HashTable.BATCH_SIZE);
+      VectorAllocator.getAllocator(vv, 50 /* avg width */).alloc(HashTable.BATCH_SIZE);
       htKeyFieldIds[i] = htContainerOrig.add(vv);
       
       i++;

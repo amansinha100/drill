@@ -100,8 +100,7 @@ public abstract class HashAggTemplate implements HashAggregator {
         MaterializedField outputField = materializedValueFields[i];
         // Create a type-specific ValueVector for this value
         vector = TypeHelper.getNewVector(outputField, context.getAllocator()) ;
-        int avgBytes = 50; // TODO: do proper calculation for variable width fields
-        VectorAllocator.getAllocator(vector, avgBytes).alloc(HashTable.BATCH_SIZE) ;
+        VectorAllocator.getAllocator(vector, 50 /* avg. width */).alloc(HashTable.BATCH_SIZE) ;
         
         aggrValuesContainer.add(vector) ;
       }
