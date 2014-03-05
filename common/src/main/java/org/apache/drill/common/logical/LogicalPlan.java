@@ -44,14 +44,15 @@ public class LogicalPlan {
   static final Logger logger = LoggerFactory.getLogger(LogicalPlan.class);
 
   private final PlanProperties properties;
-  private final Map<String, StorageEngineConfig> storageEngineMap;
+  private final Map<String, StoragePluginConfig> storageEngineMap;
   private final Graph<LogicalOperator, SinkOperator, SourceOperator> graph;
-
+  
+  
   @JsonCreator
   public LogicalPlan(@JsonProperty("head") PlanProperties head,
-      @JsonProperty("storage") Map<String, StorageEngineConfig> storageEngineMap,
+      @JsonProperty("storage") Map<String, StoragePluginConfig> storageEngineMap,
       @JsonProperty("query") List<LogicalOperator> operators) {
-    this.storageEngineMap = storageEngineMap != null ? storageEngineMap : new HashMap<String, StorageEngineConfig>();
+    this.storageEngineMap = storageEngineMap != null ? storageEngineMap : new HashMap<String, StoragePluginConfig>();
     this.properties = head;
     this.graph = Graph.newGraph(operators, SinkOperator.class, SourceOperator.class);
   }
@@ -61,7 +62,7 @@ public class LogicalPlan {
     return GraphAlgos.TopoSorter.sortLogical(graph);
   }
 
-  public StorageEngineConfig getStorageEngineConfig(String name) {
+  public StoragePluginConfig getStorageEngineConfig(String name) {
     return storageEngineMap.get(name);
   }
 
@@ -76,12 +77,21 @@ public class LogicalPlan {
   }
 
   @JsonProperty("storage")
-  public Map<String, StorageEngineConfig> getStorageEngines() {
+  public Map<String, StoragePluginConfig> getStorageEngines() {
     return storageEngineMap;
   }
 
   public String toJsonString(DrillConfig config) throws JsonProcessingException {
     return config.getMapper().writeValueAsString(this);
+  }
+
+  public String toJsonStringSafe(DrillConfig config){
+    try{
+      return toJsonString(config);
+    }catch(JsonProcessingException e){
+      logger.error("Failure while trying to get JSON representation of plan.", e);
+      return "Unable to generate plan.";
+    }
   }
 
   /** Parses a logical plan. */

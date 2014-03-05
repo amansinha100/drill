@@ -20,8 +20,7 @@ package org.apache.drill.exec.ops;
 import java.util.Collection;
 
 import org.apache.drill.common.config.DrillConfig;
-import org.apache.drill.common.exceptions.ExecutionSetupException;
-import org.apache.drill.common.logical.StorageEngineConfig;
+import org.apache.drill.common.expression.FunctionRegistry;
 import org.apache.drill.exec.cache.DistributedCache;
 import org.apache.drill.exec.planner.PhysicalPlanReader;
 import org.apache.drill.exec.proto.CoordinationProtos.DrillbitEndpoint;
@@ -29,7 +28,8 @@ import org.apache.drill.exec.proto.UserBitShared.QueryId;
 import org.apache.drill.exec.rpc.control.WorkEventBus;
 import org.apache.drill.exec.rpc.data.DataConnectionCreator;
 import org.apache.drill.exec.server.DrillbitContext;
-import org.apache.drill.exec.store.StorageEngine;
+import org.apache.drill.exec.store.StoragePluginRegistry;
+import org.apache.drill.exec.store.StoragePluginRegistry.DrillSchemaFactory;
 
 public class QueryContext {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(QueryContext.class);
@@ -53,10 +53,11 @@ public class QueryContext {
     return queryId;
   }
 
-  public StorageEngine getStorageEngine(StorageEngineConfig config) throws ExecutionSetupException {
-    return drillbitContext.getStorageEngine(config);
+  public StoragePluginRegistry getStorage(){
+    return drillbitContext.getStorage();
   }
-
+  
+  
   public DistributedCache getCache(){
     return drillbitContext.getCache();
   }
@@ -79,6 +80,14 @@ public class QueryContext {
   
   public WorkEventBus getWorkBus(){
     return workBus;
+  }
+
+  public FunctionRegistry getFunctionRegistry(){
+    return drillbitContext.getFunctionRegistry();
+  }
+  
+  public DrillSchemaFactory getFactory(){
+    return drillbitContext.getSchemaFactory();
   }
   
 }

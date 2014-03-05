@@ -26,6 +26,7 @@ import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.IfExpression;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
+import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.expression.ValueExpressions.BooleanExpression;
 import org.apache.drill.common.expression.ValueExpressions.DoubleExpression;
 import org.apache.drill.common.expression.ValueExpressions.LongExpression;
@@ -85,7 +86,7 @@ public class ConstantExpressionIdentifier implements ExprVisitor<Boolean, Identi
   
   @Override
   public Boolean visitFunctionCall(FunctionCall call, IdentityHashMap<LogicalExpression, Object> value){
-    return checkChildren(call, value, !call.getDefinition().isAggregating());
+    return checkChildren(call, value, !call.getDefinition().isAggregating() && !call.getDefinition().isRandom());
   }
 
   
@@ -98,28 +99,36 @@ public class ConstantExpressionIdentifier implements ExprVisitor<Boolean, Identi
   public Boolean visitSchemaPath(SchemaPath path, IdentityHashMap<LogicalExpression, Object> value){
     return false;
   }
-  
+
   @Override
-  public Boolean visitLongConstant(LongExpression intExpr, IdentityHashMap<LogicalExpression, Object> value){
+  public Boolean visitIntConstant(ValueExpressions.IntExpression intExpr, IdentityHashMap<LogicalExpression, Object> value) throws RuntimeException {
     value.put(intExpr, true);
     return true;
   }
 
   @Override
+  public Boolean visitFloatConstant(ValueExpressions.FloatExpression fExpr, IdentityHashMap<LogicalExpression, Object> value) throws RuntimeException {
+    value.put(fExpr, true);
+    return true;
+  }
+
+  @Override
+  public Boolean visitLongConstant(LongExpression intExpr, IdentityHashMap<LogicalExpression, Object> value){
+    return true;
+  }
+
+  @Override
   public Boolean visitDoubleConstant(DoubleExpression dExpr, IdentityHashMap<LogicalExpression, Object> value){
-    value.put(dExpr, true);
     return true;
   }
 
   @Override
   public Boolean visitBooleanConstant(BooleanExpression e, IdentityHashMap<LogicalExpression, Object> value){
-    value.put(e, true);
     return true;
   }
 
   @Override
   public Boolean visitQuotedStringConstant(QuotedString e, IdentityHashMap<LogicalExpression, Object> value){
-    value.put(e, true);
     return true;
   }
 

@@ -17,23 +17,32 @@
  ******************************************************************************/
 package org.apache.drill.common.logical;
 
+import org.apache.drill.common.logical.PlanProperties.Generator.ResultMode;
+import org.apache.drill.common.logical.PlanProperties.PlanType;
+import org.apache.drill.common.logical.data.LogicalOperator;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.drill.common.logical.data.LogicalOperator;
 
 /**
  * A programmatic builder for logical plans.
  */
 public class LogicalPlanBuilder {
   private PlanProperties planProperties;
-  private ImmutableMap.Builder<String, StorageEngineConfig> storageEngines = ImmutableMap.builder();
+  private ImmutableMap.Builder<String, StoragePluginConfig> storageEngines = ImmutableMap.builder();
   private ImmutableList.Builder<LogicalOperator> operators = ImmutableList.builder();
 
   public LogicalPlanBuilder planProperties(PlanProperties planProperties) {
     this.planProperties = planProperties;
     return this;
   }
-  public LogicalPlanBuilder addStorageEngine(String name, StorageEngineConfig config) {
+  
+  public LogicalPlanBuilder planProperties(PlanType type, int version, String generatorType, String generatorInfo, ResultMode mode){
+    this.planProperties = PlanProperties.builder().generator(generatorType, generatorInfo).type(type).version(version).resultMode(mode).build();
+    return this;
+  }
+  
+  public LogicalPlanBuilder addStorageEngine(String name, StoragePluginConfig config) {
     this.storageEngines.put(name, config);
     return this;
   }

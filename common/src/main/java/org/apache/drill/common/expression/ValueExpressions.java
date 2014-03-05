@@ -29,6 +29,30 @@ import com.google.common.collect.Iterators;
 
 public class ValueExpressions {
 
+  public static LogicalExpression getBigInt(long l){
+    return new LongExpression(l);
+  }
+  
+  public static LogicalExpression getInt(int i){
+    return new LongExpression(i);
+  }
+  
+  public static LogicalExpression getFloat8(double d){
+    return new DoubleExpression(d, ExpressionPosition.UNKNOWN);
+  }
+  public static LogicalExpression getFloat4(float f){
+    return new DoubleExpression(f, ExpressionPosition.UNKNOWN);
+  }
+  
+  public static LogicalExpression getBit(boolean b){
+    return new BooleanExpression(Boolean.toString(b), ExpressionPosition.UNKNOWN);
+  }
+  
+  public static LogicalExpression getChar(String s){
+    return new QuotedString(s, ExpressionPosition.UNKNOWN);
+  }
+  
+
   public static LogicalExpression getNumericExpression(String s, ExpressionPosition ep) {
     try {
       long l = Long.parseLong(s);
@@ -74,6 +98,7 @@ public class ValueExpressions {
       super(value, pos);
     }
 
+    
     @Override
     protected Boolean parseValue(String s) {
       return Boolean.parseBoolean(s);
@@ -91,6 +116,69 @@ public class ValueExpressions {
 
     public boolean getBoolean() {
       return value;
+    }
+
+  }
+
+  public static class FloatExpression extends LogicalExpressionBase {
+    private float f;
+
+    private static final MajorType FLOAT_CONSTANT = Types.required(MinorType.FLOAT4);
+
+    public FloatExpression(float f, ExpressionPosition pos) {
+      super(pos);
+      this.f = f;
+    }
+
+    public float getFloat() {
+      return f;
+    }
+
+    @Override
+    public MajorType getMajorType() {
+      return FLOAT_CONSTANT;
+    }
+
+    @Override
+    public <T, V, E extends Exception> T accept(ExprVisitor<T, V, E> visitor, V value) throws E {
+      return visitor.visitFloatConstant(this, value);
+    }
+
+    @Override
+    public Iterator<LogicalExpression> iterator() {
+      return Iterators.emptyIterator();
+    }
+
+  }
+
+  public static class IntExpression extends LogicalExpressionBase {
+
+    private static final MajorType INT_CONSTANT = Types.required(MinorType.INT);
+
+    private int i;
+
+    public IntExpression(int i, ExpressionPosition pos) {
+      super(pos);
+      this.i = i;
+    }
+
+    public int getInt() {
+      return i;
+    }
+
+    @Override
+    public MajorType getMajorType() {
+      return INT_CONSTANT;
+    }
+
+    @Override
+    public <T, V, E extends Exception> T accept(ExprVisitor<T, V, E> visitor, V value) throws E {
+      return visitor.visitIntConstant(this, value);
+    }
+
+    @Override
+    public Iterator<LogicalExpression> iterator() {
+      return Iterators.emptyIterator();
     }
 
   }
@@ -132,7 +220,11 @@ public class ValueExpressions {
 
     private long l;
 
-    public LongExpression(long l, ExpressionPosition pos) {
+    public LongExpression(long l) {
+      this(l, ExpressionPosition.UNKNOWN);
+    }
+    
+      public LongExpression(long l, ExpressionPosition pos) {
       super(pos);
       this.l = l;
     }

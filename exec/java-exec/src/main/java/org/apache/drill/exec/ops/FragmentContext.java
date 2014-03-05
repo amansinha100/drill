@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import net.hydromatic.optiq.SchemaPlus;
+
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.exec.compile.ClassTransformer;
 import org.apache.drill.exec.compile.QueryClassLoader;
@@ -50,7 +52,7 @@ public class FragmentContext implements Closeable {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(FragmentContext.class);
 
 
-  private Map<DrillbitEndpoint, DataTunnel> tunnels = Maps.newHashMap();
+  private Map<FragmentHandle, DataTunnel> tunnels = Maps.newHashMap();
 
   private final DrillbitContext context;
   private final UserClientConnection connection;
@@ -75,6 +77,7 @@ public class FragmentContext implements Closeable {
     this.connection = connection;
     this.fragment = fragment;
     this.funcRegistry = funcRegistry;
+    logger.debug("Getting initial memory allocation of {}", fragment.getMemInitial());
     this.allocator = context.getAllocator().getChildAllocator(fragment.getHandle(), fragment.getMemInitial(), fragment.getMemMax());
   }
 
@@ -90,6 +93,10 @@ public class FragmentContext implements Closeable {
 
   public DrillbitContext getDrillbitContext() {
     return context;
+  }
+  
+  public SchemaPlus getRootSchema(){
+    return context.getStorage().getSchemaFactory().getOrphanedRootSchema();
   }
 
   /**
@@ -147,10 +154,10 @@ public class FragmentContext implements Closeable {
   }
 
   public DataTunnel getDataTunnel(DrillbitEndpoint endpoint, FragmentHandle remoteHandle) {
-    DataTunnel tunnel = tunnels.get(endpoint);
+    DataTunnel tunnel = tunnels.get(remoteHandle);
     if (tunnel == null) {
       tunnel = context.getDataConnectionsPool().getTunnel(endpoint, remoteHandle);
-      tunnels.put(endpoint, tunnel);
+      tunnels.put(remoteHandle, tunnel);
     }
     return tunnel;
   }
@@ -158,8 +165,8 @@ public class FragmentContext implements Closeable {
   /**
    * Add a new thread to this fragment's context. This thread will likely run for the life of the fragment but should be
    * terminated when the fragment completes. When the fragment completes, the threads will be interrupted.
-   * 
-   * @param runnable
+   *
+   * @param thread
    */
   public void addDaemonThread(Thread thread) {
     daemonThreads.add(thread);

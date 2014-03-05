@@ -72,7 +72,7 @@ class DrillAggFuncHolder extends DrillFuncHolder{
   public JVar[] renderStart(ClassGenerator<?> g, HoldingContainer[] inputVariables) {
     if (!g.getMappingSet().isHashAggMapping()) {  //Declare workspace vars for non-hash-aggregation. 
       JVar[] workspaceJVars = declareWorkspaceVariables(g);
-      generateBody(g, BlockType.SETUP, setup, workspaceJVars);
+      generateBody(g, BlockType.SETUP, setup, null, workspaceJVars, false);
       return workspaceJVars;
     } else {  //Declare workspace vars and workspace vectors for hash aggregation.
        
@@ -107,7 +107,7 @@ class DrillAggFuncHolder extends DrillFuncHolder{
 
   @Override
   public void renderMiddle(ClassGenerator<?> g, HoldingContainer[] inputVariables, JVar[]  workspaceJVars) {
-    addProtectedBlock(g, g.getBlock(BlockType.EVAL), add, inputVariables, workspaceJVars);
+    addProtectedBlock(g, g.getBlock(BlockType.EVAL), add, inputVariables, workspaceJVars, false);
   }
 
 
@@ -117,14 +117,14 @@ class DrillAggFuncHolder extends DrillFuncHolder{
     JBlock sub = new JBlock();
     g.getEvalBlock().add(sub);
     JVar internalOutput = sub.decl(JMod.FINAL, g.getHolderType(returnValue.type), returnValue.name, JExpr._new(g.getHolderType(returnValue.type)));
-    addProtectedBlock(g, sub, output, null, workspaceJVars);
+    addProtectedBlock(g, sub, output, null, workspaceJVars, false);
     sub.assign(out.getHolder(), internalOutput);
 
     //hash aggregate uses workspace vectors. Initialization is done in "setup" and does not require "reset" block. 
     if (!g.getMappingSet().isHashAggMapping()) {
-      generateBody(g, BlockType.RESET, reset, workspaceJVars);
+      generateBody(g, BlockType.RESET, reset, null, workspaceJVars, false);
     }
-   generateBody(g, BlockType.CLEANUP, cleanup, workspaceJVars);
+    generateBody(g, BlockType.CLEANUP, cleanup, null, workspaceJVars, false);
     return out;
   }
 
