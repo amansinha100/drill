@@ -10,14 +10,12 @@ import org.eigenbase.relopt.RelTraitDef;
  *
  */
 public class DrillMuxMode implements RelTrait {
-  public static enum MuxMode {SIMPLEX, SCAN_MULTIPLEX, EXCHANGE_SIMPLEX, EXCHANGE_MULTIPLEX};
+  public static enum MuxMode {SIMPLEX, MULTIPLEX};
   
   public static DrillMuxMode DEFAULT = new DrillMuxMode(MuxMode.SIMPLEX);
   
   public static DrillMuxMode SIMPLEX = new DrillMuxMode(MuxMode.SIMPLEX);
-  public static DrillMuxMode SCAN_MULTIPLEX = new DrillMuxMode(MuxMode.SCAN_MULTIPLEX);
-  public static DrillMuxMode EXCHANGE_MULTIPLEX = new DrillMuxMode(MuxMode.EXCHANGE_MULTIPLEX);
-  public static DrillMuxMode EXCHANGE_SIMPLEX = new DrillMuxMode(MuxMode.EXCHANGE_SIMPLEX);
+  public static DrillMuxMode MULTIPLEX = new DrillMuxMode(MuxMode.MULTIPLEX);
   
   private MuxMode mode;
   
@@ -29,7 +27,7 @@ public class DrillMuxMode implements RelTrait {
     return this == trait;
   }
 
-  public RelTraitDef getTraitDef() {
+  public RelTraitDef<DrillMuxMode> getTraitDef() {
     return DrillMuxModeDef.INSTANCE;
   }
   
@@ -48,6 +46,11 @@ public class DrillMuxMode implements RelTrait {
     return false;
   }
   
+  
+  public MuxMode getMode() {
+    return mode;
+  }
+
   @Override
   public String toString() {
     return this.mode.toString();

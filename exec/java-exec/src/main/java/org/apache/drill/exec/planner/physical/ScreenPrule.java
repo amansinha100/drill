@@ -1,7 +1,5 @@
 package org.apache.drill.exec.planner.physical;
 
-import org.apache.drill.exec.planner.common.BaseProjectRel;
-import org.apache.drill.exec.planner.common.BaseScanRel;
 import org.apache.drill.exec.planner.common.BaseScreenRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
@@ -24,9 +22,9 @@ public class ScreenPrule extends RelOptRule{
     final BaseScreenRel screen = (BaseScreenRel) call.rel(0);
     final RelNode input = call.rel(1);
     
-    final RelTraitSet traits = screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).replace(DrillMuxMode.EXCHANGE_MULTIPLEX);
+    final RelTraitSet traits = screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SIMPLEX);
     final RelNode convertedInput = convert(input, traits);
-    BaseScreenRel newScreen = new ScreenPrel(screen.getCluster(), screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).replace(DrillMuxMode.SIMPLEX), convertedInput);
+    BaseScreenRel newScreen = new ScreenPrel(screen.getCluster(), screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SIMPLEX), convertedInput);
     call.transformTo(newScreen);
   }
 

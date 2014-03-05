@@ -1,9 +1,8 @@
 package org.apache.drill.exec.planner.physical;
 
-import org.eigenbase.rel.RelCollation;
-import org.eigenbase.rel.RelCollationImpl;
+import java.util.Collections;
+
 import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitDef;
 
@@ -37,18 +36,27 @@ public class DrillMuxModeDef extends RelTraitDef<DrillMuxMode>{
       RelNode rel,
       DrillMuxMode toMuxMode,
       boolean allowInfiniteCostConverters) {
-    if (rel.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(toMuxMode)) {
+    
+    DrillMuxMode currentMuxMode = rel.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE);
+    
+    if (currentMuxMode.equals(toMuxMode)) {
       return rel;
-    } else if (rel.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(DrillMuxMode.SIMPLEX)){
-      final RelNode unionExch = new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().replace(DrillMuxMode.EXCHANGE_MULTIPLEX), rel);
-      
-      return unionExch;
-      //return rel.copy(rel.getTraitSet().replace(toMuxMode), rel.getInputs());
-    } else {
-      return null;
     }
-    //TODO
-    //throw new Exception("not support convert for DrillMuxMode");
+    
+    switch(toMuxMode.getMode()){
+      case SIMPLEX:
+      if(currentMuxMode.getMode() == DrillMuxMode.MuxMode.SIMPLEX){
+        // the rel trait is DEFAULT, we want it to be SIMPLEX.  Just copy with new trait since they are interchangeable.
+        return rel.copy(rel.getTraitSet().plus(DrillMuxMode.SIMPLEX), Collections.singletonList(rel));
+      }else{
+        // input is multiplex so we need to first add union exchange to convert to simplex.
+        return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(DrillMuxMode.SIMPLEX), rel);
+      }
+      case MULTIPLEX:
+      default:
+        return null;
+    }
+
   }
  
 }

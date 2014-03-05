@@ -43,7 +43,7 @@ public class ProjectPrule extends RelOptRule {
     //if (input.getTraitSet().getTrait(DrillMuxModeDef.INSTANCE).equals(DrillMuxMode.SIMPLEX))
     //  return;
    
-    final RelTraitSet traits = input.getTraitSet().replace(Prel.DRILL_PHYSICAL);
+    final RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL);
     final RelNode convertedInput = convert(input, traits);
     call.transformTo(new ProjectPrel(project.getCluster(), convertedInput.getTraitSet(), convertedInput, project.getProjects(), project.getRowType()));
   }
