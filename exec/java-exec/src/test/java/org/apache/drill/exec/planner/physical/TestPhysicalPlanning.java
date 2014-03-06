@@ -35,7 +35,8 @@ public class TestPhysicalPlanning {
     StoragePluginRegistry registry = new StoragePluginRegistry(bitContext);
     DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
     //worker.getPhysicalPlan("select * from cp.`employee.json`");
-    worker.getPhysicalPlan("select R_REGIONKEY, cast(R_NAME as varchar(15)) as region, cast(R_COMMENT as varchar(255)) as comment from dfs.`/Users/jnadeau/regions/`");
+//    worker.getPhysicalPlan("select R_REGIONKEY, cast(R_NAME as varchar(15)) as region, cast(R_COMMENT as varchar(255)) as comment from dfs.`/Users/jnadeau/regions/`");
+    worker.getPhysicalPlan("select R_REGIONKEY from dfs.`/Users/jnadeau/regions/` group by R_REGIONKEY");
     
   }
   

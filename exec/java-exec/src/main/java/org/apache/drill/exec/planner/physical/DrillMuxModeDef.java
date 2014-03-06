@@ -44,6 +44,8 @@ public class DrillMuxModeDef extends RelTraitDef<DrillMuxMode>{
     }
     
     switch(toMuxMode.getMode()){
+      case NO_MUX: 
+        return rel;
       case SIMPLEX:
       if(currentMuxMode.getMode() == DrillMuxMode.MuxMode.SIMPLEX){
         // the rel trait is DEFAULT, we want it to be SIMPLEX.  Just copy with new trait since they are interchangeable.

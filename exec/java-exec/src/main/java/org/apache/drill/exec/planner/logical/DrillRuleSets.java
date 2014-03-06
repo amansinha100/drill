@@ -21,27 +21,12 @@ import java.util.Iterator;
 
 import net.hydromatic.optiq.tools.RuleSet;
 
-import org.apache.drill.exec.planner.physical.DrillInsertExchUnderScreenRule;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
 import org.apache.drill.exec.planner.physical.ScanPrule;
 import org.apache.drill.exec.planner.physical.ScreenPrule;
-import org.eigenbase.rel.rules.MergeProjectRule;
-import org.eigenbase.rel.rules.PushFilterPastJoinRule;
-import org.eigenbase.rel.rules.PushFilterPastProjectRule;
-import org.eigenbase.rel.rules.PushJoinThroughJoinRule;
-import org.eigenbase.rel.rules.PushSortPastProjectRule;
-import org.eigenbase.rel.rules.ReduceAggregatesRule;
-import org.eigenbase.rel.rules.RemoveDistinctAggregateRule;
-import org.eigenbase.rel.rules.RemoveDistinctRule;
-import org.eigenbase.rel.rules.RemoveSortRule;
-import org.eigenbase.rel.rules.RemoveTrivialCalcRule;
-import org.eigenbase.rel.rules.RemoveTrivialProjectRule;
-import org.eigenbase.rel.rules.SwapJoinRule;
-import org.eigenbase.rel.rules.TableAccessRule;
-import org.eigenbase.rel.rules.UnionToDistinctRule;
+import org.apache.drill.exec.planner.physical.StreamAggPrule;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.volcano.AbstractConverter;
-import org.eigenbase.relopt.volcano.AbstractConverter.ExpandConversionRule;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -74,7 +59,8 @@ public class DrillRuleSets {
       ProjectPrule.INSTANCE,
       ScanPrule.INSTANCE,
       ScreenPrule.INSTANCE,
-      AbstractConverter.ExpandConversionRule.INSTANCE
+      AbstractConverter.ExpandConversionRule.INSTANCE,
+      StreamAggPrule.INSTANCE
       //DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,

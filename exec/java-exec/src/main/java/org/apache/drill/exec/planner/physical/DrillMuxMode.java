@@ -10,9 +10,9 @@ import org.eigenbase.relopt.RelTraitDef;
  *
  */
 public class DrillMuxMode implements RelTrait {
-  public static enum MuxMode {SIMPLEX, MULTIPLEX};
+  public static enum MuxMode {NO_MUX, SIMPLEX, MULTIPLEX};
   
-  public static DrillMuxMode DEFAULT = new DrillMuxMode(MuxMode.SIMPLEX);
+  public static DrillMuxMode DEFAULT = new DrillMuxMode(MuxMode.NO_MUX);
   
   public static DrillMuxMode SIMPLEX = new DrillMuxMode(MuxMode.SIMPLEX);
   public static DrillMuxMode MULTIPLEX = new DrillMuxMode(MuxMode.MULTIPLEX);
@@ -24,6 +24,7 @@ public class DrillMuxMode implements RelTrait {
   }
   
   public boolean subsumes(RelTrait trait) {
+    if(trait == DEFAULT) return true;
     return this == trait;
   }
 
