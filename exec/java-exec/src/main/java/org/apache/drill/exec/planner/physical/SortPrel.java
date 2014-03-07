@@ -27,5 +27,14 @@ public class SortPrel extends SortRel implements Prel {
     return null;
   }
 
+  public SortPrel copy(
+      RelTraitSet traitSet,
+      RelNode newInput,
+      RelCollation newCollation,
+      RexNode offset,
+      RexNode fetch) {
+    return new SortPrel(getCluster(), traitSet, newInput, newCollation);
+  }
+  
   
 }

@@ -24,6 +24,7 @@ import net.hydromatic.optiq.tools.RuleSet;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
 import org.apache.drill.exec.planner.physical.ScanPrule;
 import org.apache.drill.exec.planner.physical.ScreenPrule;
+import org.apache.drill.exec.planner.physical.SortPrule;
 import org.apache.drill.exec.planner.physical.StreamAggPrule;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.volcano.AbstractConverter;
@@ -56,6 +57,7 @@ public class DrillRuleSets {
 //      DrillSortRule.INSTANCE,
 //      DrillJoinRule.INSTANCE,
 //      DrillUnionRule.INSTANCE,
+      SortPrule.INSTANCE,
       ProjectPrule.INSTANCE,
       ScanPrule.INSTANCE,
       ScreenPrule.INSTANCE,
