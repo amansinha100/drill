@@ -3,9 +3,6 @@ package org.apache.drill.exec.planner.physical;
 import java.util.List;
 import java.util.logging.Logger;
 
-import net.hydromatic.optiq.util.BitSets;
-
-import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.logical.DrillJoinRule;
 import org.apache.drill.exec.planner.logical.DrillRel;
@@ -44,11 +41,27 @@ public class MergeJoinPrule extends RelOptRule {
 
     RelCollation collationLeft = getCollation(join.getLeftKeys());
     RelCollation collationRight = getCollation(join.getRightKeys());
+
+    // Create transform request for MergeJoin plan with both children HASH distributed
     DrillDistributionTrait hashLeftPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(join.getLeftKeys())));
     DrillDistributionTrait hashRightPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(join.getRightKeys())));
+    RelTraitSet traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(hashLeftPartition);   
+    RelTraitSet traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(hashRightPartition);
+        
+    createTransformRequest(call, join, left, right, traitsLeft, traitsRight);
     
-    final RelTraitSet traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(hashLeftPartition);   
-    final RelTraitSet traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(hashRightPartition);
+    // Create transform request for MergeJoin plan with left child ANY distributed and right child BROADCAST distributed
+    DrillDistributionTrait distAnyLeft = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.ANY);
+    DrillDistributionTrait distBroadcastRight = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.BROADCAST_DISTRIBUTED);
+    traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(distAnyLeft);
+    traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(distBroadcastRight);
+    
+    createTransformRequest(call, join, left, right, traitsLeft, traitsRight);
+  }
+
+  private void createTransformRequest(RelOptRuleCall call, DrillJoinRel join, 
+                                      RelNode left, RelNode right, 
+                                      RelTraitSet traitsLeft, RelTraitSet traitsRight) {
     
     final RelNode convertedLeft = convert(left, traitsLeft);
     final RelNode convertedRight = convert(right, traitsRight);
@@ -59,10 +72,9 @@ public class MergeJoinPrule extends RelOptRule {
       call.transformTo(newJoin);
     } catch (InvalidRelException e) {
       tracer.warning(e.toString());
-    }
-
+    }        
   }
-  
+      
   private RelCollation getCollation(List<Integer> keys){    
     List<RelFieldCollation> fields = Lists.newArrayList();
     for (int key : keys) {
