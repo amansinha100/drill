@@ -22,9 +22,9 @@ public class ScreenPrule extends RelOptRule{
     final BaseScreenRel screen = (BaseScreenRel) call.rel(0);
     final RelNode input = call.rel(1);
     
-    final RelTraitSet traits = screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SIMPLEX);
+    final RelTraitSet traits = screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(DrillPartitionTrait.SINGLETON);
     final RelNode convertedInput = convert(input, traits);
-    BaseScreenRel newScreen = new ScreenPrel(screen.getCluster(), screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SIMPLEX), convertedInput);
+    BaseScreenRel newScreen = new ScreenPrel(screen.getCluster(), screen.getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(DrillPartitionTrait.SINGLETON), convertedInput);
     call.transformTo(newScreen);
   }
 

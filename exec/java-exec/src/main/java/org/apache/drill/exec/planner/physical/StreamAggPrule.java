@@ -34,13 +34,14 @@ public class StreamAggPrule extends RelOptRule {
     final DrillAggregateRel aggregate = (DrillAggregateRel) call.rel(0);
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
-    final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation);
+    
+    DrillPartitionTrait hashPartition = new DrillPartitionTrait(DrillPartitionTrait.PartitionType.HASH_PARTITIONED, null);
+    
+    final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashPartition);
+    
     final RelNode convertedInput = convert(input, traits);
-    final RelOptCluster cluster = aggregate.getCluster();
-
-    try {
-      
-      
+    
+    try {          
       StreamAggPrel newAgg = new StreamAggPrel(aggregate.getCluster(), traits, convertedInput, aggregate.getGroupSet(),
           aggregate.getAggCallList());
       

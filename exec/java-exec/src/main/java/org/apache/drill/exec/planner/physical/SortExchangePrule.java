@@ -18,32 +18,34 @@
 package org.apache.drill.exec.planner.physical;
 
 import org.apache.drill.exec.planner.logical.DrillSortRel;
+import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SortRel;
 import org.eigenbase.rel.convert.ConverterRule;
 import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
+import org.eigenbase.relopt.RelTraitSet;
 
 /**
  * Rule that converts an {@link SortRel} to a {@link DrillSortRel}, implemented by a Drill "order" operation.
  */
-public class SortPrule extends ConverterRule {
-  public static final RelOptRule INSTANCE = new SortPrule();
+public class SortExchangePrule extends RelOptRule {
+  public static final RelOptRule INSTANCE = new SortExchangePrule();
 
-  private SortPrule() {
-    super(SortRel.class, Convention.NONE, Prel.DRILL_PHYSICAL, "SortPrule");
+  public SortExchangePrule() {
+    super(RelOptHelper.some(SortPrel.class, Prel.DRILL_PHYSICAL, RelOptHelper.any(RelNode.class)), "SortExchange");    
   }
 
   @Override
-  public boolean matches(RelOptRuleCall call) {
-    final SortRel sort = call.rel(0);
-    return sort.offset == null && sort.fetch == null;
-  }
-
-  @Override
-  public RelNode convert(RelNode r) {
-    SortRel rel = (SortRel) r;
-    return new SortPrel(rel.getCluster(), rel.getChild().getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(rel.getCollation()), rel.getChild(), rel.getCollation());
+  public void onMatch(RelOptRuleCall call) {
+    final SortPrel sort = (SortPrel) call.rel(0);
+    final RelNode input = call.rel(1);
+    
+    final RelTraitSet traits = sort.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.MULTIPLEX);
+    final RelNode convertedInput = convert(input, traits);
+    
+    SortPrel newSort = new SortPrel(sort.getCluster(), traits, convertedInput, sort.getCollation());
+    call.transformTo(newSort);  
   }
 }

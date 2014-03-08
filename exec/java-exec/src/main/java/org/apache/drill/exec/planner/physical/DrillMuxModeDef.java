@@ -2,6 +2,9 @@ package org.apache.drill.exec.planner.physical;
 
 import java.util.Collections;
 
+import org.eigenbase.rel.RelCollation;
+import org.eigenbase.rel.RelCollationImpl;
+import org.eigenbase.rel.RelCollationTraitDef;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitDef;
@@ -15,7 +18,7 @@ public class DrillMuxModeDef extends RelTraitDef<DrillMuxMode>{
   
   public boolean canConvert(
       RelOptPlanner planner, DrillMuxMode fromTrait, DrillMuxMode toTrait) {
-    return false;
+    return true;
   }  
 
   public Class<DrillMuxMode> getTraitClass(){
@@ -52,9 +55,18 @@ public class DrillMuxModeDef extends RelTraitDef<DrillMuxMode>{
         return rel.copy(rel.getTraitSet().plus(DrillMuxMode.SIMPLEX), Collections.singletonList(rel));
       }else{
         // input is multiplex so we need to first add union exchange to convert to simplex.
-        return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(DrillMuxMode.SIMPLEX), rel);
+        return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.SIMPLEX), rel);
       }
-      case MULTIPLEX:
+      case MULTIPLEX: 
+        RelCollation collation = rel.getTraitSet().getTrait(RelCollationTraitDef.INSTANCE);
+        RelNode exch = new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillMuxMode.MULTIPLEX), rel);
+        if (!collation.equals(RelCollationImpl.EMPTY)) {
+          RelNode sort = new SortPrel(rel.getCluster(), exch.getTraitSet().plus(rel.getTraitSet().getTrait(RelCollationTraitDef.INSTANCE)), exch, collation);
+          return sort;
+        } else {
+          return exch;
+        }
+        
       default:
         return null;
     }
