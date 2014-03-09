@@ -6,19 +6,19 @@ import org.eigenbase.relopt.RelTraitDef;
 import com.google.common.collect.ImmutableList;
 
 public class DrillPartitionTrait implements RelTrait {
-  public static enum PartitionType {SINGLETON, HASH_PARTITIONED, RANGE_PARTITIONED, RANDOM_PARTITIONED, NO_PARTITIONED};
+  public static enum PartitionType {SINGLETON, HASH_PARTITIONED, RANGE_PARTITIONED, RANDOM_PARTITIONED};//, NO_PARTITIONED};
 
   public static DrillPartitionTrait SINGLETON = new DrillPartitionTrait(PartitionType.SINGLETON);
-  public static DrillPartitionTrait NO_PARTITIONED = new DrillPartitionTrait(PartitionType.NO_PARTITIONED);
   public static DrillPartitionTrait RANDOM_PARTITIONED = new DrillPartitionTrait(PartitionType.RANDOM_PARTITIONED);
   
-  public static DrillPartitionTrait DEFAULT = NO_PARTITIONED;
+  public static DrillPartitionTrait DEFAULT = SINGLETON;
   
   private PartitionType type;  
   private final ImmutableList<PartitionField> fields;
   
   private DrillPartitionTrait(PartitionType type) {
-    assert (type == PartitionType.SINGLETON || type == PartitionType.NO_PARTITIONED || type == PartitionType.RANDOM_PARTITIONED);
+    //assert (type == PartitionType.SINGLETON || type == PartitionType.NO_PARTITIONED || type == PartitionType.RANDOM_PARTITIONED);
+    assert (type == PartitionType.SINGLETON || type == PartitionType.RANDOM_PARTITIONED);
     this.type = type;
     this.fields = null;    
   }
@@ -30,7 +30,7 @@ public class DrillPartitionTrait implements RelTrait {
   }
 
   public boolean subsumes(RelTrait trait) {
-    if(trait == DEFAULT || this == DEFAULT) return true;
+    //if(trait == DEFAULT || this == DEFAULT) return true;
     return this.equals(trait);
   }
   
@@ -62,8 +62,8 @@ public class DrillPartitionTrait implements RelTrait {
     return fields == null ? this.type.toString() : this.type.toString() + "(" + fields + ")";
   }
 
+  
   public class PartitionField {
-    
     /**
      * 0-based index of field being partitioned.
      */
@@ -84,6 +84,7 @@ public class DrillPartitionTrait implements RelTrait {
     public int hashCode() {
       return this.fieldId;
     }
-
+    
   }
+  
 }

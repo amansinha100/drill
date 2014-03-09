@@ -20,8 +20,8 @@ public class HashToRandomExchangePrel extends SingleRel implements Prel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    //return super.computeSelfCost(planner).multiplyBy(.1);    
-    return planner.getCostFactory().makeZeroCost();
+    return super.computeSelfCost(planner).multiplyBy(.1);    
+    //return planner.getCostFactory().makeZeroCost();
   }
 
   @Override

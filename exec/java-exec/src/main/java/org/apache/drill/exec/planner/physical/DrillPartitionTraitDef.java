@@ -47,17 +47,8 @@ public class DrillPartitionTraitDef extends RelTraitDef<DrillPartitionTrait>{
     }
     
     switch(toPartition.getType()){
-      case NO_PARTITIONED: 
-        return null;
       case SINGLETON:
-//        // the rel trait is DEFAULT, we want it to be SIMPLEX.  Just copy with new trait since they are interchangeable.
-//        if(currentPartition == DrillPartitionTrait.DEFAULT){
-//          //return rel.copy(rel.getTraitSet().plus(toPartition), Collections.singletonList(rel));
-//          return rel;
-//        } else {  
-//          // input is multiplex so we need to first add union exchange to convert to simplex.
           return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);
-        //}
       case HASH_PARTITIONED: 
         RelCollation collation = rel.getTraitSet().getTrait(RelCollationTraitDef.INSTANCE);
         RelNode exch = new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);

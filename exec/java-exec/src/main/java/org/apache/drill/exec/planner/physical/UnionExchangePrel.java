@@ -20,8 +20,8 @@ public class UnionExchangePrel extends SingleRel implements Prel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    //return super.computeSelfCost(planner).multiplyBy(.1);
-    return planner.getCostFactory().makeCost(10, 10, 10);
+    return super.computeSelfCost(planner).multiplyBy(0.1);
+    //return planner.getCostFactory().makeCost(50, 50, 50);
   }
 
   @Override
