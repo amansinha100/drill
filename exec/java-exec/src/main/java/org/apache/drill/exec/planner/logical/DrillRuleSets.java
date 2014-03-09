@@ -21,6 +21,7 @@ import java.util.Iterator;
 
 import net.hydromatic.optiq.tools.RuleSet;
 
+import org.apache.drill.exec.planner.physical.MergeJoinPrule;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
 import org.apache.drill.exec.planner.physical.ScanPrule;
 import org.apache.drill.exec.planner.physical.ScreenPrule;
@@ -63,7 +64,8 @@ public class DrillRuleSets {
       ScanPrule.INSTANCE,
       ScreenPrule.INSTANCE,
       AbstractConverter.ExpandConversionRule.INSTANCE,
-      StreamAggPrule.INSTANCE
+      StreamAggPrule.INSTANCE,
+      MergeJoinPrule.INSTANCE
       //DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,

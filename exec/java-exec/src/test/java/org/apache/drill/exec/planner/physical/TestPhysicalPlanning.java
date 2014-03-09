@@ -103,6 +103,51 @@ public class TestPhysicalPlanning {
     DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
     worker.getPhysicalPlan("select R_REGIONKEY from dfs.`/Users/jni/regions2/` group by R_REGIONKEY");    
   }
+  
+  @Test
+  public void testJoinSingleFile(final DrillbitContext bitContext) throws Exception{
+    
+    final DrillConfig c = DrillConfig.create();
+    new NonStrictExpectations() {
+      {
+        bitContext.getMetrics();
+        result = new MetricRegistry();
+        bitContext.getAllocator();
+        result = new TopLevelAllocator();
+        bitContext.getConfig();
+        result = c;
+      }
+    };
+    
+    FunctionRegistry reg = new FunctionRegistry(c);
+    StoragePluginRegistry registry = new StoragePluginRegistry(bitContext);
+    DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
+    worker.getPhysicalPlan("select T1.R_REGIONKEY from dfs.`/Users/jni/regions1/` as T1 join dfs.`/Users/jni/regions1/` as T2 on T1.R_REGIONKEY = T2.R_REGIONKEY");   
+  
+  }
+
+  @Test
+  public void testJoinMultiFile(final DrillbitContext bitContext) throws Exception{
+    
+    final DrillConfig c = DrillConfig.create();
+    new NonStrictExpectations() {
+      {
+        bitContext.getMetrics();
+        result = new MetricRegistry();
+        bitContext.getAllocator();
+        result = new TopLevelAllocator();
+        bitContext.getConfig();
+        result = c;
+      }
+    };
+    
+    FunctionRegistry reg = new FunctionRegistry(c);
+    StoragePluginRegistry registry = new StoragePluginRegistry(bitContext);
+    DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
+    worker.getPhysicalPlan("select T1.R_REGIONKEY from dfs.`/Users/jni/regions2/` as T1 join dfs.`/Users/jni/regions2/` as T2 on T1.R_REGIONKEY = T2.R_REGIONKEY");   
+  
+  }
+  
 
   @AfterClass
   public static void tearDown() throws Exception{
