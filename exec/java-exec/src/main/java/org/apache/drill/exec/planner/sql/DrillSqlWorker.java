@@ -37,8 +37,8 @@ import org.apache.drill.exec.planner.logical.DrillRuleSets;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
 import org.apache.drill.exec.planner.physical.DrillMuxMode;
 import org.apache.drill.exec.planner.physical.DrillMuxModeDef;
-import org.apache.drill.exec.planner.physical.DrillPartitionTrait;
-import org.apache.drill.exec.planner.physical.DrillPartitionTraitDef;
+import org.apache.drill.exec.planner.physical.DrillDistributionTrait;
+import org.apache.drill.exec.planner.physical.DrillDistributionTraitDef;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.store.StoragePluginRegistry.DrillSchemaFactory;
 import org.eigenbase.rel.RelNode;
@@ -85,7 +85,7 @@ public class DrillSqlWorker {
     //Add new TraintDef to planner.
     //Temp solution. Framework only create planner after "parse", only after that, can add traitDef to planner. 
     //this.planner.addRelTraitDef(DrillMuxModeDef.INSTANCE);
-    this.planner.addRelTraitDef(DrillPartitionTraitDef.INSTANCE);
+    this.planner.addRelTraitDef(DrillDistributionTraitDef.INSTANCE);
     
     ResultMode resultMode = ResultMode.EXEC;
     /*
@@ -133,7 +133,7 @@ public class DrillSqlWorker {
   public PhysicalPlan getPhysicalPlan(String sql) throws SqlParseException, ValidationException, RelConversionException{
     RelResult result = getRel(sql);
 
-    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillPartitionTrait.SINGLETON);    
+    RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.SINGLETON);    
     Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);
 
     //Debug.

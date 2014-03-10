@@ -31,7 +31,7 @@ public class ScanPrule extends RelOptRule{
 
   
   public ScanPrule() {
-    super(RelOptHelper.any(BaseScanRel.class), "Prel.ScanRule");
+    super(RelOptHelper.any(BaseScanRel.class), "Prel.ScanPrule");
     
   }
   @Override
@@ -40,7 +40,7 @@ public class ScanPrule extends RelOptRule{
       final BaseScanRel scan = (BaseScanRel) call.rel(0);
       DrillTable table = scan.getTable().unwrap(DrillTable.class);
       //DrillMuxMode mux = table.getGroupScan().getMaxParallelizationWidth() > 1 ? DrillMuxMode.MULTIPLEX : DrillMuxMode.SIMPLEX;
-      DrillPartitionTrait partition = table.getGroupScan().getMaxParallelizationWidth() > 1 ? DrillPartitionTrait.RANDOM_PARTITIONED : DrillPartitionTrait.SINGLETON;
+      DrillDistributionTrait partition = table.getGroupScan().getMaxParallelizationWidth() > 1 ? DrillDistributionTrait.RANDOM_DISTRIBUTED : DrillDistributionTrait.SINGLETON;
       //final RelTraitSet traits = scan.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(mux);
       final RelTraitSet traits = scan.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(partition);
       BaseScanRel newScan = new ScanPrel(scan.getCluster(), traits, scan.getTable());

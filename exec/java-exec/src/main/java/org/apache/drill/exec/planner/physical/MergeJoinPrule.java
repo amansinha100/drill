@@ -42,7 +42,7 @@ public class MergeJoinPrule extends RelOptRule {
 
     RelCollation collationLeft = getCollation(join.getLeftKeys());
     RelCollation collationRight = getCollation(join.getRightKeys());
-    DrillPartitionTrait hashPartition = new DrillPartitionTrait(DrillPartitionTrait.PartitionType.HASH_PARTITIONED, null);
+    DrillDistributionTrait hashPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, null);
     
     final RelTraitSet traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(hashPartition);   
     final RelTraitSet traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(hashPartition);

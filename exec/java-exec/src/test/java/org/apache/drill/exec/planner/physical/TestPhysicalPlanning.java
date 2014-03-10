@@ -148,7 +148,52 @@ public class TestPhysicalPlanning {
   
   }
   
+  @Test
+  public void testSortSingleFile(final DrillbitContext bitContext) throws Exception{
+    
+    final DrillConfig c = DrillConfig.create();
+    new NonStrictExpectations() {
+      {
+        bitContext.getMetrics();
+        result = new MetricRegistry();
+        bitContext.getAllocator();
+        result = new TopLevelAllocator();
+        bitContext.getConfig();
+        result = c;
+      }
+    };
+    
+    FunctionRegistry reg = new FunctionRegistry(c);
+    StoragePluginRegistry registry = new StoragePluginRegistry(bitContext);
+    DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
+    //worker.getPhysicalPlan("select * from cp.`employee.json`");
+    worker.getPhysicalPlan("select R_REGIONKEY from dfs.`/Users/jni/regions1/` order by R_REGIONKEY");   
+    
+  }
 
+  @Test
+  public void testSortMultiFile(final DrillbitContext bitContext) throws Exception{
+    
+    final DrillConfig c = DrillConfig.create();
+    new NonStrictExpectations() {
+      {
+        bitContext.getMetrics();
+        result = new MetricRegistry();
+        bitContext.getAllocator();
+        result = new TopLevelAllocator();
+        bitContext.getConfig();
+        result = c;
+      }
+    };
+    
+    FunctionRegistry reg = new FunctionRegistry(c);
+    StoragePluginRegistry registry = new StoragePluginRegistry(bitContext);
+    DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
+    //worker.getPhysicalPlan("select * from cp.`employee.json`");
+    worker.getPhysicalPlan("select R_REGIONKEY from dfs.`/Users/jni/regions2/` order by R_REGIONKEY");   
+    
+  }
+  
   @AfterClass
   public static void tearDown() throws Exception{
     // pause to get logger to catch up.

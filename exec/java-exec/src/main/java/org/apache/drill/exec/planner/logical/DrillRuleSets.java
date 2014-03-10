@@ -23,6 +23,7 @@ import net.hydromatic.optiq.tools.RuleSet;
 
 import org.apache.drill.exec.planner.physical.MergeJoinPrule;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
+import org.apache.drill.exec.planner.physical.RemoveSortUnderHashExch;
 import org.apache.drill.exec.planner.physical.ScanPrule;
 import org.apache.drill.exec.planner.physical.ScreenPrule;
 import org.apache.drill.exec.planner.physical.SortExchangePrule;
@@ -59,13 +60,15 @@ public class DrillRuleSets {
 //      DrillSortRule.INSTANCE,
 //      DrillJoinRule.INSTANCE,
 //      DrillUnionRule.INSTANCE,
-      SortPrule.INSTANCE,
+      SortPrule.INSTANCE_SRC_REL,
+      SortPrule.INSTANCE_SRC_LOGICAL,      
       ProjectPrule.INSTANCE,
       ScanPrule.INSTANCE,
       ScreenPrule.INSTANCE,
       AbstractConverter.ExpandConversionRule.INSTANCE,
       StreamAggPrule.INSTANCE,
       MergeJoinPrule.INSTANCE
+      //RemoveSortUnderHashExch.INSTANCE
       //DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,

@@ -35,7 +35,7 @@ public class StreamAggPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
     
-    DrillPartitionTrait hashPartition = new DrillPartitionTrait(DrillPartitionTrait.PartitionType.HASH_PARTITIONED, null);
+    DrillDistributionTrait hashPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, null);
     
     final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashPartition);
     

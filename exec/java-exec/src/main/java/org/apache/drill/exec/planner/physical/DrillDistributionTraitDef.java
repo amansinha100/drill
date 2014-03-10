@@ -9,24 +9,24 @@ import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitDef;
 
-public class DrillPartitionTraitDef extends RelTraitDef<DrillPartitionTrait>{
-  public static final DrillPartitionTraitDef INSTANCE = new DrillPartitionTraitDef();
+public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrait>{
+  public static final DrillDistributionTraitDef INSTANCE = new DrillDistributionTraitDef();
   
-  private DrillPartitionTraitDef() {
+  private DrillDistributionTraitDef() {
     super();
   }
   
   public boolean canConvert(
-      RelOptPlanner planner, DrillPartitionTrait fromTrait, DrillPartitionTrait toTrait) {
+      RelOptPlanner planner, DrillDistributionTrait fromTrait, DrillDistributionTrait toTrait) {
     return true;
   }  
 
-  public Class<DrillPartitionTrait> getTraitClass(){
-    return DrillPartitionTrait.class;
+  public Class<DrillDistributionTrait> getTraitClass(){
+    return DrillDistributionTrait.class;
   }
   
-  public DrillPartitionTrait getDefault() {
-    return DrillPartitionTrait.DEFAULT;
+  public DrillDistributionTrait getDefault() {
+    return DrillDistributionTrait.DEFAULT;
   }
 
   public String getSimpleName() {
@@ -37,10 +37,10 @@ public class DrillPartitionTraitDef extends RelTraitDef<DrillPartitionTrait>{
   public RelNode convert(
       RelOptPlanner planner,
       RelNode rel,
-      DrillPartitionTrait toPartition,
+      DrillDistributionTrait toPartition,
       boolean allowInfiniteCostConverters) {
     
-    DrillPartitionTrait currentPartition = rel.getTraitSet().getTrait(DrillPartitionTraitDef.INSTANCE);
+    DrillDistributionTrait currentPartition = rel.getTraitSet().getTrait(DrillDistributionTraitDef.INSTANCE);
     
     if (currentPartition.equals(toPartition)) {
       return rel;
@@ -49,7 +49,7 @@ public class DrillPartitionTraitDef extends RelTraitDef<DrillPartitionTrait>{
     switch(toPartition.getType()){
       case SINGLETON:
           return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);
-      case HASH_PARTITIONED: 
+      case HASH_DISTRIBUTED: 
         RelCollation collation = rel.getTraitSet().getTrait(RelCollationTraitDef.INSTANCE);
         RelNode exch = new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);
         if (!collation.equals(RelCollationImpl.EMPTY)) {
