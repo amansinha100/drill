@@ -6,7 +6,8 @@ import org.eigenbase.relopt.RelTraitDef;
 import com.google.common.collect.ImmutableList;
 
 public class DrillDistributionTrait implements RelTrait {
-  public static enum DistributionType {SINGLETON, HASH_DISTRIBUTED, RANGE_DISTRIBUTED, RANDOM_DISTRIBUTED, ANY};
+  public static enum DistributionType {SINGLETON, HASH_DISTRIBUTED, RANGE_DISTRIBUTED, RANDOM_DISTRIBUTED,
+                                       ROUND_ROBIN_DISTRIBUTED, BROADCAST_DISTRIBUTED, ANY};
 
   public static DrillDistributionTrait SINGLETON = new DrillDistributionTrait(DistributionType.SINGLETON);
   public static DrillDistributionTrait RANDOM_DISTRIBUTED = new DrillDistributionTrait(DistributionType.RANDOM_DISTRIBUTED);
@@ -18,7 +19,8 @@ public class DrillDistributionTrait implements RelTrait {
   private final ImmutableList<DistributionField> fields;
   
   private DrillDistributionTrait(DistributionType type) {
-    assert (type == DistributionType.SINGLETON || type == DistributionType.RANDOM_DISTRIBUTED || type == DistributionType.ANY);
+    assert (type == DistributionType.SINGLETON || type == DistributionType.RANDOM_DISTRIBUTED || type == DistributionType.ANY
+            || type == DistributionType.ROUND_ROBIN_DISTRIBUTED || type == DistributionType.BROADCAST_DISTRIBUTED);
     this.type = type;
     this.fields = null;    
   }
@@ -30,7 +32,31 @@ public class DrillDistributionTrait implements RelTrait {
   }
 
   public boolean subsumes(RelTrait trait) {
-    //if(trait == DEFAULT) return true;
+
+    if (trait instanceof DrillDistributionTrait) {
+      DistributionType requiredDist = ((DrillDistributionTrait) trait).getType();
+      if (requiredDist == DistributionType.ANY) {
+        return true;
+      }
+
+      if (this.type == DistributionType.HASH_DISTRIBUTED) {
+        if (requiredDist == DistributionType.HASH_DISTRIBUTED) {
+          ImmutableList<DistributionField> thisFields = this.fields;
+          ImmutableList<DistributionField> requiredFields = ((DrillDistributionTrait)trait).getFields();
+
+          assert(thisFields.size() > 0 && requiredFields.size() > 0);
+
+          // A subset of the required distribution columns can satisfy (subsume) the requirement
+          // e.g: required distribution: {a, b, c} 
+          // Following can satisfy the requirements: {a}, {b}, {c}, {a, b}, {b, c}, {a, c} or {a, b, c}
+          return (requiredFields.containsAll(thisFields));
+        }
+        else if (requiredDist == DistributionType.RANDOM_DISTRIBUTED) {
+          return true; // hash distribution subsumes random distribution and ANY distribution 
+        }
+      }
+    }
+
     return this.equals(trait);
   }
   
@@ -41,7 +67,11 @@ public class DrillDistributionTrait implements RelTrait {
   public DistributionType getType() {
     return this.type;
   }
-  
+
+  public ImmutableList<DistributionField> getFields() {
+    return fields;
+  }
+
   public int hashCode() {
     return  fields == null ? type.hashCode() : type.hashCode() | fields.hashCode() << 4 ;
   }
@@ -63,7 +93,7 @@ public class DrillDistributionTrait implements RelTrait {
   }
 
   
-  public class DistributionField {
+  public static class DistributionField {
     /**
      * 0-based index of field being DISTRIBUTED.
      */

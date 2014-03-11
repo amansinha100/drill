@@ -8,7 +8,7 @@ import net.hydromatic.optiq.util.BitSets;
 import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
-import org.apache.drill.exec.planner.physical.DrillPartitionTrait.PartitionField;
+import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
@@ -37,10 +37,10 @@ public class StreamAggPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
 
-    List<PartitionField> groupByFields = Lists.newArrayList();
+    List<DistributionField> groupByFields = Lists.newArrayList();
 
     for (int group : BitSets.toIter(aggregate.getGroupSet())) {
-      PartitionField field = new PartitionField(group);
+      DistributionField field = new DistributionField(group);
       groupByFields.add(field);
     }
         
