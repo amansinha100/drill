@@ -39,7 +39,7 @@ public class ProjectPrule extends RelOptRule {
     final BaseProjectRel project = (BaseProjectRel) call.rel(0);
     final RelNode input = call.rel(1);
     
-    final RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL);
+    final RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.ANY);
     final RelNode convertedInput = convert(input, traits);
     call.transformTo(new ProjectPrel(project.getCluster(), convertedInput.getTraitSet(), convertedInput, project.getProjects(), project.getRowType()));
   }
