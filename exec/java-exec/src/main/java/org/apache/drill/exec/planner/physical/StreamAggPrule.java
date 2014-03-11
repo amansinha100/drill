@@ -8,6 +8,7 @@ import net.hydromatic.optiq.util.BitSets;
 import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
+import org.apache.drill.exec.planner.physical.DrillPartitionTrait.PartitionField;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
@@ -19,6 +20,7 @@ import org.eigenbase.relopt.RelOptRuleCall;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.trace.EigenbaseTrace;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 public class StreamAggPrule extends RelOptRule {
@@ -34,10 +36,18 @@ public class StreamAggPrule extends RelOptRule {
     final DrillAggregateRel aggregate = (DrillAggregateRel) call.rel(0);
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
+
+    List<PartitionField> groupByFields = Lists.newArrayList();
+
+    for (int group : BitSets.toIter(aggregate.getGroupSet())) {
+      PartitionField field = new PartitionField(group);
+      groupByFields.add(field);
+    }
+        
+    DrillDistributionTrait hashDistribution = 
+        new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(groupByFields));
     
-    DrillDistributionTrait hashPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, null);
-    
-    final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashPartition);
+    final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashDistribution);
     
     final RelNode convertedInput = convert(input, traits);
     
