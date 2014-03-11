@@ -112,15 +112,18 @@ public abstract class HashTableTemplate implements HashTable {
 
     int maxOccupiedIdx = 0;
 
-    private BatchHolder() {
+    private BatchHolder(int idx) {
 
-      htContainer = new VectorContainer();
-      // htContainer = VectorContainer.clone(htContainerOrig);
-      for (VectorWrapper<?> w : htContainerOrig) {
-        ValueVector vv = TypeHelper.getNewVector(w.getField(), context.getAllocator());
-        VectorAllocator.getAllocator(vv, 50 /* avg width */).alloc(HashTable.BATCH_SIZE);
-        htContainer.add(vv);
-      }      
+      if (idx == 0) {  // first batch holder can use the original htContainer
+        htContainer = htContainerOrig;
+      } else { // otherwise create a new one using the original's fields
+        htContainer = new VectorContainer();
+        for (VectorWrapper<?> w : htContainerOrig) {
+          ValueVector vv = TypeHelper.getNewVector(w.getField(), context.getAllocator());
+          VectorAllocator.getAllocator(vv, 50 /* avg width */).alloc(HashTable.BATCH_SIZE);
+          htContainer.add(vv);
+        }      
+      }
 
       links = allocMetadataVector(HashTable.BATCH_SIZE, EMPTY_SLOT);
       hashValues = allocMetadataVector(HashTable.BATCH_SIZE, 0);
@@ -529,7 +532,7 @@ public abstract class HashTableTemplate implements HashTable {
   }
 
   private BatchHolder addBatchHolder() {
-    BatchHolder bh = new BatchHolder();
+    BatchHolder bh = new BatchHolder(batchHolders.size());
     batchHolders.add(bh);
     bh.setup();
     return bh;

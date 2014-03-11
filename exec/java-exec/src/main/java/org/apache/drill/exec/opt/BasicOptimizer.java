@@ -174,7 +174,6 @@ public class BasicOptimizer extends Optimizer{
       return new SelectionVectorRemover(new Limit(input, limit.getFirst(), limit.getLast()));
     }
 
-    @Override
     public PhysicalOperator visitJoin(Join join, Object value) throws OptimizerException {
       PhysicalOperator leftOp = join.getLeft().accept(this, value);
       List<Ordering> leftOrderDefs = Lists.newArrayList();
