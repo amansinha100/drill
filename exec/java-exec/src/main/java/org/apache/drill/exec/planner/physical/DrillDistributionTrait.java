@@ -1,5 +1,6 @@
 package org.apache.drill.exec.planner.physical;
 
+import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.relopt.RelTrait;
 import org.eigenbase.relopt.RelTraitDef;
 
@@ -13,7 +14,7 @@ public class DrillDistributionTrait implements RelTrait {
   public static DrillDistributionTrait RANDOM_DISTRIBUTED = new DrillDistributionTrait(DistributionType.RANDOM_DISTRIBUTED);
   public static DrillDistributionTrait ANY = new DrillDistributionTrait(DistributionType.ANY);
   
-  public static DrillDistributionTrait DEFAULT = SINGLETON;
+  public static DrillDistributionTrait DEFAULT = ANY;
   
   private DistributionType type;  
   private final ImmutableList<DistributionField> fields;
@@ -22,7 +23,7 @@ public class DrillDistributionTrait implements RelTrait {
     assert (type == DistributionType.SINGLETON || type == DistributionType.RANDOM_DISTRIBUTED || type == DistributionType.ANY
             || type == DistributionType.ROUND_ROBIN_DISTRIBUTED || type == DistributionType.BROADCAST_DISTRIBUTED);
     this.type = type;
-    this.fields = null;    
+    this.fields = ImmutableList.<DistributionField>of();
   }
 
   public DrillDistributionTrait(DistributionType type, ImmutableList<DistributionField> fields) {
@@ -82,7 +83,7 @@ public class DrillDistributionTrait implements RelTrait {
     }
     if (obj instanceof DrillDistributionTrait) {
       DrillDistributionTrait that = (DrillDistributionTrait) obj;
-      return this.fields == that.fields && this.type == that.type;
+      return this.type == that.type && this.fields.equals(that.fields) ;
     }
     return false;
   }

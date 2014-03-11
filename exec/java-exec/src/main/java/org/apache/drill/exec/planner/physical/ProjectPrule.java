@@ -26,6 +26,7 @@ import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.relopt.volcano.RelSubset;
 
 public class ProjectPrule extends RelOptRule {
   public static final RelOptRule INSTANCE = new ProjectPrule();
@@ -38,9 +39,20 @@ public class ProjectPrule extends RelOptRule {
   public void onMatch(RelOptRuleCall call) {
     final DrillProjectRelBase project = (DrillProjectRelBase) call.rel(0);
     final RelNode input = call.rel(1);
+
+    RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL);
+    RelNode convertedInput = convert(input, traits);
     
-    final RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL);
-    final RelNode convertedInput = convert(input, traits);
-    call.transformTo(new ProjectPrel(project.getCluster(), convertedInput.getTraitSet(), convertedInput, project.getProjects(), project.getRowType()));
+    if (convertedInput instanceof RelSubset) {
+      RelSubset subset = (RelSubset) convertedInput;
+      for (RelNode rel : subset.getRelList()) {
+        if (!rel.getTraitSet().getTrait(DrillDistributionTraitDef.INSTANCE).equals(DrillDistributionTrait.DEFAULT)) {
+          call.transformTo(new ProjectPrel(project.getCluster(), rel.getTraitSet(), rel, project.getProjects(), project.getRowType()));
+        }
+      }
+      
+    } else{
+      call.transformTo(new ProjectPrel(project.getCluster(), convertedInput.getTraitSet(), convertedInput, project.getProjects(), project.getRowType()));        
+    }
   }
 }

@@ -32,6 +32,7 @@ import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.exec.planner.common.DrillAggregateRelBase;
 import org.apache.drill.exec.planner.torel.ConversionContext;
 import org.eigenbase.rel.AggregateCall;
+import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptCluster;
@@ -54,10 +55,9 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
     }
   }
 
-  @Override
-  public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+  public AggregateRelBase copy(RelTraitSet traitSet, RelNode input, BitSet groupSet, List<AggregateCall> aggCalls) {
     try {
-      return new DrillAggregateRel(getCluster(), traitSet, sole(inputs), getGroupSet(), aggCalls);
+      return new DrillAggregateRel(getCluster(), traitSet, input, getGroupSet(), aggCalls);
     } catch (InvalidRelException e) {
       throw new AssertionError(e);
     }

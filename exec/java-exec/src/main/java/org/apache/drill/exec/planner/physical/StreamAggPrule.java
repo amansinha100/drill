@@ -28,7 +28,7 @@ public class StreamAggPrule extends RelOptRule {
   protected static final Logger tracer = EigenbaseTrace.getPlannerTracer();
 
   private StreamAggPrule() {
-    super(RelOptHelper.some(DrillAggregateRel.class, RelOptHelper.any(DrillRel.class)), "DrillAggregateRule");
+    super(RelOptHelper.some(DrillAggregateRel.class, RelOptHelper.any(DrillRel.class)), "Prel.StreamAggPrule");
   }
 
   @Override
@@ -37,15 +37,8 @@ public class StreamAggPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
 
-    List<DistributionField> groupByFields = Lists.newArrayList();
-
-    for (int group : BitSets.toIter(aggregate.getGroupSet())) {
-      DistributionField field = new DistributionField(group);
-      groupByFields.add(field);
-    }
-        
     DrillDistributionTrait hashDistribution = 
-        new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(groupByFields));
+        new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(aggregate)));
     
     final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashDistribution);
     
@@ -71,4 +64,14 @@ public class StreamAggPrule extends RelOptRule {
     return RelCollationImpl.of(fields);
   }
 
+  private List<DistributionField> getDistributionField(DrillAggregateRel rel) {
+    List<DistributionField> groupByFields = Lists.newArrayList();
+
+    for (int group : BitSets.toIter(rel.getGroupSet())) {
+      DistributionField field = new DistributionField(group);
+      groupByFields.add(field);
+    }    
+    
+    return groupByFields;
+  }
 }
