@@ -24,12 +24,6 @@ public class ProjectPrel extends BaseProjectRel implements Prel{
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    assert inputs.size() == 1;
-    RelNode input = inputs.get(0);
-    
-    if (traitSet.getTrait(DrillDistributionTraitDef.INSTANCE).equals(DrillDistributionTrait.DEFAULT)) {
-      traitSet = traitSet.plus(input.getTraitSet().getTrait(DrillDistributionTraitDef.INSTANCE));
-    }
     return new ProjectPrel(getCluster(), traitSet, sole(inputs), new ArrayList<RexNode>(exps), rowType);
   }
 

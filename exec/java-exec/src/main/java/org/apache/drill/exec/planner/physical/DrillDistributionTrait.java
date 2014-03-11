@@ -12,7 +12,7 @@ public class DrillDistributionTrait implements RelTrait {
   public static DrillDistributionTrait RANDOM_DISTRIBUTED = new DrillDistributionTrait(DistributionType.RANDOM_DISTRIBUTED);
   public static DrillDistributionTrait ANY = new DrillDistributionTrait(DistributionType.ANY);
   
-  public static DrillDistributionTrait DEFAULT = ANY;
+  public static DrillDistributionTrait DEFAULT = SINGLETON;
   
   private DistributionType type;  
   private final ImmutableList<DistributionField> fields;
@@ -30,7 +30,7 @@ public class DrillDistributionTrait implements RelTrait {
   }
 
   public boolean subsumes(RelTrait trait) {
-    if(trait == DEFAULT) return true;
+    //if(trait == DEFAULT) return true;
     return this.equals(trait);
   }
   

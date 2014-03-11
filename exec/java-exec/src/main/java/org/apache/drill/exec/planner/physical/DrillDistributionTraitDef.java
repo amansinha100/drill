@@ -47,8 +47,6 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
     }
     
     switch(toPartition.getType()){
-      case ANY:
-        return rel;
       case SINGLETON:
           return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);
       case HASH_DISTRIBUTED: 
