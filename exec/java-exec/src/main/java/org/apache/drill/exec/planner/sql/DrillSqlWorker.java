@@ -137,7 +137,7 @@ public class DrillSqlWorker {
     Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);
 
     //Debug.
-    System.out.println("SQL : " + sql);
+    System.err.println("SQL : " + sql);
     logger.debug("SQL : " + sql);
     String msg = RelOptUtil.toString(phyRelNode, SqlExplainLevel.ALL_ATTRIBUTES);
     System.out.println(msg);

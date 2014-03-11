@@ -1,7 +1,5 @@
 package org.apache.drill.exec.planner.physical;
 
-import java.util.Collections;
-
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelCollationTraitDef;
@@ -48,7 +46,14 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
     
     switch(toPartition.getType()){
       case SINGLETON:
-          return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);
+          // UnionExchange destroy the ordering property, therefore set it to EMPTY.
+          //return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition).plus(RelCollationImpl.EMPTY), rel);
+        RelCollation collation2 = rel.getTraitSet().getTrait(RelCollationTraitDef.INSTANCE);
+        if (!collation2.equals(RelCollationImpl.EMPTY)) {
+          return new SingleMergeExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);
+        } else {
+          return new UnionExchangePrel(rel.getCluster(), rel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition).plus(RelCollationImpl.EMPTY), rel);
+        }  
       case HASH_DISTRIBUTED: 
         RelCollation collation = rel.getTraitSet().getTrait(RelCollationTraitDef.INSTANCE);
         RelNode exch = new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toPartition), rel);

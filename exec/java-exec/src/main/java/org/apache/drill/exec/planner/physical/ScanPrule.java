@@ -39,12 +39,14 @@ public class ScanPrule extends RelOptRule{
     try{
       final BaseScanRel scan = (BaseScanRel) call.rel(0);
       DrillTable table = scan.getTable().unwrap(DrillTable.class);
-      //DrillMuxMode mux = table.getGroupScan().getMaxParallelizationWidth() > 1 ? DrillMuxMode.MULTIPLEX : DrillMuxMode.SIMPLEX;
       DrillDistributionTrait partition = table.getGroupScan().getMaxParallelizationWidth() > 1 ? DrillDistributionTrait.RANDOM_DISTRIBUTED : DrillDistributionTrait.SINGLETON;
-      //final RelTraitSet traits = scan.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(mux);
       final RelTraitSet traits = scan.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(partition);
+
       BaseScanRel newScan = new ScanPrel(scan.getCluster(), traits, scan.getTable());
       call.transformTo(newScan);
+      
+//      BaseScanRel newScan2 = new ScanPrel(scan.getCluster(),traits.plus(DrillDistributionTrait.SINGLETON), scan.getTable());
+//      call.transformTo(newScan2);
     }catch(IOException e){
       throw new RuntimeException("Failure getting group scan.", e);
     }

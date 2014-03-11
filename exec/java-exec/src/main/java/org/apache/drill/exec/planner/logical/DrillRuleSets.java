@@ -27,6 +27,7 @@ import org.apache.drill.exec.planner.physical.RemoveSortUnderHashExch;
 import org.apache.drill.exec.planner.physical.ScanPrule;
 import org.apache.drill.exec.planner.physical.ScreenPrule;
 import org.apache.drill.exec.planner.physical.SortExchangePrule;
+import org.apache.drill.exec.planner.physical.SortConvertPrule;
 import org.apache.drill.exec.planner.physical.SortPrule;
 import org.apache.drill.exec.planner.physical.StreamAggPrule;
 import org.eigenbase.relopt.RelOptRule;
@@ -60,15 +61,16 @@ public class DrillRuleSets {
 //      DrillSortRule.INSTANCE,
 //      DrillJoinRule.INSTANCE,
 //      DrillUnionRule.INSTANCE,
-      SortPrule.INSTANCE_SRC_REL,
-      SortPrule.INSTANCE_SRC_LOGICAL,      
+      SortConvertPrule.INSTANCE,
+      SortPrule.INSTANCE,
+      //SortConvertPrule.INSTANCE_SRC_LOGICAL,      
       ProjectPrule.INSTANCE,
       ScanPrule.INSTANCE,
       ScreenPrule.INSTANCE,
       AbstractConverter.ExpandConversionRule.INSTANCE,
       StreamAggPrule.INSTANCE,
-      MergeJoinPrule.INSTANCE
-      //RemoveSortUnderHashExch.INSTANCE
+      MergeJoinPrule.INSTANCE,
+      RemoveSortUnderHashExch.INSTANCE
       //DrillInsertExchUnderScreenRule.INSTANCE
 
 //    ExpandConversionRule.instance,

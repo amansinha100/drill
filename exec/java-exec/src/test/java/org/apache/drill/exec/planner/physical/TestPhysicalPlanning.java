@@ -103,7 +103,28 @@ public class TestPhysicalPlanning {
     DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
     worker.getPhysicalPlan("select R_REGIONKEY from dfs.`/Users/jni/regions2/` group by R_REGIONKEY");    
   }
-  
+ 
+  @Test
+  public void testAggOrderByMultiFile(final DrillbitContext bitContext) throws Exception{
+    
+    final DrillConfig c = DrillConfig.create();
+    new NonStrictExpectations() {
+      {
+        bitContext.getMetrics();
+        result = new MetricRegistry();
+        bitContext.getAllocator();
+        result = new TopLevelAllocator();
+        bitContext.getConfig();
+        result = c;
+      }
+    };
+    
+    FunctionRegistry reg = new FunctionRegistry(c);
+    StoragePluginRegistry registry = new StoragePluginRegistry(bitContext);
+    DrillSqlWorker worker = new DrillSqlWorker(registry.getSchemaFactory(), reg);
+    worker.getPhysicalPlan("select R_REGIONKEY, SUM(cast(R_REGIONKEY AS int)) from dfs.`/Users/jni/regions2/` group by R_REGIONKEY ");    
+  }
+   
   @Test
   public void testJoinSingleFile(final DrillbitContext bitContext) throws Exception{
     

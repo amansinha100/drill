@@ -1,54 +1,40 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.drill.exec.planner.physical;
 
+import org.apache.drill.exec.planner.common.BaseProjectRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillSortRel;
+import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SortRel;
-import org.eigenbase.rel.convert.ConverterRule;
-import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
+import org.eigenbase.relopt.RelTraitSet;
 
 /**
- * Rule that converts an {@link SortRel} to a {@link DrillSortRel}, implemented by a Drill "order" operation.
+ * 
+ * Rule that converts a logical {@link DrillSortRel} to a physical sort.  Convert from Logical Sort into Physical Sort. 
+ * For Logical Sort, it requires one single data stream as the output. 
+ *
  */
-public class SortPrule extends ConverterRule {
-  public static final RelOptRule INSTANCE_SRC_REL = new SortPrule("SortPrule:Src_Rel", Convention.NONE);
-  public static final RelOptRule INSTANCE_SRC_LOGICAL = new SortPrule("SortPrule:Src_Logical", DrillRel.DRILL_LOGICAL);
+public class SortPrule extends RelOptRule{
+  public static final RelOptRule INSTANCE = new SortPrule();
 
-  private SortPrule(String description, Convention srcConvention) {
-    super(SortRel.class, srcConvention, Prel.DRILL_PHYSICAL, description);
+  private SortPrule() {
+    super(RelOptHelper.some(DrillSortRel.class, DrillRel.DRILL_LOGICAL, RelOptHelper.any(RelNode.class)), "Prel.SortPrule");
   }
 
   @Override
-  public boolean matches(RelOptRuleCall call) {
-    final SortRel sort = call.rel(0);
-    return sort.offset == null && sort.fetch == null;
+  public void onMatch(RelOptRuleCall call) {
+    final DrillSortRel sort = (DrillSortRel) call.rel(0);
+    final RelNode input = call.rel(1);
+    
+    // Keep the collation in logical sort. Convert input into a RelNode with 1) this collation, 2) Physical, 3) single output stream.
+    
+    final RelTraitSet traits = sort.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.SINGLETON);
+    
+    final RelNode convertedInput = convert(input, traits);
+    call.transformTo(convertedInput);  // transform logical "sort" into convertedInput ("sort" may not needed in some cases).
+    
   }
 
-  @Override
-  public RelNode convert(RelNode r) {
-    SortRel rel = (SortRel) r;
-    return new SortPrel(rel.getCluster(), 
-                        rel.getChild().getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(rel.getCollation()), 
-                        convert(rel.getChild(), rel.getChild().getTraitSet().replace(Prel.DRILL_PHYSICAL)), 
-                        rel.getCollation());
-  }
 }
