@@ -362,6 +362,7 @@ public class Foreman implements Runnable, Closeable, Comparable<Object>{
         return;
       }
       
+      if(logger.isDebugEnabled()) logger.debug("Physical {}", context.getConfig().getMapper().writeValueAsString(physical));
       runPhysicalPlan(physical);
     }catch(Exception e){
       fail("Failure while parsing sql.", e);
