@@ -32,6 +32,7 @@ import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.VectorContainer;
+import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.compile.sig.RuntimeOverridden;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.holders.IntHolder;
@@ -113,8 +114,13 @@ public abstract class HashTableTemplate implements HashTable {
 
     private BatchHolder() {
 
-      // htContainer = new VectorContainer();
-      htContainer = VectorContainer.clone(htContainerOrig);
+      htContainer = new VectorContainer();
+      // htContainer = VectorContainer.clone(htContainerOrig);
+      for (VectorWrapper<?> w : htContainerOrig) {
+        ValueVector vv = TypeHelper.getNewVector(w.getField(), context.getAllocator());
+        VectorAllocator.getAllocator(vv, 50 /* avg width */).alloc(HashTable.BATCH_SIZE);
+        htContainer.add(vv);
+      }      
 
       links = allocMetadataVector(HashTable.BATCH_SIZE, EMPTY_SLOT);
       hashValues = allocMetadataVector(HashTable.BATCH_SIZE, 0);
