@@ -30,7 +30,6 @@ public class ScreenPrel extends DrillScreenRelBase implements Prel {
     Screen s = new Screen(child.getPhysicalOperator(creator), null);
     creator.addPhysicalOperator(s);
     return s;
-    // throw new IOException("ScreenPrel not supported yet!");
   }
 
 }
