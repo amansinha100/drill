@@ -49,7 +49,7 @@ public class MergeJoinPrel  extends DrillJoinRelBase implements Prel {
   }
 
   @Override  
-  public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
+  public PhysicalOPWithSV getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
     PhysicalOperator leftPop = ((Prel) getLeft()).getPhysicalOperator(creator);
     PhysicalOperator rightPop = ((Prel) getRight()).getPhysicalOperator(creator);
     JoinRelType jtype = this.getJoinType();
