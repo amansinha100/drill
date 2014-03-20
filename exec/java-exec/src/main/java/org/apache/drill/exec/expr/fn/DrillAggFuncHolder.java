@@ -161,9 +161,9 @@ class DrillAggFuncHolder extends DrillFuncHolder{
   }
   
   @Override
-  protected void addProtectedBlock(ClassGenerator<?> g, JBlock sub, String body, HoldingContainer[] inputVariables, JVar[] workspaceJVars){
+  protected void addProtectedBlock(ClassGenerator<?> g, JBlock sub, String body, HoldingContainer[] inputVariables, JVar[] workspaceJVars, boolean decConstantInputOnly){
     if (!g.getMappingSet().isHashAggMapping()) {
-      super.addProtectedBlock(g, sub, body, inputVariables, workspaceJVars);
+      super.addProtectedBlock(g, sub, body, inputVariables, workspaceJVars, decConstantInputOnly);
     } else {
       JExpression indexVariable = g.getMappingSet().getWorkspaceIndex();
       addProtectedBlockHA(g, sub, body, inputVariables, workspaceJVars, indexVariable);          
