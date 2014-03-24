@@ -37,11 +37,25 @@ public class StreamAggPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
 
-    DrillDistributionTrait hashDistribution = 
-        new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(aggregate)));
+    DrillDistributionTrait hashDistAllKeys = 
+      new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(aggregate, true /* get all grouping fields */)));
     
-    final RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashDistribution);
+    RelTraitSet traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashDistAllKeys);
+
+    createTransformRequest(call, aggregate, input, traits);
+
+    DrillDistributionTrait hashDistOneKey = 
+      new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(aggregate, false /* get a single grouping key */)));
     
+    traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(hashDistOneKey);
+
+    createTransformRequest(call, aggregate, input, traits);
+    
+  }
+
+  private void createTransformRequest(RelOptRuleCall call, DrillAggregateRel aggregate, 
+                                      RelNode input, RelTraitSet traits) {
+
     final RelNode convertedInput = convert(input, traits);
     
     try {          
@@ -54,7 +68,6 @@ public class StreamAggPrule extends RelOptRule {
     }
   }
   
-  
   private RelCollation getCollation(DrillAggregateRel rel){
     
     List<RelFieldCollation> fields = Lists.newArrayList();
@@ -64,12 +77,19 @@ public class StreamAggPrule extends RelOptRule {
     return RelCollationImpl.of(fields);
   }
 
-  private List<DistributionField> getDistributionField(DrillAggregateRel rel) {
+  private List<DistributionField> getDistributionField(DrillAggregateRel rel, boolean allFields) {
     List<DistributionField> groupByFields = Lists.newArrayList();
 
     for (int group : BitSets.toIter(rel.getGroupSet())) {
       DistributionField field = new DistributionField(group);
       groupByFields.add(field);
+
+      if (!allFields && groupByFields.size() == 1) {
+        // if we are only interested in 1 grouping field, pick the first one for now..
+        // but once we have num distinct values (NDV) statistics, we should pick the one
+        // with highest NDV. 
+        break;
+      }
     }    
     
     return groupByFields;

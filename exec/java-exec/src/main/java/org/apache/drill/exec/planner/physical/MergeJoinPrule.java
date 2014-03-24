@@ -49,7 +49,7 @@ public class MergeJoinPrule extends RelOptRule {
     RelTraitSet traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(hashRightPartition);
         
     createTransformRequest(call, join, left, right, traitsLeft, traitsRight);
-    
+
     // Create transform request for MergeJoin plan with left child ANY distributed and right child BROADCAST distributed
     DrillDistributionTrait distAnyLeft = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.ANY);
     DrillDistributionTrait distBroadcastRight = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.BROADCAST_DISTRIBUTED);
