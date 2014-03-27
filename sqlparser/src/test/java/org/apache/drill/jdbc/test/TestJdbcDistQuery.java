@@ -65,59 +65,63 @@ public class TestJdbcDistQuery {
     new HiveTestDataGenerator().generateTestData();
   }
   
-
+/*
   @Test 
   public void testSimpleQuerySingleFile() throws Exception{
-    testQuery(String.format("select R_REGIONKEY from dfs.`/Users/jni/regions1/`"));    
+    testQuery(String.format("select R_REGIONKEY from dfs.`/Users/asinha/parquet/regions1/`"));    
   }
   
   @Test 
   public void testSimpleQueryMultiFile() throws Exception{
-    testQuery(String.format("select R_REGIONKEY from dfs.`/Users/jni/regions2/`"));    
+    testQuery(String.format("select R_REGIONKEY from dfs.`/Users/asinha/parquet/regions2/`"));    
   }
   
   @Test 
   public void testAggSingleFile() throws Exception{
-    testQuery(String.format("select R_REGIONKEY from dfs.`/Users/jni/regions1/` group by R_REGIONKEY"));    
+    testQuery(String.format("select R_REGIONKEY from dfs.`/Users/asinha/parquet/regions1/` group by R_REGIONKEY"));    
   }
   
   @Test
   public void testAggMultiFile() throws Exception{
-    testQuery("select R_REGIONKEY from dfs.`/Users/jni/regions2/` group by R_REGIONKEY");    
+    testQuery("select R_REGIONKEY from dfs.`/Users/asinha/parquet/regions2/` group by R_REGIONKEY");    
   }
  
   @Test
   public void testAggOrderByDiffGKeyMultiFile() throws Exception{    
-    testQuery("select R_REGIONKEY, SUM(cast(R_REGIONKEY AS int)) As S from dfs.`/Users/jni/regions2/` group by R_REGIONKEY ORDER BY S");    
+    testQuery("select R_REGIONKEY, SUM(cast(R_REGIONKEY AS int)) As S from dfs.`/Users/asinha/parquet/regions2/` group by R_REGIONKEY ORDER BY S");    
   }
  
   @Test
   public void testAggOrderBySameGKeyMultiFile() throws Exception{
-    testQuery("select R_REGIONKEY, SUM(cast(R_REGIONKEY AS int)) As S from dfs.`/Users/jni/regions2/` group by R_REGIONKEY ORDER BY R_REGIONKEY");   
+    testQuery("select R_REGIONKEY, SUM(cast(R_REGIONKEY AS int)) As S from dfs.`/Users/asinha/parquet/regions2/` group by R_REGIONKEY ORDER BY R_REGIONKEY");   
   }
    
   @Test
   @Ignore
   public void testJoinSingleFile() throws Exception{
-    testQuery("select T1.R_REGIONKEY from dfs.`/Users/jni/regions1/` as T1 join dfs.`/Users/jni/nations1/` as T2 on T1.R_REGIONKEY = T2.N_REGIONKEY");    
+    testQuery("select T1.R_REGIONKEY from dfs.`/Users/asinha/parquet/regions1/` as T1 join dfs.`/Users/asinha/parquet/nations1/` as T2 on T1.R_REGIONKEY = T2.N_REGIONKEY");    
   }
 
   @Test
   @Ignore
   public void testJoinMultiFile() throws Exception{
-    testQuery("select T1.R_REGIONKEY from dfs.`/Users/jni/regions2/` as T1 join dfs.`/Users/jni/nations2/` as T2 on T1.R_REGIONKEY = T2.N_REGIONKEY");     
+    testQuery("select T1.R_REGIONKEY from dfs.`/Users/asinha/parquet/regions2/` as T1 join dfs.`/Users/asinha/parquet/nations2/` as T2 on T1.R_REGIONKEY = T2.N_REGIONKEY");     
   }
   
   @Test
   public void testSortSingleFile() throws Exception{
-    testQuery("select R_REGIONKEY from dfs.`/Users/jni/regions1/` order by R_REGIONKEY");   
+    testQuery("select R_REGIONKEY from dfs.`/Users/asinha/parquet/regions1/` order by R_REGIONKEY");   
   }
 
   @Test
   public void testSortMultiFile() throws Exception{
-    testQuery("select R_REGIONKEY from dfs.`/Users/jni/regions2/` order by R_REGIONKEY");   
+    testQuery("select R_REGIONKEY from dfs.`/Users/asinha/parquet/regions2/` order by R_REGIONKEY");   
   }
-
+*/
+  @Test
+  public void testAggGroupByTwoKeys() throws Exception {
+    testQuery("select N_REGIONKEY, N_NAME, MIN(cast(N_NATIONKEY AS int)) As S from dfs.`/Users/asinha/parquet/nations2/` group by N_REGIONKEY, N_NAME");
+  }
   
   private void testQuery(String sql) throws Exception{
     boolean success = false;
