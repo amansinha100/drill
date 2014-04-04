@@ -20,21 +20,14 @@ package org.apache.drill.exec.planner.physical;
 import java.util.List;
 import java.util.logging.Logger;
 
-import net.hydromatic.optiq.util.BitSets;
-
-import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
-import org.apache.drill.exec.planner.logical.DrillJoinRule;
-import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
 import org.eigenbase.rel.InvalidRelException;
-import org.eigenbase.rel.JoinRel;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
 import org.eigenbase.relopt.RelTraitSet;
@@ -57,33 +50,51 @@ public class MergeJoinPrule extends RelOptRule {
   public void onMatch(RelOptRuleCall call) {
     final DrillJoinRel join = (DrillJoinRel) call.rel(0);
     
-    try {            
+    try {
       if (join.getCondition().isAlwaysTrue()) {
         throw new InvalidRelException("MergeJoinPrel does not support cartesian product join");
       }
-  
+
       final RelNode left = call.rel(1);
       final RelNode right = call.rel(2);
-  
+
       RelCollation collationLeft = getCollation(join.getLeftKeys());
       RelCollation collationRight = getCollation(join.getRightKeys());
+
+      // Create transform request for MergeJoin plan with both children HASH distributed
       DrillDistributionTrait hashLeftPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(join.getLeftKeys())));
       DrillDistributionTrait hashRightPartition = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, ImmutableList.copyOf(getDistributionField(join.getRightKeys())));
-      
-      final RelTraitSet traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(hashLeftPartition);   
-      final RelTraitSet traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(hashRightPartition);
-      
-      final RelNode convertedLeft = convert(left, traitsLeft);
-      final RelNode convertedRight = convert(right, traitsRight);
-      
-    
-      MergeJoinPrel newJoin = new MergeJoinPrel(join.getCluster(), traitsLeft, convertedLeft, convertedRight, join.getCondition(),
-                                                join.getJoinType());
-      call.transformTo(newJoin);
+
+      RelTraitSet traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(hashLeftPartition);   
+      RelTraitSet traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(hashRightPartition);
+
+      // createTransformRequest(call, join, left, right, traitsLeft, traitsRight);
+
+      // Create transform request for MergeJoin plan with left child ANY distributed and right child BROADCAST distributed
+      // DrillDistributionTrait distAnyLeft = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.ANY);
+      DrillDistributionTrait distBroadcastRight = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.BROADCAST_DISTRIBUTED);
+      // traitsLeft = left.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationLeft).plus(distAnyLeft);
+      traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(distBroadcastRight);
+
+      createTransformRequest(call, join, left, right, traitsLeft, traitsRight);
+
     } catch (InvalidRelException e) {
       tracer.warning(e.toString());
     }
+  }
 
+  private void createTransformRequest(RelOptRuleCall call, DrillJoinRel join, 
+                                      RelNode left, RelNode right, 
+                                      RelTraitSet traitsLeft, RelTraitSet traitsRight)
+    throws InvalidRelException { 
+
+    final RelNode convertedLeft = convert(left, traitsLeft);
+    final RelNode convertedRight = convert(right, traitsRight);
+      
+    MergeJoinPrel newJoin = new MergeJoinPrel(join.getCluster(), traitsLeft, 
+                                              convertedLeft, convertedRight, join.getCondition(),
+                                              join.getJoinType());
+    call.transformTo(newJoin) ;
   }
   
   private RelCollation getCollation(List<Integer> keys){    
