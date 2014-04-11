@@ -21,12 +21,26 @@ package org.apache.drill.exec.planner.cost;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptUtil;
 
+/**
+ * Implementation of the DrillRelOptCost, modeled similar to VolcanoCost
+ */
 public class DrillCostBase implements DrillRelOptCost {
 
-  static final int byteCpuCost = 1; 
-  static final int byteNetworkCost = 150 * byteCpuCost;
-  static final int byteDiskReadCost = 4 * byteNetworkCost;
-  static final int byteDiskWriteCost = 4 * byteNetworkCost;
+  // NOTE: the multiplication factors below are not calibrated yet...these
+  // are chosen arbitrarily for now
+  public static final int baseCpuCost = 1;                        // base cpu cost per 'operation'
+  public static final int byteNetworkCost = 128 * baseCpuCost;    // network transfer cost per byte
+  public static final int byteDiskReadCost = 4 * byteNetworkCost; // disk read cost per byte
+  public static final int byteSerDeCpuCost = 16 * baseCpuCost;    // (de)serialization cpu cost per byte
+
+  // hash cpu cost per field (for now we don't distinguish between fields of different types) involves 
+  // the cost of the following operations: 
+  // compute hash value, probe hash table, walk hash chain and compare with each element,
+  // add to the end of hash chain if no match found
+  public static final int hashCpuCost = 8 * baseCpuCost;     
+
+  // comparison cost of comparing one field with another (ignoring data types for now) 
+  public static final int compareCpuCost = 4 * baseCpuCost;   
       
   static final DrillCostBase INFINITY =
       new DrillCostBase(
@@ -68,7 +82,7 @@ public class DrillCostBase implements DrillRelOptCost {
   final double io;
   final double network;
 
-  DrillCostBase(double rowCount, double cpu, double io, double network) {
+  public DrillCostBase(double rowCount, double cpu, double io, double network) {
     this.rowCount = rowCount;
     this.cpu = cpu;
     this.io = io;

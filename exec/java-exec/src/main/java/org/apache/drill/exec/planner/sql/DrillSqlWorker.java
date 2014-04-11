@@ -69,9 +69,9 @@ public class DrillSqlWorker {
   private final static RuleSet[] RULES = new RuleSet[]{DrillRuleSets.DRILL_BASIC_RULES, DrillRuleSets.DRILL_PHYSICAL_MEM};
   private final static int LOGICAL_RULES = 0;
   private final static int PHYSICAL_MEM_RULES = 1;
+  final List<RelTraitDef> traitDefs = new ArrayList<RelTraitDef>();
   
   public DrillSqlWorker(DrillSchemaFactory schemaFactory, FunctionImplementationRegistry registry) throws Exception {
-    final List<RelTraitDef> traitDefs = new ArrayList<RelTraitDef>();
     traitDefs.add(ConventionTraitDef.INSTANCE);
     traitDefs.add(DrillDistributionTraitDef.INSTANCE);    
     traitDefs.add(RelCollationTraitDef.INSTANCE);
@@ -99,13 +99,14 @@ public class DrillSqlWorker {
   /*
    * Given a SQL string, return the logical DrillRel tree, plus mode (execute, or EXPLAIN mode).  
    */
-  public RelResult getLogicalRel(String sql) throws SqlParseException, ValidationException, RelConversionException{
+  public RelResult getLogicalRel(String sql, QueryContext qcontext) throws SqlParseException, ValidationException, RelConversionException{
     if(logger.isDebugEnabled()) {
       logger.debug("SQL : " + sql);
     }
 
     // Call optiq to parse the SQL string. 
     SqlNode sqlNode = planner.parse(sql);  
+    
     ResultMode resultMode = ResultMode.EXEC;
     
     //Process EXPLAIN
@@ -132,6 +133,9 @@ public class DrillSqlWorker {
     if(logger.isDebugEnabled()) {
       logger.debug("RelNode tree : " + RelOptUtil.toString(relNode, SqlExplainLevel.ALL_ATTRIBUTES));
     }
+    
+    DrillDistributionTraitDef dt = (DrillDistributionTraitDef) traitDefs.get(1);
+    dt.setQueryContext(qcontext);
     
     // Call optiq to transform RelNode into Drill Logical RelNode tree. 
     RelNode convertedRelNode = planner.transform(LOGICAL_RULES, relNode.getTraitSet().plus(DrillRel.DRILL_LOGICAL), relNode);
@@ -169,7 +173,7 @@ public class DrillSqlWorker {
    * Given a SQL string, return the Drill logical plan.
    */
   public LogicalPlan getLogicalPlan(String sql) throws SqlParseException, ValidationException, RelConversionException{
-    RelResult result = getLogicalRel(sql);
+    RelResult result = getLogicalRel(sql, null);
 
     RelNode convertedRelNode = planner.transform(LOGICAL_RULES, result.node.getTraitSet().plus(DrillRel.DRILL_LOGICAL), result.node);
     if(convertedRelNode instanceof DrillStoreRel){
@@ -215,7 +219,7 @@ public class DrillSqlWorker {
    * Given a SQL string, return Drill physical plan. 
    */
   public PhysicalPlan getPhysicalPlan(String sql, QueryContext qcontext) throws SqlParseException, ValidationException, RelConversionException, IOException {
-    RelResult result = getLogicalRel(sql);
+    RelResult result = getLogicalRel(sql, qcontext);
 
     RelTraitSet traits = result.node.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.SINGLETON);    
     Prel phyRelNode = (Prel) planner.transform(PHYSICAL_MEM_RULES, traits, result.node);

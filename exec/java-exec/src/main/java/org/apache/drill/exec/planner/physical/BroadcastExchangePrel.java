@@ -21,13 +21,14 @@ package org.apache.drill.exec.planner.physical;
 import java.io.IOException;
 import java.util.List;
 
-
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.BroadcastExchange;
 import org.apache.drill.exec.physical.config.SelectionVectorRemover;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -35,20 +36,34 @@ import org.eigenbase.relopt.RelTraitSet;
 
 public class BroadcastExchangePrel extends SingleRel implements Prel {
 
+  int numEndPoints = 0;
   
-  public BroadcastExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input) {
+  public BroadcastExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, 
+                              int numEndPoints) {
     super(cluster, traitSet, input);
+    this.numEndPoints = numEndPoints;
     assert input.getConvention() == Prel.DRILL_PHYSICAL;
   }
 
+  /**
+   * Compute the cost of broadcast based on number of endpoints
+   */
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    return super.computeSelfCost(planner).multiplyBy(.1);    
+    RelNode child = this.getChild();
+   
+    double inputRows = RelMetadataQuery.getRowCount(child);
+    int  rowWidth = child.getRowType().getPrecision();
+    double cpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth * numEndPoints;
+    return new DrillCostBase(inputRows, cpuCost, 0, networkCost);
+    
+    // return super.computeSelfCost(planner).multiplyBy(.1);    
   }
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new BroadcastExchangePrel(getCluster(), traitSet, sole(inputs));
+    return new BroadcastExchangePrel(getCluster(), traitSet, sole(inputs), numEndPoints);
   }
   
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
@@ -61,6 +76,7 @@ public class BroadcastExchangePrel extends SingleRel implements Prel {
       childPOP = new SelectionVectorRemover(childPOP);
       creator.addPhysicalOperator(childPOP);
     }
+
 
     BroadcastExchange g = new BroadcastExchange(childPOP);
     creator.addPhysicalOperator(g);

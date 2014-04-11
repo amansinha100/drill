@@ -25,36 +25,74 @@ import net.hydromatic.linq4j.Ord;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.HashToRandomExchange;
 import org.apache.drill.exec.physical.config.SelectionVectorRemover;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.RelWriter;
 import org.eigenbase.rel.SingleRel;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.reltype.RelDataTypeField;
 
 
 public class HashToRandomExchangePrel extends SingleRel implements Prel {
 
   private final List<DistributionField> fields;
+  private int numEndPoints = 0;
   
-  public HashToRandomExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, List<DistributionField> fields) {
+  public HashToRandomExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, List<DistributionField> fields, 
+                                  int numEndPoints) {
     super(cluster, traitSet, input);
     this.fields = fields;
+    this.numEndPoints = numEndPoints;
     assert input.getConvention() == Prel.DRILL_PHYSICAL;
   }
 
+  /**
+   * HashToRandomExchange processes M input rows and hash partitions them 
+   * based on computing a hash value on the distribution fields. 
+   * If there are N nodes (endpoints), we can assume for costing purposes 
+   * on average each sender will send M/N rows to 1 destination endpoint.  
+   * Let 
+   *   C = Cost per node. 
+   *   k = number of fields on which to distribute on
+   *   h = CPU cost of computing hash value on 1 field 
+   *   s = CPU cost of serializing/deserializing 
+   *   w = Network cost of sending 1 row to 1 destination
+   * So, C =  CPU cost of hashing k fields of M/N rows 
+   *        + CPU cost of serializing/deserializing M/N rows 
+   *        + Network cost of sending M/N rows to 1 destination. 
+   * So, C = (h * k * M/N) + (s * M/N) + (w * M/N) 
+   * Total cost = N * C
+   */
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    return super.computeSelfCost(planner).multiplyBy(.1);    
-    //return planner.getCostFactory().makeZeroCost();
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+    /* 
+    int distFieldSize = 0;
+    List<RelDataTypeField> distFieldList = child.getRowType().getFieldList();
+    for (int i = 0; i < fields.size(); i++) {
+      DistributionField f = fields.get(i);
+      RelDataTypeField distField = distFieldList.get(f.getFieldId());
+      distFieldSize += distField.getType().getPrecision();
+    }
+    */
+    int  rowWidth = child.getRowType().getPrecision();
+    double hashCpuCost = DrillCostBase.hashCpuCost * inputRows * fields.size();
+    double serDeCpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
+    return new DrillCostBase(inputRows, hashCpuCost + serDeCpuCost, 0, networkCost);    
+    // return super.computeSelfCost(planner).multiplyBy(.1);    
   }
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new HashToRandomExchangePrel(getCluster(), traitSet, sole(inputs), fields);
+    return new HashToRandomExchangePrel(getCluster(), traitSet, sole(inputs), fields, numEndPoints);
   }
   
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {

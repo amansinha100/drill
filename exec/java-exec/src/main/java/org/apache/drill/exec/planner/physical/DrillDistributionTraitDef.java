@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.planner.physical;
 
+import org.apache.drill.exec.ops.QueryContext;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelCollationTraitDef;
@@ -26,6 +27,8 @@ import org.eigenbase.relopt.RelTraitDef;
 
 public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrait>{
   public static final DrillDistributionTraitDef INSTANCE = new DrillDistributionTraitDef();
+  
+  private QueryContext queryContext = null;
   
   private DrillDistributionTraitDef() {
     super();
@@ -48,6 +51,10 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
     return this.getClass().getSimpleName();
   }
 
+  public void setQueryContext(QueryContext context) {
+    queryContext = context;
+  }
+  
   // implement RelTraitDef
   public RelNode convert(
       RelOptPlanner planner,
@@ -76,11 +83,13 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
       case SINGLETON:         
         return new UnionExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
       case HASH_DISTRIBUTED:
-        return new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel, toDist.getFields());
+        return new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel, 
+                                            toDist.getFields(), this.queryContext.getActiveEndpoints().size());
       case RANGE_DISTRIBUTED:
         return new OrderedPartitionExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
       case BROADCAST_DISTRIBUTED:
-        return new BroadcastExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
+        return new BroadcastExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel,
+                                         this.queryContext.getActiveEndpoints().size());
       default:
         return null;
     }

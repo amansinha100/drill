@@ -30,12 +30,14 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.SelectionVectorRemover;
 import org.apache.drill.exec.physical.config.SingleMergeExchange;
 import org.apache.drill.exec.physical.config.UnionExchange;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.RelWriter;
 import org.eigenbase.rel.SingleRel;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -53,10 +55,35 @@ public class SingleMergeExchangePrel extends SingleRel implements Prel {
     assert input.getConvention() == Prel.DRILL_PHYSICAL;
   }
 
+  /**    
+   * A SingleMergeExchange processes a total of M rows coming from N 
+   * sorted input streams (from N senders) and merges them into a single 
+   * output sorted stream. For costing purposes we can assume each sender
+   * is sending M/N rows to a single receiver.   
+   * Let 
+   *   C = Cost per sender node. 
+   *   s = CPU cost of serializing/deserializing 1 row
+   *   w = Network cost of sending 1 row to 1 destination
+   *   c = CPU cost of comparing an incoming row with one on a heap of size N
+   * So, C =  CPU cost of serializing/deserializing M/N rows 
+   *        + Network cost of sending M/N rows to 1 destination. 
+   * So, C = (s * M/N) + (w * M/N) 
+   * Cost of merging M rows coming from N senders = (M log2 N) * c
+   * Total cost = N * C + (M log2 N) * c 
+   */  
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    return super.computeSelfCost(planner).multiplyBy(0.1);
-    //return planner.getCostFactory().makeCost(50, 50, 50);
+
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+    int  rowWidth = child.getRowType().getPrecision();    
+    double serDeCpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
+    int numEndPoints = 16; // hardcoded until we get it through the the planner context
+    double mergeCpuCost = DrillCostBase.compareCpuCost * inputRows * (Math.log(numEndPoints)/Math.log(2));
+    return new DrillCostBase(inputRows, serDeCpuCost + mergeCpuCost, 0, networkCost);   
+        
+    // return super.computeSelfCost(planner).multiplyBy(0.1);
   }
 
   @Override

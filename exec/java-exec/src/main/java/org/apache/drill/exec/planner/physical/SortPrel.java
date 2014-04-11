@@ -23,10 +23,12 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.ExternalSort;
 import org.apache.drill.exec.physical.config.SingleMergeExchange;
 import org.apache.drill.exec.physical.config.Sort;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SortRel;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -43,6 +45,18 @@ public class SortPrel extends SortRel implements Prel {
   /** Creates a DrillSortRel with offset and fetch. */
   public SortPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input, RelCollation collation, RexNode offset, RexNode fetch) {
     super(cluster, traits, input, collation, offset, fetch);
+  }
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+    // int  rowWidth = child.getRowType().getPrecision();
+    int numSortFields = this.collation.getFieldCollations().size();
+    double cpuCost = DrillCostBase.compareCpuCost * numSortFields * inputRows * (Math.log(inputRows)/Math.log(2)); 
+    double diskIOCost = 0; // assume in-memory for now until we enforce operator-level memory constraints
+    double networkCost = 0; 
+    return new DrillCostBase(inputRows, cpuCost, diskIOCost, networkCost);    
   }
 
   @Override

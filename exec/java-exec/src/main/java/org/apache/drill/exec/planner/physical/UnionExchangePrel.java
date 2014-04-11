@@ -24,9 +24,11 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.Screen;
 import org.apache.drill.exec.physical.config.SelectionVectorRemover;
 import org.apache.drill.exec.physical.config.UnionExchange;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -39,10 +41,30 @@ public class UnionExchangePrel extends SingleRel implements Prel {
     assert input.getConvention() == Prel.DRILL_PHYSICAL;
   }
 
+  /**    
+   * A UnionExchange processes a total of M rows coming from N senders and 
+   * combines them into a single output stream.  Note that there is 
+   * no sort or merge operation going on. For costing purposes, we can
+   * assume each sender is sending M/N rows to a single receiver. 
+   * Let 
+   *   C = Cost per sender node 
+   *   s = CPU cost of serializing/deserializing 1 row
+   *   w = Network cost of sending 1 row to 1 destination
+   * So, C =  CPU cost of serializing/deserializing M/N rows 
+   *        + Network cost of sending M/N rows to 1 destination. 
+   * So, C = (s * M/N) + (w * M/N) 
+   * Total cost = N * C
+   */    
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    return super.computeSelfCost(planner).multiplyBy(0.1);
-    //return planner.getCostFactory().makeCost(50, 50, 50);
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+    int  rowWidth = child.getRowType().getPrecision();    
+    double serDeCpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
+    return new DrillCostBase(inputRows, serDeCpuCost, 0, networkCost);   
+    
+    // return super.computeSelfCost(planner).multiplyBy(0.1);
   }
 
   @Override
