@@ -18,7 +18,6 @@
 package org.apache.drill.exec.planner.physical;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import net.hydromatic.linq4j.Ord;
@@ -29,11 +28,9 @@ import org.apache.drill.common.logical.data.Order.Ordering;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.SelectionVectorRemover;
 import org.apache.drill.exec.physical.config.SingleMergeExchange;
-import org.apache.drill.exec.physical.config.UnionExchange;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelCollation;
-import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.RelWriter;
 import org.eigenbase.rel.SingleRel;
@@ -42,8 +39,6 @@ import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
-
-import com.beust.jcommander.internal.Lists;
 
 public class SingleMergeExchangePrel extends SingleRel implements Prel {
   
@@ -79,7 +74,7 @@ public class SingleMergeExchangePrel extends SingleRel implements Prel {
     int  rowWidth = child.getRowType().getPrecision();    
     double svrCpuCost = DrillCostBase.svrCpuCost * inputRows;
     double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
-    int numEndPoints = 16; // hardcoded until we get it through the the planner context
+    int numEndPoints = 16; // hardcoded until we get it through the planner context
     double mergeCpuCost = DrillCostBase.compareCpuCost * inputRows * (Math.log(numEndPoints)/Math.log(2));
     return new DrillCostBase(inputRows, svrCpuCost + mergeCpuCost, 0, networkCost);   
   }
