@@ -61,10 +61,10 @@ public class HashToRandomExchangePrel extends SingleRel implements Prel {
    *   C = Cost per node. 
    *   k = number of fields on which to distribute on
    *   h = CPU cost of computing hash value on 1 field 
-   *   s = CPU cost of serializing/deserializing 
+   *   s = CPU cost of Selection-Vector remover per row
    *   w = Network cost of sending 1 row to 1 destination
    * So, C =  CPU cost of hashing k fields of M/N rows 
-   *        + CPU cost of serializing/deserializing M/N rows 
+   *        + CPU cost of SV remover for M/N rows 
    *        + Network cost of sending M/N rows to 1 destination. 
    * So, C = (h * k * M/N) + (s * M/N) + (w * M/N) 
    * Total cost = N * C
@@ -84,10 +84,9 @@ public class HashToRandomExchangePrel extends SingleRel implements Prel {
     */
     int  rowWidth = child.getRowType().getPrecision();
     double hashCpuCost = DrillCostBase.hashCpuCost * inputRows * fields.size();
-    double serDeCpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double svrCpuCost = DrillCostBase.svrCpuCost * inputRows;
     double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
-    return new DrillCostBase(inputRows, hashCpuCost + serDeCpuCost, 0, networkCost);    
-    // return super.computeSelfCost(planner).multiplyBy(.1);    
+    return new DrillCostBase(inputRows, hashCpuCost + svrCpuCost, 0, networkCost);    
   }
 
   @Override

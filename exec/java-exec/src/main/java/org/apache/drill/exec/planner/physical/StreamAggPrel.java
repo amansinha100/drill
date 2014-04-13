@@ -33,15 +33,17 @@ import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.SingleMergeExchange;
 import org.apache.drill.exec.physical.config.StreamingAggregate;
-import org.apache.drill.exec.planner.logical.DrillAggregateRel;
-import org.apache.drill.exec.planner.logical.DrillImplementor;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 
 import com.beust.jcommander.internal.Lists;
@@ -67,11 +69,24 @@ public class StreamAggPrel extends AggregateRelBase implements Prel{
       throw new AssertionError(e);
     }
   }
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+
+    int numGroupByFields = this.getGroupCount();
+    int numAggrFields = this.aggCalls.size();
+    double cpuCost = DrillCostBase.compareCpuCost * numGroupByFields * inputRows;
+    // add cpu cost for computing the aggregate functions
+    cpuCost += DrillCostBase.funcCpuCost * numAggrFields * inputRows;
+    return new DrillCostBase(inputRows, cpuCost, 0 /* disk i/o cost */, 0 /* network cost */);    
+  }
+
    
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    // Prel child = (Prel) this.getChild();
-    
+
     final List<String> childFields = getChild().getRowType().getFieldNames();
     final List<String> fields = getRowType().getFieldNames();
     List<NamedExpression> keys = Lists.newArrayList();

@@ -30,8 +30,10 @@ public class DrillCostBase implements DrillRelOptCost {
   // are chosen arbitrarily for now
   public static final int baseCpuCost = 1;                        // base cpu cost per 'operation'
   public static final int byteNetworkCost = 128 * baseCpuCost;    // network transfer cost per byte
-  public static final int byteDiskReadCost = 4 * byteNetworkCost; // disk read cost per byte
-  public static final int byteSerDeCpuCost = 16 * baseCpuCost;    // (de)serialization cpu cost per byte
+  public static final int byteDiskReadCost = 64 * baseCpuCost;    // disk read cost per byte
+
+  public static final int svrCpuCost = 8 * baseCpuCost;          // cpu cost for SV remover
+  public static final int funcCpuCost = 12 * baseCpuCost;         // cpu cost for a function evaluation
 
   // hash cpu cost per field (for now we don't distinguish between fields of different types) involves 
   // the cost of the following operations: 

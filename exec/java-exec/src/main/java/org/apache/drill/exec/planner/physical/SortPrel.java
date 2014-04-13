@@ -55,8 +55,7 @@ public class SortPrel extends SortRel implements Prel {
     int numSortFields = this.collation.getFieldCollations().size();
     double cpuCost = DrillCostBase.compareCpuCost * numSortFields * inputRows * (Math.log(inputRows)/Math.log(2)); 
     double diskIOCost = 0; // assume in-memory for now until we enforce operator-level memory constraints
-    double networkCost = 0; 
-    return new DrillCostBase(inputRows, cpuCost, diskIOCost, networkCost);    
+    return new DrillCostBase(inputRows, cpuCost, diskIOCost, 0);    
   }
 
   @Override

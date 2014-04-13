@@ -32,12 +32,16 @@ import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.HashAggregate;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 
 import com.beust.jcommander.internal.Lists;
@@ -63,7 +67,22 @@ public class HashAggPrel extends AggregateRelBase implements Prel{
       throw new AssertionError(e);
     }
   }
-   
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+
+    int numGroupByFields = this.getGroupCount();
+    int numAggrFields = this.aggCalls.size();
+    // cpu cost of hashing each grouping key
+    double cpuCost = DrillCostBase.hashCpuCost * numGroupByFields * inputRows;
+    // add cpu cost for computing the aggregate functions
+    cpuCost += DrillCostBase.funcCpuCost * numAggrFields * inputRows;
+    double diskIOCost = 0; // assume in-memory for now until we enforce operator-level memory constraints
+    return new DrillCostBase(inputRows, cpuCost, diskIOCost, 0 /* network cost */);    
+  }
+
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
     

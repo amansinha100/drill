@@ -21,11 +21,12 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.drill.exec.physical.base.PhysicalOperator;
-import org.apache.drill.exec.physical.config.Screen;
+import org.apache.drill.exec.physical.config.HashToMergeExchange;
 import org.apache.drill.exec.physical.config.SelectionVectorRemover;
-import org.apache.drill.exec.physical.config.UnionExchange;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
+import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
+import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
 import org.eigenbase.rel.metadata.RelMetadataQuery;
@@ -33,46 +34,49 @@ import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.reltype.RelDataTypeField;
 
-public class UnionExchangePrel extends SingleRel implements Prel {
 
-  public UnionExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input) {
+public class HashToMergeExchangePrel extends SingleRel implements Prel {
+
+  private final List<DistributionField> distFields;
+  private int numEndPoints = 0;
+  private final RelCollation collation ;
+  
+  public HashToMergeExchangePrel(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, 
+                                 List<DistributionField> fields,
+                                 RelCollation collation,
+                                 int numEndPoints) {
     super(cluster, traitSet, input);
+    this.distFields = fields;
+    this.collation = collation;
+    this.numEndPoints = numEndPoints;
     assert input.getConvention() == Prel.DRILL_PHYSICAL;
   }
 
-  /**    
-   * A UnionExchange processes a total of M rows coming from N senders and 
-   * combines them into a single output stream.  Note that there is 
-   * no sort or merge operation going on. For costing purposes, we can
-   * assume each sender is sending M/N rows to a single receiver. 
-   * Let 
-   *   C = Cost per sender node 
-   *   s = CPU cost of Selection-Vector remover per row
-   *   w = Network cost of sending 1 row to 1 destination
-   * So, C =  CPU cost of SV remover for M/N rows 
-   *        + Network cost of sending M/N rows to 1 destination. 
-   * So, C = (s * M/N) + (w * M/N) 
-   * Total cost = N * C
-   */    
+
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
-    int  rowWidth = child.getRowType().getPrecision();    
+
+    int  rowWidth = child.getRowType().getPrecision();
+    double hashCpuCost = DrillCostBase.hashCpuCost * inputRows * distFields.size();
     double svrCpuCost = DrillCostBase.svrCpuCost * inputRows;
+    double mergeCpuCost = DrillCostBase.compareCpuCost * inputRows * (Math.log(numEndPoints)/Math.log(2));    
     double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
-    return new DrillCostBase(inputRows, svrCpuCost, 0, networkCost);   
+    return new DrillCostBase(inputRows, hashCpuCost + svrCpuCost + mergeCpuCost, 0, networkCost);    
   }
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new UnionExchangePrel(getCluster(), traitSet, sole(inputs));
+    return new HashToMergeExchangePrel(getCluster(), traitSet, sole(inputs), distFields, 
+        this.collation, numEndPoints);
   }
   
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
     Prel child = (Prel) this.getChild();
-     
+    
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
     
     //Currently, only accepts "NONE". For other, requires SelectionVectorRemover
@@ -80,10 +84,20 @@ public class UnionExchangePrel extends SingleRel implements Prel {
       childPOP = new SelectionVectorRemover(childPOP);
       creator.addPhysicalOperator(childPOP);
     }
-   
-    UnionExchange g = new UnionExchange(childPOP);
+
+    HashToMergeExchange g = new HashToMergeExchange(childPOP, 
+        PrelUtil.getHashExpression(this.distFields, getChild().getRowType()),
+        PrelUtil.getOrdering(this.collation, getChild().getRowType()));
     creator.addPhysicalOperator(g);
     return g;    
+  }
+  
+  public List<DistributionField> getDistFields() {
+    return this.distFields;
+  }
+  
+  public RelCollation getCollation() {
+    return this.collation;
   }
   
 }

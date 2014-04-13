@@ -62,10 +62,10 @@ public class SingleMergeExchangePrel extends SingleRel implements Prel {
    * is sending M/N rows to a single receiver.   
    * Let 
    *   C = Cost per sender node. 
-   *   s = CPU cost of serializing/deserializing 1 row
+   *   s = CPU cost of Selection-Vector remover per row
    *   w = Network cost of sending 1 row to 1 destination
    *   c = CPU cost of comparing an incoming row with one on a heap of size N
-   * So, C =  CPU cost of serializing/deserializing M/N rows 
+   * So, C =  CPU cost of SV remover for M/N rows 
    *        + Network cost of sending M/N rows to 1 destination. 
    * So, C = (s * M/N) + (w * M/N) 
    * Cost of merging M rows coming from N senders = (M log2 N) * c
@@ -77,13 +77,11 @@ public class SingleMergeExchangePrel extends SingleRel implements Prel {
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
     int  rowWidth = child.getRowType().getPrecision();    
-    double serDeCpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double svrCpuCost = DrillCostBase.svrCpuCost * inputRows;
     double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
     int numEndPoints = 16; // hardcoded until we get it through the the planner context
     double mergeCpuCost = DrillCostBase.compareCpuCost * inputRows * (Math.log(numEndPoints)/Math.log(2));
-    return new DrillCostBase(inputRows, serDeCpuCost + mergeCpuCost, 0, networkCost);   
-        
-    // return super.computeSelfCost(planner).multiplyBy(0.1);
+    return new DrillCostBase(inputRows, svrCpuCost + mergeCpuCost, 0, networkCost);   
   }
 
   @Override

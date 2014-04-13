@@ -46,7 +46,9 @@ public class BroadcastExchangePrel extends SingleRel implements Prel {
   }
 
   /**
-   * Compute the cost of broadcast based on number of endpoints
+   * In a BroadcastExchange, each sender is sending data to N receivers (for costing
+   * purposes we assume it is also sending to itself). 
+   * 
    */
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
@@ -54,11 +56,9 @@ public class BroadcastExchangePrel extends SingleRel implements Prel {
    
     double inputRows = RelMetadataQuery.getRowCount(child);
     int  rowWidth = child.getRowType().getPrecision();
-    double cpuCost = DrillCostBase.byteSerDeCpuCost * inputRows * rowWidth;
+    double cpuCost = DrillCostBase.svrCpuCost * inputRows ;
     double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth * numEndPoints;
     return new DrillCostBase(inputRows, cpuCost, 0, networkCost);
-    
-    // return super.computeSelfCost(planner).multiplyBy(.1);    
   }
 
   @Override

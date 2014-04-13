@@ -69,11 +69,13 @@ public class StreamAggPrule extends RelOptRule {
         traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(toDist);
         createTransformRequest(call, aggregate, input, traits);
 
+        // hash distribute on one grouping key
         toDist = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, 
                                             ImmutableList.copyOf(getDistributionField(aggregate, false /* get single grouping key */)));
     
         traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(toDist);
         createTransformRequest(call, aggregate, input, traits);
+                
       } 
     } catch (InvalidRelException e) {
       tracer.warning(e.toString());
