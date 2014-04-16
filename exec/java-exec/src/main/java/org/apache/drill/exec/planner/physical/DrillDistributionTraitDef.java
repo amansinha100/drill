@@ -29,6 +29,8 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
   public static final DrillDistributionTraitDef INSTANCE = new DrillDistributionTraitDef();
   
   private QueryContext queryContext = null;
+  public static int numDefaultEndPoints = 32; /* this may not be needed once we pass QueryContext
+                                                  through RelOptPlanner */ 
   
   private DrillDistributionTraitDef() {
     super();
@@ -84,16 +86,27 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
         return new UnionExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
       case HASH_DISTRIBUTED:
         return new HashToRandomExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel, 
-                                            toDist.getFields(), this.queryContext.getActiveEndpoints().size());
+                                            toDist.getFields(), this.getNumEndPoints());
       case RANGE_DISTRIBUTED:
         return new OrderedPartitionExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
       case BROADCAST_DISTRIBUTED:
         return new BroadcastExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel,
-                                         this.queryContext.getActiveEndpoints().size());
+                                         this.getNumEndPoints());
       default:
         return null;
     }
 
+  }
+  
+  // NOTE: this is a temporary function to get the number of end points until we get queryContext 
+  // passed through to RelOptPlanner such that computeSelfCost() can use it
+  public int getNumEndPoints() {
+    if (queryContext != null) {
+      return queryContext.getActiveEndpoints().size();
+    }
+    else {
+      return numDefaultEndPoints;
+    }
   }
 
 }

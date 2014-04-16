@@ -349,7 +349,7 @@ public class Foreman implements Runnable, Closeable, Comparable<Object>{
     try{
       DrillSqlWorker sqlWorker = new DrillSqlWorker(context.getFactory(), context.getFunctionRegistry());
       
-      RelResult relResult = sqlWorker.getLogicalRel(sql);
+      RelResult relResult = sqlWorker.getLogicalRel(sql, null);
       
       //EXPLAIN logical
       if (relResult.getMode() == ResultMode.LOGICAL) {

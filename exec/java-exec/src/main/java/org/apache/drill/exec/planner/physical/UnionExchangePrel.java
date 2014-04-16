@@ -46,17 +46,18 @@ public class UnionExchangePrel extends SingleRel implements Prel {
    * combines them into a single output stream.  Note that there is 
    * no sort or merge operation going on. For costing purposes, we can
    * assume each sender is sending M/N rows to a single receiver. 
-   * Let 
-   *   C = Cost per sender node 
-   *   s = CPU cost of Selection-Vector remover per row
-   *   w = Network cost of sending 1 row to 1 destination
-   * So, C =  CPU cost of SV remover for M/N rows 
-   *        + Network cost of sending M/N rows to 1 destination. 
+   * (See DrillCostBase for symbol notations)
+   * C =  CPU cost of SV remover for M/N rows 
+   *      + Network cost of sending M/N rows to 1 destination. 
    * So, C = (s * M/N) + (w * M/N) 
    * Total cost = N * C
    */    
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
+    
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
     int  rowWidth = child.getRowType().getPrecision();    

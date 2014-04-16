@@ -53,29 +53,47 @@ public class StreamAggPrule extends RelOptRule {
     final RelNode input = call.rel(1);
     RelCollation collation = getCollation(aggregate);
 
-    DrillDistributionTrait toDist = null;
     RelTraitSet traits = null;
 
     try {
       if (aggregate.getGroupSet().isEmpty()) {
-        toDist = DrillDistributionTrait.SINGLETON;
-        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(toDist);
+        DrillDistributionTrait singleDist = DrillDistributionTrait.SINGLETON;
+        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(singleDist);
         createTransformRequest(call, aggregate, input, traits);
       } else {
         // hash distribute on all grouping keys
-        toDist = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, 
-                                            ImmutableList.copyOf(getDistributionField(aggregate, true /* get all grouping keys */)));
+        DrillDistributionTrait distOnAllKeys = 
+            new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, 
+                                       ImmutableList.copyOf(getDistributionField(aggregate, true /* get all grouping keys */)));
     
-        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(toDist);
-        createTransformRequest(call, aggregate, input, traits);
+        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(distOnAllKeys);
+        //createTransformRequest(call, aggregate, input, traits);
 
         // hash distribute on one grouping key
-        toDist = new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, 
-                                            ImmutableList.copyOf(getDistributionField(aggregate, false /* get single grouping key */)));
+        DrillDistributionTrait distOnOneKey = 
+            new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED, 
+                                       ImmutableList.copyOf(getDistributionField(aggregate, false /* get single grouping key */)));
     
-        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(toDist);
-        createTransformRequest(call, aggregate, input, traits);
-                
+        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(distOnOneKey);
+        //createTransformRequest(call, aggregate, input, traits);
+         
+        // create a 2-phase plan
+        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation);
+        RelNode convertedInput = convert(input, traits);
+        StreamAggPrel phase1Agg = new StreamAggPrel(aggregate.getCluster(), traits, convertedInput, 
+                                                    aggregate.getGroupSet(), 
+                                                    aggregate.getAggCallList());
+        
+        HashToMergeExchangePrel exch = 
+            new HashToMergeExchangePrel(phase1Agg.getCluster(), phase1Agg.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys), 
+                                        phase1Agg, ImmutableList.copyOf(getDistributionField(aggregate, true /* get all grouping keys */)),
+                                        collation, 
+                                        DrillDistributionTraitDef.numDefaultEndPoints); 
+        
+        StreamAggPrel phase2Agg =  new StreamAggPrel(aggregate.getCluster(), traits, exch,
+                                                     aggregate.getGroupSet(), 
+                                                     aggregate.getAggCallList());
+        call.transformTo(phase2Agg);                       
       } 
     } catch (InvalidRelException e) {
       tracer.warning(e.toString());

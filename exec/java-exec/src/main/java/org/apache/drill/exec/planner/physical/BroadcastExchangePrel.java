@@ -48,10 +48,13 @@ public class BroadcastExchangePrel extends SingleRel implements Prel {
   /**
    * In a BroadcastExchange, each sender is sending data to N receivers (for costing
    * purposes we assume it is also sending to itself). 
-   * 
    */
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
+
     RelNode child = this.getChild();
    
     double inputRows = RelMetadataQuery.getRowCount(child);

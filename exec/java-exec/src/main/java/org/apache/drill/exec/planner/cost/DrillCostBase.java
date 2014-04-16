@@ -43,7 +43,19 @@ public class DrillCostBase implements DrillRelOptCost {
 
   // comparison cost of comparing one field with another (ignoring data types for now) 
   public static final int compareCpuCost = 4 * baseCpuCost;   
-      
+  
+  public static boolean useDefaultCosting = true;
+  
+  /** For the costing formulas in computeSelfCost(), assume the following notations: 
+  * Let 
+  *   C = Cost per node. 
+  *   k = number of fields on which to distribute on
+  *   h = CPU cost of computing hash value on 1 field 
+  *   s = CPU cost of Selection-Vector remover per row
+  *   w = Network cost of sending 1 row to 1 destination
+  *   c = CPU cost of comparing an incoming row with one on a heap of size N
+  */
+  
   static final DrillCostBase INFINITY =
       new DrillCostBase(
           Double.POSITIVE_INFINITY,

@@ -57,31 +57,22 @@ public class HashToRandomExchangePrel extends SingleRel implements Prel {
    * based on computing a hash value on the distribution fields. 
    * If there are N nodes (endpoints), we can assume for costing purposes 
    * on average each sender will send M/N rows to 1 destination endpoint.  
-   * Let 
-   *   C = Cost per node. 
-   *   k = number of fields on which to distribute on
-   *   h = CPU cost of computing hash value on 1 field 
-   *   s = CPU cost of Selection-Vector remover per row
-   *   w = Network cost of sending 1 row to 1 destination
-   * So, C =  CPU cost of hashing k fields of M/N rows 
-   *        + CPU cost of SV remover for M/N rows 
-   *        + Network cost of sending M/N rows to 1 destination. 
+   * (See DrillCostBase for symbol notations)
+   * C =  CPU cost of hashing k fields of M/N rows 
+   *      + CPU cost of SV remover for M/N rows 
+   *      + Network cost of sending M/N rows to 1 destination. 
    * So, C = (h * k * M/N) + (s * M/N) + (w * M/N) 
    * Total cost = N * C
    */
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
+    
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
-    /* 
-    int distFieldSize = 0;
-    List<RelDataTypeField> distFieldList = child.getRowType().getFieldList();
-    for (int i = 0; i < fields.size(); i++) {
-      DistributionField f = fields.get(i);
-      RelDataTypeField distField = distFieldList.get(f.getFieldId());
-      distFieldSize += distField.getType().getPrecision();
-    }
-    */
+
     int  rowWidth = child.getRowType().getPrecision();
     double hashCpuCost = DrillCostBase.hashCpuCost * inputRows * fields.size();
     double svrCpuCost = DrillCostBase.svrCpuCost * inputRows;

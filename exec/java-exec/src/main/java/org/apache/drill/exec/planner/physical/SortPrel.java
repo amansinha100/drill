@@ -49,6 +49,10 @@ public class SortPrel extends SortRel implements Prel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
+    
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
     // int  rowWidth = child.getRowType().getPrecision();
@@ -82,12 +86,6 @@ public class SortPrel extends SortRel implements Prel {
       RexNode offset,
       RexNode fetch) {
     return new SortPrel(getCluster(), traitSet, newInput, newCollation);
-  }
-  
-  @Override
-  public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    //We use multiplier 0.05 for TopN operator, and 0.1 for Sort, to make TopN a preferred choice. 
-    return super.computeSelfCost(planner).multiplyBy(0.1);
   }
   
 }

@@ -57,6 +57,9 @@ public class HashToMergeExchangePrel extends SingleRel implements Prel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }    
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
 

@@ -31,6 +31,7 @@ import org.apache.drill.exec.physical.config.SingleMergeExchange;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.eigenbase.rel.RelCollation;
+import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.RelWriter;
 import org.eigenbase.rel.SingleRel;
@@ -55,26 +56,24 @@ public class SingleMergeExchangePrel extends SingleRel implements Prel {
    * sorted input streams (from N senders) and merges them into a single 
    * output sorted stream. For costing purposes we can assume each sender
    * is sending M/N rows to a single receiver.   
-   * Let 
-   *   C = Cost per sender node. 
-   *   s = CPU cost of Selection-Vector remover per row
-   *   w = Network cost of sending 1 row to 1 destination
-   *   c = CPU cost of comparing an incoming row with one on a heap of size N
-   * So, C =  CPU cost of SV remover for M/N rows 
-   *        + Network cost of sending M/N rows to 1 destination. 
+   * (See DrillCostBase for symbol notations)
+   * C =  CPU cost of SV remover for M/N rows 
+   *     + Network cost of sending M/N rows to 1 destination. 
    * So, C = (s * M/N) + (w * M/N) 
    * Cost of merging M rows coming from N senders = (M log2 N) * c
    * Total cost = N * C + (M log2 N) * c 
    */  
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
     int  rowWidth = child.getRowType().getPrecision();    
     double svrCpuCost = DrillCostBase.svrCpuCost * inputRows;
     double networkCost = DrillCostBase.byteNetworkCost * inputRows * rowWidth;
-    int numEndPoints = 16; // hardcoded until we get it through the planner context
+    int numEndPoints = DrillDistributionTraitDef.numDefaultEndPoints; // use the hardcoded value until we get it through RelOptPlanner
     double mergeCpuCost = DrillCostBase.compareCpuCost * inputRows * (Math.log(numEndPoints)/Math.log(2));
     return new DrillCostBase(inputRows, svrCpuCost + mergeCpuCost, 0, networkCost);   
   }

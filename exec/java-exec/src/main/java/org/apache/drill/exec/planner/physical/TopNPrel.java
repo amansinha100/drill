@@ -22,10 +22,12 @@ import java.util.List;
 
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.TopN;
+import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.RelWriter;
 import org.eigenbase.rel.SingleRel;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -62,10 +64,22 @@ public class TopNPrel extends SingleRel implements Prel {
     return topN;
   }
   
+  /**
+   * Cost of doing Top-N is proportional to M log N where M is the total number of 
+   * input rows and N is the limit for Top-N.  This makes Top-N preferable to Sort 
+   * since cost of full Sort is proportional to M log M .    
+   */
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    RelNode child = this.getChild();
+    double inputRows = RelMetadataQuery.getRowCount(child);
+    int numSortFields = this.collation.getFieldCollations().size();
+    double cpuCost = DrillCostBase.compareCpuCost * numSortFields * inputRows * (Math.log(limit)/Math.log(2)); 
+    double diskIOCost = 0; // assume in-memory for now until we enforce operator-level memory constraints
+    return new DrillCostBase(inputRows, cpuCost, diskIOCost, 0); 
+    
     //We use multiplier 0.05 for TopN operator, and 0.1 for Sort, to make TopN a preferred choice. 
-    return super.computeSelfCost(planner).multiplyBy(0.05);
+    //return super.computeSelfCost(planner).multiplyBy(0.05);   
   }
 
   

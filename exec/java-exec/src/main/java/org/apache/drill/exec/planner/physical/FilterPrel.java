@@ -47,6 +47,9 @@ public class FilterPrel extends DrillFilterRelBase implements Prel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
     double cpuCost = 2 * DrillCostBase.baseCpuCost * inputRows;

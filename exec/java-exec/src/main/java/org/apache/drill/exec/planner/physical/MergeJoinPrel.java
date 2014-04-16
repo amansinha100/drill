@@ -76,6 +76,9 @@ public class MergeJoinPrel  extends DrillJoinRelBase implements Prel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    if (DrillCostBase.useDefaultCosting) {
+      return super.computeSelfCost(planner).multiplyBy(.1); 
+    }
     double leftRowCount = RelMetadataQuery.getRowCount(this.getLeft());
     double rightRowCount = RelMetadataQuery.getRowCount(this.getRight());
     // cost of evaluating each leftkey=rightkey join condition
