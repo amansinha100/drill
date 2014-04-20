@@ -75,13 +75,17 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
     // We do not want to convert from "ANY", since it's abstract. 
     // Source trait should be concrete type: SINGLETON, HASH_DISTRIBUTED, etc.
     if (currentDist.equals(DrillDistributionTrait.DEFAULT)) {
-      return null;
+      if (toDist.equals(DrillDistributionTrait.ANY))
+        return rel;
+      else 
+        return null;
     }
     
     RelCollation collation = null;
     
     switch(toDist.getType()){
-      // UnionExchange, HashToRandomExchange, OrderedPartitionExchange destroy the ordering property, therefore RelCollation is set to default, which is EMPTY.
+      // UnionExchange, HashToRandomExchange, OrderedPartitionExchange and BroadcastExchange destroy the ordering property,
+      // therefore RelCollation is set to default, which is EMPTY.
       case SINGLETON:         
         return new UnionExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
       case HASH_DISTRIBUTED:

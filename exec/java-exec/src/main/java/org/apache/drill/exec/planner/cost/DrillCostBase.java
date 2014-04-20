@@ -27,10 +27,16 @@ import org.eigenbase.relopt.RelOptUtil;
 public class DrillCostBase implements DrillRelOptCost {
 
   // NOTE: the multiplication factors below are not calibrated yet...these
-  // are chosen arbitrarily for now
+  // are chosen based on approximations for now. For reference purposes, 
+  // assume each disk on a server can have a sustained I/O throughput of 
+  // 100 MBytes/sec.  Suppose there are 16 disks..theoretically one could
+  // get 1.6GBytes/sec. Suppose network speed is 1GBit/sec which is 128MBytes/sec.
+  // For relative costing, let's assume sending data over the network is
+  // about 8x slower than reading/writing to an array of local disks.
   public static final int baseCpuCost = 1;                        // base cpu cost per 'operation'
-  public static final int byteNetworkCost = 128 * baseCpuCost;    // network transfer cost per byte
   public static final int byteDiskReadCost = 64 * baseCpuCost;    // disk read cost per byte
+  public static final int byteNetworkCost = 8 * byteDiskReadCost; // network transfer cost per byte
+
 
   public static final int svrCpuCost = 8 * baseCpuCost;          // cpu cost for SV remover
   public static final int funcCpuCost = 12 * baseCpuCost;         // cpu cost for a function evaluation

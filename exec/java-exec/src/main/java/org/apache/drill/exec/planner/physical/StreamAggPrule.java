@@ -78,22 +78,31 @@ public class StreamAggPrule extends RelOptRule {
         //createTransformRequest(call, aggregate, input, traits);
          
         // create a 2-phase plan
-        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation);
+        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(DrillDistributionTrait.ANY);
+        // traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collation).plus(DrillDistributionTrait.SINGLETON);
         RelNode convertedInput = convert(input, traits);
         StreamAggPrel phase1Agg = new StreamAggPrel(aggregate.getCluster(), traits, convertedInput, 
                                                     aggregate.getGroupSet(), 
                                                     aggregate.getAggCallList());
-        
+/*        
         HashToMergeExchangePrel exch = 
             new HashToMergeExchangePrel(phase1Agg.getCluster(), phase1Agg.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys), 
-                                        phase1Agg, ImmutableList.copyOf(getDistributionField(aggregate, true /* get all grouping keys */)),
+                                        phase1Agg, ImmutableList.copyOf(getDistributionField(aggregate, true)),
                                         collation, 
                                         DrillDistributionTraitDef.numDefaultEndPoints); 
-        
+*/
+
+/*        
+        HashToRandomExchangePrel exch = new HashToRandomExchangePrel(phase1Agg.getCluster(), 
+            call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys), 
+            phase1Agg, ImmutableList.copyOf(getDistributionField(aggregate, true)), 
+            DrillDistributionTraitDef.numDefaultEndPoints);      
+
         StreamAggPrel phase2Agg =  new StreamAggPrel(aggregate.getCluster(), traits, exch,
                                                      aggregate.getGroupSet(), 
                                                      aggregate.getAggCallList());
-        call.transformTo(phase2Agg);                       
+*/
+        call.transformTo(phase1Agg);                       
       } 
     } catch (InvalidRelException e) {
       tracer.warning(e.toString());
