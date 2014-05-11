@@ -38,7 +38,8 @@ public class SystemOptionManager implements OptionManager{
       PlannerSettings.STREAMAGG,
       PlannerSettings.HASHJOIN,
       PlannerSettings.MERGEJOIN, 
-      PlannerSettings.MULTIPHASE
+      PlannerSettings.MULTIPHASE, 
+      PlannerSettings.BROADCAST
   };
 
   private DistributedMap<OptionValue> options;
