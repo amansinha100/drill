@@ -52,6 +52,7 @@ import org.eigenbase.rel.rules.RemoveDistinctAggregateRule;
 import org.eigenbase.rel.rules.RemoveDistinctRule;
 import org.eigenbase.rel.rules.RemoveSortRule;
 import org.eigenbase.rel.rules.RemoveTrivialProjectRule;
+import org.eigenbase.rel.rules.SwapJoinRule;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.volcano.AbstractConverter.ExpandConversionRule;
 
@@ -81,15 +82,11 @@ public class DrillRuleSets {
       RemoveSortRule.INSTANCE,
 
 //      TableAccessRule.INSTANCE, //
-      //MergeProjectRule.INSTANCE, //
       new MergeProjectRule(true, RelFactories.DEFAULT_PROJECT_FACTORY),
       RemoveDistinctAggregateRule.INSTANCE, //
       ReduceAggregatesRule.INSTANCE, //
       PushProjectPastJoinRule.INSTANCE,
       PushProjectPastFilterRule.INSTANCE,
-//      SwapJoinRule.INSTANCE, //
-//      PushJoinThroughJoinRule.RIGHT, //
-//      PushJoinThroughJoinRule.LEFT, //
 //      PushSortPastProjectRule.INSTANCE, //
 
       DrillPushProjIntoScan.INSTANCE,
@@ -107,60 +104,25 @@ public class DrillRuleSets {
       MergeProjectRule.INSTANCE
       ));
 
-  /* 
-  public static final RuleSet DRILL_PHYSICAL_MEM = new DrillRuleSet(ImmutableSet.of( //
-//      DrillScanRule.INSTANCE,
-//      DrillFilterRule.INSTANCE,
-//      DrillProjectRule.INSTANCE,
-//      DrillAggregateRule.INSTANCE,
-//
-//      DrillLimitRule.INSTANCE,
-//      DrillSortRule.INSTANCE,
-//      DrillJoinRule.INSTANCE,
-//      DrillUnionRule.INSTANCE,
-
-      ConvertCountToDirectScan.AGG_ON_PROJ_ON_SCAN,
-      ConvertCountToDirectScan.AGG_ON_SCAN,
-
-      SortConvertPrule.INSTANCE,
-      SortPrule.INSTANCE,
-      ProjectPrule.INSTANCE,
-      ScanPrule.INSTANCE,
-      ScreenPrule.INSTANCE,
-      ExpandConversionRule.INSTANCE,
-      StreamAggPrule.INSTANCE,
-      HashAggPrule.INSTANCE,
-      MergeJoinPrule.INSTANCE,
-      HashJoinPrule.INSTANCE,
-      FilterPrule.INSTANCE,
-      LimitPrule.INSTANCE,
-      WriterPrule.INSTANCE,
-      PushLimitToTopN.INSTANCE
-
-//    ExpandConversionRule.INSTANCE,
-//    SwapJoinRule.INSTANCE,
-//    RemoveDistinctRule.INSTANCE,
-//    UnionToDistinctRule.INSTANCE,
-//    RemoveTrivialProjectRule.INSTANCE,
-//    RemoveTrivialCalcRule.INSTANCE,
-//    RemoveSortRule.INSTANCE,
-//
-//    TableAccessRule.INSTANCE, //
-//    MergeProjectRule.INSTANCE, //
-//    PushFilterPastProjectRule.INSTANCE, //
-//    PushFilterPastJoinRule.FILTER_ON_JOIN, //
-//    RemoveDistinctAggregateRule.INSTANCE, //
-//    ReduceAggregatesRule.INSTANCE, //
-//    SwapJoinRule.INSTANCE, //
-//    PushJoinThroughJoinRule.RIGHT, //
-//    PushJoinThroughJoinRule.LEFT, //
-//    PushSortPastProjectRule.INSTANCE, //
-    ));
-*/
   public static final RuleSet DRILL_PHYSICAL_DISK = new DrillRuleSet(ImmutableSet.of( //
       ProjectPrule.INSTANCE
 
     ));
+
+  public static final RuleSet getLogicalRules(QueryContext qcontext) {
+    List<RelOptRule> ruleList = new ArrayList<RelOptRule>(); 
+
+    PlannerSettings ps = qcontext.getPlannerSettings();
+    
+    if (ps.isSwapJoinEnabled()) {
+      ruleList.add(SwapJoinRule.INSTANCE);        
+    }
+   
+    RuleSet additionalRules = new DrillRuleSet(ImmutableSet.copyOf(ruleList));
+    RuleSet mergedRuleSet = DrillRuleSets.mergedRuleSets(DRILL_BASIC_RULES, additionalRules);
+    
+    return mergedRuleSet;
+  }
 
   public static final RuleSet getPhysicalRules(QueryContext qcontext) {
     List<RelOptRule> ruleList = new ArrayList<RelOptRule>(); 

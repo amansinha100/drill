@@ -27,6 +27,7 @@ import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -55,7 +56,13 @@ public abstract class DrillJoinRelBase extends JoinRelBase implements DrillRelNo
     if(condition.isAlwaysTrue()){
       return ((DrillCostFactory)planner.getCostFactory()).makeInfiniteCost();
     }
-    return super.computeSelfCost(planner);
+    
+    double rowCount = RelMetadataQuery.getRowCount(this);
+    RelOptCost cost = ((DrillCostFactory)planner.getCostFactory()).makeCost(rowCount, 0, 0, 0);
+    if (getRight().getRows() > 2 * getLeft().getRows()) {
+      cost = cost.multiplyBy(2.0);
+    }    
+    return cost;
   }
 
   @Override

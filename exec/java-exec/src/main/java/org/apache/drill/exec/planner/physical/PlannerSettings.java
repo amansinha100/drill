@@ -47,6 +47,8 @@ public class PlannerSettings implements FrameworkContext{
   public static final OptionValidator PRODUCER_CONSUMER = new BooleanValidator("planner.add_producer_consumer", true);
   public static final OptionValidator PRODUCER_CONSUMER_QUEUE_SIZE = new LongValidator("planner.producer_consumer_queue_size", 10);
   public static final OptionValidator HASH_SINGLE_KEY = new BooleanValidator("planner.enable_hash_single_key", true);
+  public static final OptionValidator SWAP_JOIN = new BooleanValidator("planner.enable_swap_join", false);
+  public static final OptionValidator BROADCAST_COST_FACTOR = new RangeDoubleValidator("planner.broadcast_cost_factor", 0, 1.0d, 1.0d);
 
   public OptionManager options = null;
 
@@ -105,6 +107,10 @@ public class PlannerSettings implements FrameworkContext{
   public boolean isHashSingleKey() {
     return options.getOption(HASH_SINGLE_KEY.getOptionName()).bool_val;
   }
+  
+  public boolean isSwapJoinEnabled() {
+    return options.getOption(SWAP_JOIN.getOptionName()).bool_val;
+  }
 
   public long getBroadcastThreshold() {
     return options.getOption(BROADCAST_THRESHOLD.getOptionName()).num_val;
@@ -112,6 +118,10 @@ public class PlannerSettings implements FrameworkContext{
 
   public long getSliceTarget(){
     return options.getOption(ExecConstants.SLICE_TARGET).num_val;
+  }
+  
+  public double getBroadcastCostFactor() {
+    return options.getOption(BROADCAST_COST_FACTOR.getOptionName()).float_val;
   }
 
   @Override
