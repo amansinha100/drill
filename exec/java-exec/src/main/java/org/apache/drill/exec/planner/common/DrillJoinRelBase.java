@@ -59,7 +59,7 @@ public abstract class DrillJoinRelBase extends JoinRelBase implements DrillRelNo
     
     double rowCount = RelMetadataQuery.getRowCount(this);
     RelOptCost cost = ((DrillCostFactory)planner.getCostFactory()).makeCost(rowCount, 0, 0, 0);
-    if (getRight().getRows() > 2 * getLeft().getRows()) {
+    if (getRight().getRows() > 2 * getLeft().getRows() && PrelUtil.getPlannerSettings(planner).isSwapJoinEnabled()) {
       cost = cost.multiplyBy(2.0);
     }    
     return cost;
