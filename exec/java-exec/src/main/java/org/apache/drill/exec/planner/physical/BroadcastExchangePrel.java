@@ -59,7 +59,8 @@ public class BroadcastExchangePrel extends ExchangePrel{
     int  rowWidth = child.getRowType().getFieldCount() * DrillCostBase.AVG_FIELD_WIDTH;
     double cpuCost = DrillCostBase.SVR_CPU_COST * inputRows ;
     int numEndPoints = PrelUtil.getSettings(getCluster()).numEndPoints();
-    double networkCost = DrillCostBase.BYTE_NETWORK_COST * inputRows * rowWidth * numEndPoints;
+    double factor = PrelUtil.getPlannerSettings(planner).getBroadcastCostFactor();
+    double networkCost = DrillCostBase.BYTE_NETWORK_COST * inputRows * rowWidth * numEndPoints * factor;
     return new DrillCostBase(inputRows, cpuCost, 0, networkCost);
   }
 
