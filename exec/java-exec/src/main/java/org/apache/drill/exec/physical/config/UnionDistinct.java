@@ -19,6 +19,7 @@ package org.apache.drill.exec.physical.config;
 
 import java.util.List;
 
+import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.physical.base.AbstractMultiple;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.base.PhysicalVisitor;
@@ -28,25 +29,41 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
-@JsonTypeName("union-all")
+@JsonTypeName("union-distinct")
 
-public class UnionAll extends AbstractMultiple {
+public class UnionDistinct extends AbstractMultiple {
 
-  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UnionAll.class);
+  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UnionDistinct.class);
 
+  private NamedExpression[] leftChildExprs;
+  private NamedExpression[] rightChildExprs;
+  
   @JsonCreator
-  public UnionAll(@JsonProperty("children") PhysicalOperator[] children) {
+  public UnionDistinct(@JsonProperty("left-exprs") NamedExpression[] leftExprs,
+      @JsonProperty("right-exprs") NamedExpression[] rightExprs, 
+      @JsonProperty("children") PhysicalOperator[] children) {
     super(children);
+    assert children.length == 2;
+    this.leftChildExprs = leftExprs;
+    this.rightChildExprs = rightExprs;
   }
-
+  
+  public NamedExpression[] getLeftChildExprs() {
+    return leftChildExprs;
+  }
+  
+  public NamedExpression[] getRightChildExprs() {
+    return rightChildExprs;
+  }
+  
   @Override
   public <T, X, E extends Throwable> T accept(PhysicalVisitor<T, X, E> physicalVisitor, X value) throws E {
-    return physicalVisitor.visitUnionAll(this, value);
+    return physicalVisitor.visitUnionDistinct(this, value);
   }
 
   @Override
   public PhysicalOperator getNewWithChildren(List<PhysicalOperator> children) {
-    return new UnionAll(children.toArray(new PhysicalOperator[children.size()]));
+    return new UnionDistinct(leftChildExprs, rightChildExprs, children.toArray(new PhysicalOperator[children.size()]));
   }
 
   @Override

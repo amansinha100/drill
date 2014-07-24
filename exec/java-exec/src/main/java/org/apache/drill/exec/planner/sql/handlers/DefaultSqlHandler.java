@@ -35,6 +35,8 @@ import org.apache.drill.exec.ops.QueryContext;
 import org.apache.drill.exec.physical.PhysicalPlan;
 import org.apache.drill.exec.physical.base.AbstractPhysicalVisitor;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
+import org.apache.drill.exec.physical.config.UnionAll;
+import org.apache.drill.exec.physical.config.UnionDistinct;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
 import org.apache.drill.exec.planner.logical.DrillStoreRel;
@@ -269,6 +271,20 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       for (PhysicalOperator o : op) {
         o.accept(this, collection);
       }
+      return null;
+    }
+
+    @Override
+    public Void visitUnionAll(UnionAll union, Collection<PhysicalOperator> value)
+        throws RuntimeException {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+    @Override
+    public Void visitUnionDistinct(UnionDistinct union,
+        Collection<PhysicalOperator> value) throws RuntimeException {
+      // TODO Auto-generated method stub
       return null;
     }
 
