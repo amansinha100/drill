@@ -37,7 +37,10 @@ import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.sql.fun.SqlAvgAggFunction;
 
 import com.google.common.collect.Lists;
 
@@ -59,6 +62,17 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
     }
   }
 
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    for(AggregateCall c : aggCalls){
+      if(c.getAggregation() instanceof SqlAvgAggFunction){
+        return planner.getCostFactory().makeInfiniteCost();
+      }
+    }
+    return super.computeSelfCost(planner);
+  }
+
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
 
@@ -71,31 +85,31 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
       FieldReference fr = new FieldReference(childFields.get(group), ExpressionPosition.UNKNOWN);
       builder.addKey(fr, fr);
     }
-    
+
     for (Ord<AggregateCall> aggCall : Ord.zip(aggCalls)) {
       FieldReference ref = new FieldReference(fields.get(groupSet.cardinality() + aggCall.i));
       LogicalExpression expr = toDrill(aggCall.e, childFields, implementor);
       builder.addExpr(ref, expr);
     }
-    
+
     return builder.build();
   }
 
-  
-  
-  
+
+
+
   private LogicalExpression toDrill(AggregateCall call, List<String> fn, DrillImplementor implementor) {
     List<LogicalExpression> args = Lists.newArrayList();
     for(Integer i : call.getArgList()){
       args.add(new FieldReference(fn.get(i)));
     }
-    
+
     // for count(1).
     if(args.isEmpty()) args.add(new ValueExpressions.LongExpression(1l));
     LogicalExpression expr = FunctionCallFactory.createExpression(call.getAggregation().getName().toLowerCase(), ExpressionPosition.UNKNOWN, args);
     return expr;
   }
-  
+
   public static DrillAggregateRel convert(GroupingAggregate groupBy, ConversionContext value)
       throws InvalidRelException {
     throw new UnsupportedOperationException();
