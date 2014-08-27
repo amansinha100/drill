@@ -220,7 +220,6 @@ public class TestParquetWriter extends BaseTestQuery {
     runTestAndValidate(selection, validateSelection, inputTable, "foodmart_employee_parquet");
   }
 
-  @Ignore
   @Test
   @Ignore
   public void testParquetRead() throws Exception {
