@@ -55,10 +55,15 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 
   @Param ${type.inputType}Holder in;
   @Workspace ${type.runningType}Holder value;
+  @Workspace BigIntHolder nonNullCount;
   @Output ${type.outputType}Holder out;
 
   public void setup(RecordBatch b) {
-	value = new ${type.runningType}Holder();  
+	value = new ${type.runningType}Holder();
+  <#if type.inputType?starts_with("Nullable") >
+	  nonNullCount = new BigIntHolder();
+	  nonNullCount.value = 0;
+	</#if>
 	<#if aggrtype.funcName == "sum" || aggrtype.funcName == "count">
 	  value.value = 0;
 	<#elseif aggrtype.funcName == "min">
@@ -96,7 +101,10 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
 	    if (in.isSet == 0) {
 		    // processing nullable input and the value is null, so don't do anything...
 		    break sout;
-	    }  
+	    }
+	    else {
+	      nonNullCount.value++;
+	    }
 	  </#if>
 	  <#if aggrtype.funcName == "min">
 	    value.value = Math.min(value.value, in.value);
@@ -115,13 +123,24 @@ public static class ${type.inputType}${aggrtype.className} implements DrillAggFu
   }
 
   @Override
-  public void output() {
-    out.value = value.value;
+  public void output() {   
+    <#if type.inputType?starts_with("Nullable") >
+      if (nonNullCount.value > 0) {
+        out.value = value.value;
+        out.isSet = 1;
+      } else {
+        out.isSet = 0;
+      }
+    <#else> 
+      out.value = value.value;
+    </#if>
   }
 
   @Override
   public void reset() {
-	
+  <#if type.inputType?starts_with("Nullable") >
+    nonNullCount.value = 0;
+  </#if>
 	<#if aggrtype.funcName == "sum" || aggrtype.funcName == "count">
 	  value.value = 0;
 	<#elseif aggrtype.funcName == "min">
