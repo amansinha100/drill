@@ -220,6 +220,7 @@ public class TestParquetWriter extends BaseTestQuery {
     runTestAndValidate(selection, validateSelection, inputTable, "foodmart_employee_parquet");
   }
 
+  @Ignore
   @Test
   @Ignore
   public void testParquetRead() throws Exception {
@@ -227,6 +228,22 @@ public class TestParquetWriter extends BaseTestQuery {
     List<QueryResultBatch> expected = testSqlWithResults("select * from dfs.`/tmp/voter`");
     test("alter system set `store.parquet.use_new_reader` = false");
     List<QueryResultBatch> results = testSqlWithResults("select * from dfs.`/tmp/voter`");
+    compareResults(expected, results);
+    for (QueryResultBatch result : results) {
+      result.release();
+    }
+    for (QueryResultBatch result : expected) {
+      result.release();
+    }
+  }
+
+  @Ignore
+  @Test
+  public void testParquetRead2() throws Exception {
+    test("alter system set `store.parquet.use_new_reader` = true");
+    List<QueryResultBatch> expected = testSqlWithResults("select s_comment,s_suppkey from dfs.`/tmp/sf100_supplier.parquet`");
+    test("alter system set `store.parquet.use_new_reader` = false");
+    List<QueryResultBatch> results = testSqlWithResults("select s_comment,s_suppkey from dfs.`/tmp/sf100_supplier.parquet`");
     compareResults(expected, results);
     for (QueryResultBatch result : results) {
       result.release();
