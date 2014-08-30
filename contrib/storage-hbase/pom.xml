@@ -39,7 +39,7 @@
       <version>${project.version}</version>
       <exclusions>
         <exclusion>
-          <artifactId>hadoop-client</artifactId>
+          <artifactId>hadoop-common</artifactId>
           <groupId>org.apache.hadoop</groupId>
         </exclusion>
       </exclusions>
@@ -59,7 +59,7 @@
         -->
       <exclusions>
         <exclusion>
-          <artifactId>hadoop-client</artifactId>
+          <artifactId>hadoop-common</artifactId>
           <groupId>org.apache.hadoop</groupId>
         </exclusion>
       </exclusions>
