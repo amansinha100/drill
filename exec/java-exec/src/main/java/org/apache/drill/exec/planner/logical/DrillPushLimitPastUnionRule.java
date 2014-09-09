@@ -23,6 +23,7 @@ import java.util.logging.Logger;
 
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.SetOpRel;
 import org.eigenbase.rel.UnionRel;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
@@ -34,35 +35,24 @@ public class DrillPushLimitPastUnionRule extends RelOptRule {
   protected static final Logger tracer = EigenbaseTrace.getPlannerTracer();
 
   private DrillPushLimitPastUnionRule() {
-    super(RelOptHelper.any(DrillLimitRel.class, UnionRel.class), "DrillPushLimitPastUnionRule");
+    super(RelOptHelper.any(DrillLimitRel.class, DrillUnionRel.class), "DrillPushLimitPastUnionRule");
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
     final DrillLimitRel limitRel = (DrillLimitRel) call.rel(0);
-    final UnionRel union = (UnionRel) call.rel(1);
+    final DrillUnionRel unionRel = (DrillUnionRel) call.rel(1);
     
-/*
-    final RelTraitSet incomingTraits = incomingSort.getTraitSet();
-    RelNode input = incomingSort.getChild();
-
-    // if the Optiq sort rel includes a collation and a limit, we need to create a copy the sort rel that excludes the
-    // limit information.
-    if (!incomingSort.getCollation().getFieldCollations().isEmpty()) {
-      input = incomingSort.copy(incomingTraits, input, incomingSort.getCollation(), null, null);
-    }
-
-    RelNode convertedInput = convert(input, input.getTraitSet().plus(DrillRel.DRILL_LOGICAL));
-    call.transformTo(new DrillLimitRel(incomingSort.getCluster(), convertedInput.getTraitSet().plus(DrillRel.DRILL_LOGICAL), convertedInput, incomingSort.offset, incomingSort.fetch));    
-*/ 
     final List<RelNode> unionNewInputs = new ArrayList<>();
-    for (RelNode input : union.getInputs()) {
+    for (RelNode input : unionRel.getInputs()) {
       // create a new Limit rel whose input is the child of the Union
-      DrillLimitRel newLimitRel = new DrillLimitRel(input.getCluster(), input.getTraitSet().plus(DrillRel.DRILL_LOGICAL), 
+      RelTraitSet traits = input.getTraitSet();      
+      DrillLimitRel newLimitRel = new DrillLimitRel(input.getCluster(), traits.plus(DrillRel.DRILL_LOGICAL), 
           input, limitRel.getOffset(), limitRel.getFetch());
       unionNewInputs.add(newLimitRel);
     }
-    
-    call.transformTo(new DrillUnionRel(union.getCluster(), traits, unionNewInputs, union.all));
+
+    DrillUnionRel newUnionRel = unionRel.copy(unionRel.getTraitSet(), unionNewInputs, unionRel.all); 
+    call.transformTo(newUnionRel);
   }
 }
