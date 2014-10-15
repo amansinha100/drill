@@ -196,14 +196,17 @@ public class PrelUtil {
     public final InputRewriter rewriter;
     private final List<String> fieldNames;
     private final List<RelDataType> types;
+    private final boolean hasItemOperator;
 
-    public ProjectPushInfo(List<SchemaPath> columns, ImmutableList<DesiredField> desiredFields) {
+    public ProjectPushInfo(List<SchemaPath> columns, ImmutableList<DesiredField> desiredFields, boolean hasItemOperator) {
       super();
       this.columns = columns;
       this.desiredFields = desiredFields;
 
       this.fieldNames = Lists.newArrayListWithCapacity(desiredFields.size());
       this.types = Lists.newArrayListWithCapacity(desiredFields.size());
+      this.hasItemOperator = hasItemOperator;
+
       IntIntOpenHashMap oldToNewIds = new IntIntOpenHashMap();
 
       int i =0;
@@ -229,6 +232,10 @@ public class PrelUtil {
       return false;
     }
 
+    public boolean hasItemOperator() {
+      return this.hasItemOperator;
+    }
+
     public RelDataType createNewRowType(RelDataTypeFactory factory) {
       return factory.createStructType(types, fieldNames);
     }
@@ -240,6 +247,7 @@ public class PrelUtil {
     final private List<String> fieldNames;
     final private List<RelDataTypeField> fields;
     final private Set<DesiredField> desiredFields = Sets.newHashSet();
+    private boolean hasItemOperator = false; // whether the visitor encountered ITEM operator
 
     public RefFieldsVisitor(RelDataType rowType) {
       super(true);
@@ -254,7 +262,7 @@ public class PrelUtil {
     }
 
     public ProjectPushInfo getInfo() {
-      return new ProjectPushInfo(ImmutableList.copyOf(columns), ImmutableList.copyOf(desiredFields));
+      return new ProjectPushInfo(ImmutableList.copyOf(columns), ImmutableList.copyOf(desiredFields), hasItemOperator);
     }
 
     @Override
@@ -270,6 +278,7 @@ public class PrelUtil {
     @Override
     public PathSegment visitCall(RexCall call) {
       if ("ITEM".equals(call.getOperator().getName())) {
+        this.hasItemOperator = true;
         PathSegment mapOrArray = call.operands.get(0).accept(this);
         if (mapOrArray != null) {
           if (call.operands.get(1) instanceof RexLiteral) {

@@ -57,7 +57,7 @@ public abstract class DrillFilterRelBase extends FilterRelBase implements DrillR
     }
     RelNode child = this.getChild();
     double inputRows = RelMetadataQuery.getRowCount(child);
-    double cpuCost = DrillCostBase.COMPARE_CPU_COST * numConjuncts * inputRows;
+    double cpuCost = DrillCostBase.COMPARE_CPU_COST * numConjuncts * inputRows + child.getRowType().getFieldCount() * DrillCostBase.BASE_CPU_COST;
     DrillCostFactory costFactory = (DrillCostFactory)planner.getCostFactory();
     return costFactory.makeCost(inputRows, cpuCost, 0, 0);
   }
