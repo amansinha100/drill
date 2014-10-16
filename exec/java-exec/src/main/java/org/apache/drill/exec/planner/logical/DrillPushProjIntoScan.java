@@ -21,15 +21,10 @@ package org.apache.drill.exec.planner.logical;
 import java.io.IOException;
 import java.util.List;
 
-import net.hydromatic.optiq.rules.java.JavaRules.EnumerableTableAccessRel;
-
 import org.apache.drill.common.exceptions.DrillRuntimeException;
+import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.planner.physical.PrelUtil;
 import org.apache.drill.exec.planner.physical.PrelUtil.ProjectPushInfo;
-import org.eigenbase.rel.ProjectRel;
-import org.eigenbase.rel.ProjectRelBase;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.rules.PushProjector;
 import org.eigenbase.rel.rules.RemoveTrivialProjectRule;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
@@ -41,17 +36,34 @@ public class DrillPushProjIntoScan extends RelOptRule {
   public static final RelOptRule INSTANCE = new DrillPushProjIntoScan();
 
   private DrillPushProjIntoScan() {
-    super(RelOptHelper.some(ProjectRel.class, RelOptHelper.any(EnumerableTableAccessRel.class)), "DrillPushProjIntoScan");
+    // super(RelOptHelper.some(ProjectRel.class, RelOptHelper.any(EnumerableTableAccessRel.class)), "DrillPushProjIntoScan");
+    super(RelOptHelper.some(DrillProjectRel.class, RelOptHelper.any(DrillScanRel.class)), "DrillPushProjIntoScan");
   }
 
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    final ProjectRel proj = (ProjectRel) call.rel(0);
-    final EnumerableTableAccessRel scan = (EnumerableTableAccessRel) call.rel(1);
+    // final ProjectRel proj = (ProjectRel) call.rel(0);
+    final DrillProjectRel proj = (DrillProjectRel) call.rel(0);
+    // final EnumerableTableAccessRel scan = (EnumerableTableAccessRel) call.rel(1);
+    final DrillScanRel scan = (DrillScanRel) call.rel(1);
 
     try {
       ProjectPushInfo columnInfo = PrelUtil.getColumns(scan.getRowType(), proj.getProjects());
+
+      if (columnInfo.hasItemOperator()) {
+        List<SchemaPath> scanColumns = scan.getColumns();
+        boolean trivial = true;
+        for (SchemaPath p : columnInfo.columns) {
+          if (!scanColumns.contains(p)) {
+            trivial = false;
+            break;
+          }
+        }
+        if (trivial) {
+          return;
+        }
+      }
 
       if (columnInfo == null || columnInfo.isStarQuery() //
           || !scan.getTable().unwrap(DrillTable.class) //
