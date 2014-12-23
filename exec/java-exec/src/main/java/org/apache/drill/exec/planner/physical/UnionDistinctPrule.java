@@ -60,7 +60,8 @@ public class UnionDistinctPrule extends Prule {
       }
 
       traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.SINGLETON);
-      UnionDistinctPrel unionDistinct = new UnionDistinctPrel(union.getCluster(), traits, convertedInputList);
+      UnionDistinctPrel unionDistinct =
+          new UnionDistinctPrel(union.getCluster(), traits, convertedInputList, true /* check compatibility */);
 
       call.transformTo(unionDistinct);
 
