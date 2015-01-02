@@ -20,6 +20,7 @@ package org.apache.drill.exec.planner.types;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.drill.exec.planner.StarColumnHelper;
 import org.eigenbase.reltype.RelDataTypeFactory;
 import org.eigenbase.reltype.RelDataTypeFamily;
 import org.eigenbase.reltype.RelDataTypeField;
@@ -68,7 +69,12 @@ public class RelDataTypeDrillImpl extends RelDataTypeImpl {
 
     @Override
     public SqlTypeName getSqlTypeName() {
-        return SqlTypeName.ANY;
+      for (String s : getFieldNames()) {
+        if (s.startsWith(StarColumnHelper.STAR_COLUMN)) {
+          return SqlTypeName.ROW;
+        }
+      }
+      return SqlTypeName.ANY;
     }
 
     @Override
