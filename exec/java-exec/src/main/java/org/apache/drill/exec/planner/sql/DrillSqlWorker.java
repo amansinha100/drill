@@ -45,6 +45,7 @@ import org.apache.drill.exec.planner.sql.parser.DrillSqlCall;
 import org.apache.drill.exec.planner.sql.parser.SqlCreateTable;
 import org.apache.drill.exec.planner.sql.parser.impl.DrillParserWithCompoundIdConverter;
 import org.apache.drill.exec.proto.UserBitShared.DrillPBError.ErrorType;
+import org.apache.drill.exec.planner.types.DrillRelDataTypeSystem;
 import org.apache.drill.exec.store.StoragePluginRegistry;
 import org.apache.drill.exec.util.Pointer;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
@@ -91,6 +92,7 @@ public class DrillSqlWorker {
         .ruleSets(getRules(context)) //
         .costFactory(costFactory) //
         .executor(new DrillConstExecutor(context.getFunctionRegistry(), context))
+        .typeSystem(DrillRelDataTypeSystem.DRILL_REL_DATATYPE_SYSTEM) //
         .build();
     this.planner = Frameworks.getPlanner(config);
     HepProgramBuilder builder = new HepProgramBuilder();
