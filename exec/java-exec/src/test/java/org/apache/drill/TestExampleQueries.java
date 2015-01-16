@@ -489,4 +489,18 @@ public class TestExampleQueries extends BaseTestQuery{
     test("alter session set `planner.slice_target` = 1; " + streamagg_only + query);
   }
 
+  @Test // DRILL-1973
+  public void testLimit0SubqueryWithFilter() throws Exception {
+    String query1 = "select * from (select sum(1) as x from  cp.`tpch/region.parquet` limit 0) WHERE x < 10";
+    String query2 = "select * from (select sum(1) as x from  cp.`tpch/region.parquet` limit 0) WHERE (0 = 1)";
+    int actualRecordCount = 0;
+    int expectedRecordCount = 0;
+
+    actualRecordCount = testSql(query1);
+    assertEquals(expectedRecordCount, actualRecordCount);
+
+    actualRecordCount = testSql(query2);
+    assertEquals(expectedRecordCount, actualRecordCount);
+  }
+
 }
