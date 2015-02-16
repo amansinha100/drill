@@ -171,6 +171,7 @@ public class Foreman implements Runnable, Closeable, Comparable<Object> {
     if (result != null) {
       initiatingClient.sendResult(responseListener, new QueryWritableBatch(result), true);
     }
+
     releaseLease();
   }
 

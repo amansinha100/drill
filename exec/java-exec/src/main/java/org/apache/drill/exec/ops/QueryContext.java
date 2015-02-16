@@ -47,7 +47,6 @@ import org.apache.drill.exec.store.sys.PStoreProvider;
 
 // TODO - consider re-name to PlanningContext, as the query execution context actually appears
 // in fragment contexts
-
 // TODO except for a couple of tests, this is only created by Foreman
 // TODO the many methods that just return drillbitContext.getXxx() should be replaced with getDrillbitContext()
 public class QueryContext implements AutoCloseable, UdfUtilities{
@@ -68,7 +67,6 @@ public class QueryContext implements AutoCloseable, UdfUtilities{
   private final BufferManager bufferManager;
   private static final int INITIAL_OFF_HEAP_ALLOCATION = 1024 * 1024;
   private static final int MAX_OFF_HEAP_ALLOCATION = 16 * 1024 * 1024;
-
 
   public QueryContext(final UserSession session, QueryId queryId, final DrillbitContext drllbitContext) {
     super();
@@ -195,4 +193,5 @@ public class QueryContext implements AutoCloseable, UdfUtilities{
     bufferManager.close();
     allocator.close();
   }
+
 }
