@@ -40,6 +40,7 @@ import org.eigenbase.rex.RexUtil;
 import org.eigenbase.rex.RexVisitorImpl;
 import org.eigenbase.sql.SqlKind;
 import org.eigenbase.sql.SqlSyntax;
+import org.eigenbase.util.Pair;
 
 import com.google.common.collect.Lists;
 
@@ -102,40 +103,30 @@ public class DirPathBuilder extends RexVisitorImpl <SchemaPath> {
       initPathComponents();
 
       boolean buildConjunction = false;
-
+      SchemaPath expr = null;
+      boolean found = false;
       // go through the conjuncts to identify the directory filters
       for (RexNode c : conjuncts) {
         currentConjunct = c;
-        SchemaPath expr = c.accept(this);
+        expr = c.accept(this);
 
         if (expr != null) {
+          found = true;
           logger.debug("Found directory filter: " + expr.getRootSegment().getPath());
         }
       }
 
-      String prevPath = dirNameList.get(0);
-
-      // compose the final path string
-      for (int i = 0; i < dirNameList.size(); i++) {
-        String path = dirNameList.get(i);
-        if (i > 0) {
-          prevPath = dirNameList.get(i-1);
-        }
-        // Check if both the current path and the previous path are non-empty; currently
-        // we will only push a dir<N> filter if dir<N-1> filter is also specified
-        if (!path.equals(EMPTY_STRING) && !prevPath.equals(EMPTY_STRING)) {
-          dirPath += "/" + path;
-
-          // since we are pushing this directory filter we should remove it from the
-          // list of conjuncts
-          RexNode thisConjunct = conjunctList.get(i);
-          conjuncts.remove(thisConjunct);
-          buildConjunction = true;
-        }
+      if (!found) {
+        continue;
       }
+
+      Pair<String, Boolean> status = composeDirPath(dirPath, conjuncts);
+      dirPath = status.left;
+      buildConjunction = status.right.booleanValue();
+
       if (!dirPath.equals(EMPTY_STRING)) {
         dirPathList.add(dirPath);
-      } else {
+      } else if (dirPathList.isEmpty()){
         // If one of the disjuncts do not satisfy our criteria then we shouldn't apply any optimization
         return emptyDirPathList;
       }
@@ -152,6 +143,31 @@ public class DirPathBuilder extends RexVisitorImpl <SchemaPath> {
       this.finalCondition = RexUtil.composeDisjunction(builder, newDisjunctList, false);
     }
     return dirPathList;
+  }
+
+  private Pair<String, Boolean> composeDirPath(String currentPath, List<RexNode> conjuncts) {
+    String prevPath = dirNameList.get(0);
+    String dirPath = currentPath;
+    boolean buildConjunction = false;
+    // compose the final path string
+    for (int i = 0; i < dirNameList.size(); i++) {
+      String path = dirNameList.get(i);
+      if (i > 0) {
+        prevPath = dirNameList.get(i-1);
+      }
+      // Check if both the current path and the previous path are non-empty; currently
+      // we will only push a dir<N> filter if dir<N-1> filter is also specified
+      if (!path.equals(EMPTY_STRING) && !prevPath.equals(EMPTY_STRING)) {
+        dirPath += "/" + path;
+
+        // since we are pushing this directory filter we should remove it from the
+        // list of conjuncts
+        RexNode thisConjunct = conjunctList.get(i);
+        conjuncts.remove(thisConjunct);
+        buildConjunction = true;
+      }
+    }
+    return new Pair<String, Boolean>(dirPath, buildConjunction);
   }
 
   public RexNode getFinalCondition() {
@@ -199,6 +215,21 @@ public class DirPathBuilder extends RexVisitorImpl <SchemaPath> {
             return e1;
           }
         }
+      } else if (call.getKind() == SqlKind.OR) {
+        boolean found = false;
+        SchemaPath e2 = null;
+        for (RexNode operand : call.getOperands()) {
+          dirNameList.set(0, EMPTY_STRING); // initialize 0th element since we're only looking for dir0 at this level
+          SchemaPath e1 = operand.accept(this);
+          if (e1 != null) {
+            String path = dirNameList.get(0);
+            if (!path.equals(EMPTY_STRING)) {
+              dirPathList.add("/" + path);
+              e2 = e1;
+            }
+          }
+        }
+        return e2;
       }
 
       return null;
