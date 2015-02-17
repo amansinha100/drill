@@ -113,4 +113,26 @@ public class TestAggregateFunctions extends BaseTestQuery {
     .build().run();
   }
 
+  @Test
+  public void testDrill2242() throws Exception {
+    String query1 =
+        "select count(*) as cnt from \n"
+        + "(select l_partkey from \n"
+        + "(select l_suppkey, l_partkey from cp.`tpch/lineitem.parquet` \n"
+        + "   group by l_suppkey, l_partkey) \n"
+        + "group by l_partkey)";
+    String query2 =
+        "select count(*) as cnt from \n"
+        + "(select l_suppkey, l_partkey from cp.`tpch/lineitem.parquet` \n"
+        + "   group by l_suppkey, l_partkey)";
+
+    testBuilder()
+    .sqlQuery(query1)
+    .ordered()
+    .optionSettingQueriesForTestQuery("alter system set `planner.slice_target` = 1")
+    .baselineColumns("cnt")
+    .baselineValues(2000l)
+    .build().run();
+  }
+
 }

@@ -74,8 +74,8 @@ public class HashAggPrule extends AggPruleBase {
             new DrillDistributionTrait(DrillDistributionTrait.DistributionType.HASH_DISTRIBUTED,
                                        ImmutableList.copyOf(getDistributionField(aggregate, true /* get all grouping keys */)));
 
-        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys);
-        createTransformRequest(call, aggregate, input, traits);
+//        traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys);
+//        createTransformRequest(call, aggregate, input, traits);
 
         // hash distribute on single grouping key
         DrillDistributionTrait distOnOneKey =
