@@ -126,7 +126,7 @@ public class DirPathBuilder extends RexVisitorImpl <SchemaPath> {
 
       if (!dirPath.equals(EMPTY_STRING)) {
         dirPathList.add(dirPath);
-      } else if (dirPathList.isEmpty()){
+      } else /*if (dirPathList.isEmpty())*/ {
         // If one of the disjuncts do not satisfy our criteria then we shouldn't apply any optimization
         return emptyDirPathList;
       }
@@ -216,7 +216,6 @@ public class DirPathBuilder extends RexVisitorImpl <SchemaPath> {
           }
         }
       } else if (call.getKind() == SqlKind.OR) {
-        boolean found = false;
         SchemaPath e2 = null;
         for (RexNode operand : call.getOperands()) {
           dirNameList.set(0, EMPTY_STRING); // initialize 0th element since we're only looking for dir0 at this level

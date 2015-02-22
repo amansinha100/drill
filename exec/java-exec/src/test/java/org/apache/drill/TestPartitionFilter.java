@@ -139,12 +139,18 @@ public class TestPartitionFilter extends BaseTestQuery{
     String query1 = String.format("select * from dfs_test.`%s/multilevel/parquet` where (dir0=1995 and o_totalprice < 40000) or (dir0=1996 and o_totalprice < 40000)", TEST_RES_PATH);
     // test(query1);
 
-    String query2 = String.format("select * from dfs_test.`%s/multilevel/parquet` where (dir0=1995 and o_totalprice < 40000) or dir0=1996", TEST_RES_PATH);
-    // test(query2);
+    String query2 = String.format("explain plan for select * from dfs_test.`%s/multilevel/parquet` where (dir0=1995 and o_totalprice < 40000) or dir0=1996", TEST_RES_PATH);
+    test(query2);
 
     // String query3 = String.format("select * from dfs_test.`%s/multilevel/parquet` where (dir0 IN (1995, 1996) and o_totalprice between 10000 and 20000) or (dir0 IN (1995, 1996) and o_totalprice between )", TEST_RES_PATH);
     String query3 = String.format("select * from dfs_test.`%s/multilevel/parquet` where (dir0=1995 or dir1='Q1') and (dir0=1996 or dir1='Q1')", TEST_RES_PATH);
-    test(query3);
+    // test(query3);
+  }
+
+  @Test
+  public void test1() throws Exception {
+    String query1 = String.format("select * from dfs_test.`%s/multilevel/parquet` where (dir0 in (1995) and o_totalprice < 40000) or dir1 in ('Q2')", TEST_RES_PATH);
+    test(query1);
   }
 
 }
