@@ -35,4 +35,10 @@ public class TestPrune extends BaseTestQuery {
     test(String.format("select * from dfs.`%s/csv` where dir1 in ('Q1', 'Q2')", MULTILEVEL));
   }
 
+  @Test
+  public void test1() throws Exception {
+    String query1 = String.format("select * from dfs_test.`%s/parquet` where (dir0=1995 and o_totalprice < 40000) or (dir0=1996 and o_totalprice < 40000)", MULTILEVEL);
+    test(query1);
+  }
+
 }

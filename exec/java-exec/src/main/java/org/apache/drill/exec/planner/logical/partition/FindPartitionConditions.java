@@ -42,15 +42,16 @@ import com.google.common.collect.Lists;
 
 
 public class FindPartitionConditions extends RexVisitorImpl<Void> {
-  /** Whether an expression is constant, and if so, whether it can be
-   * reduced to a simpler constant. */
-  enum Constancy {
+  /** Whether an expression is a directory filter, and if so,
+   *  whether it can be pushed into the scan
+   */
+  enum PushDirFilter {
     NO_PUSH, PUSH
   }
 
   private final BitSet dirs;
 
-  private final List<Constancy> stack =  Lists.newArrayList();
+  private final List<PushDirFilter> stack =  Lists.newArrayList();
   private final List<RexNode> partitionSubTrees = Lists.newArrayList();
   private final List<SqlOperator> parentCallTypeStack = Lists.newArrayList();
 
@@ -68,9 +69,9 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
     // Deal with top of stack
     assert stack.size() == 1;
     assert parentCallTypeStack.isEmpty();
-    Constancy rootConstancy = stack.get(0);
-    if (rootConstancy == Constancy.PUSH) {
-      // The entire subtree was constant, so add it to the result.
+    PushDirFilter rootPushDirFilter = stack.get(0);
+    if (rootPushDirFilter == PushDirFilter.PUSH) {
+      // The entire subtree was directory filter, so add it to the result.
       addResult(exp);
     }
     stack.clear();
@@ -90,7 +91,7 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
 
 
   private Void pushVariable() {
-    stack.add(Constancy.NO_PUSH);
+    stack.add(PushDirFilter.NO_PUSH);
     return null;
   }
 
@@ -101,21 +102,21 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
 
   public Void visitInputRef(RexInputRef inputRef) {
     if(dirs.get(inputRef.getIndex())){
-      stack.add(Constancy.PUSH);
+      stack.add(PushDirFilter.PUSH);
     }else{
-      stack.add(Constancy.NO_PUSH);
+      stack.add(PushDirFilter.NO_PUSH);
     }
     return null;
   }
 
   public Void visitLiteral(RexLiteral literal) {
-    stack.add(Constancy.PUSH);
+    stack.add(PushDirFilter.PUSH);
     return null;
   }
 
   public Void visitOver(RexOver over) {
-    // assume non-constant (running SUM(1) looks constant but isn't)
-    analyzeCall(over, Constancy.NO_PUSH);
+    // assume non-directory filter
+    analyzeCall(over, PushDirFilter.NO_PUSH);
     return null;
   }
 
@@ -124,12 +125,12 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
   }
 
   public Void visitCall(RexCall call) {
-    // assume REDUCIBLE_CONSTANT until proven otherwise
-    analyzeCall(call, Constancy.PUSH);
+    // assume PUSH until proven otherwise
+    analyzeCall(call, PushDirFilter.PUSH);
     return null;
   }
 
-  private void analyzeCall(RexCall call, Constancy callConstancy) {
+  private void analyzeCall(RexCall call, PushDirFilter callPushDirFilter) {
     Stacks.push(parentCallTypeStack, call.getOperator());
 
     // visit operands, pushing their states onto stack
@@ -137,36 +138,38 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
 
     // look for NO_PUSH operands
     int operandCount = call.getOperands().size();
-    List<Constancy> operandStack = Util.last(stack, operandCount);
-    for (Constancy operandConstancy : operandStack) {
-      if (operandConstancy == Constancy.NO_PUSH) {
-        callConstancy = Constancy.NO_PUSH;
+    List<PushDirFilter> operandStack = Util.last(stack, operandCount);
+    for (PushDirFilter operandPushDirFilter : operandStack) {
+      if (operandPushDirFilter == PushDirFilter.NO_PUSH) {
+        callPushDirFilter = PushDirFilter.NO_PUSH;
       }
     }
+
+/*  These don't seem applicable to partition pruning
 
     // Even if all operands are PUSH, the call itself may
     // be non-deterministic.
     if (!call.getOperator().isDeterministic()) {
-      callConstancy = Constancy.NO_PUSH;
+      callPushDirFilter = PushDirFilter.NO_PUSH;
     } else if (call.getOperator().isDynamicFunction()) {
       // We can reduce the call to a constant, but we can't
       // cache the plan if the function is dynamic.
       // For now, treat it same as non-deterministic.
-      callConstancy = Constancy.NO_PUSH;
+      callPushDirFilter = PushDirFilter.NO_PUSH;
     }
 
     // Row operator itself can't be reduced to a PUSH
-    if ((callConstancy == Constancy.PUSH)
+    if ((callPushDirFilter == PushDirFilter.PUSH)
         && (call.getOperator() instanceof SqlRowOperator)) {
-      callConstancy = Constancy.NO_PUSH;
+      callPushDirFilter = PushDirFilter.NO_PUSH;
     }
+*/
 
-
-    if (callConstancy == Constancy.NO_PUSH && call.getKind() == SqlKind.AND) {
-      // one or more children is is not a constant.  If this is an AND, add all the ones that are constant.  Otherwise, this tree cannot be pushed.
+    if (callPushDirFilter == PushDirFilter.NO_PUSH && call.getKind() == SqlKind.AND) {
+      // one or more children is is not a directory filter.  If this is an AND, add all the ones that are directory filters.  Otherwise, this tree cannot be pushed.
       for (int iOperand = 0; iOperand < operandCount; ++iOperand) {
-        Constancy constancy = operandStack.get(iOperand);
-        if (constancy == Constancy.PUSH) {
+        PushDirFilter PushDirFilter = operandStack.get(iOperand);
+        if (PushDirFilter == PushDirFilter.PUSH) {
           addResult(call.getOperands().get(iOperand));
         }
       }
@@ -179,8 +182,8 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
     // pop this parent call operator off the stack
     Stacks.pop(parentCallTypeStack, call.getOperator());
 
-    // push constancy result for this call onto stack
-    stack.add(callConstancy);
+    // push PushDirFilter result for this call onto stack
+    stack.add(callPushDirFilter);
   }
 
   public Void visitDynamicParam(RexDynamicParam dynamicParam) {

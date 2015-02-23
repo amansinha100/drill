@@ -128,4 +128,10 @@ public class TestPartitionFilter extends BaseTestQuery{
     test(query1);
   }
 
+  @Test
+  public void test1() throws Exception {
+    String query1 = String.format("select * from dfs_test.`%s/multilevel/parquet` where (dir0=1995 and o_totalprice < 40000) or (dir0=1996 and o_totalprice < 40000)", TEST_RES_PATH);
+    test(query1);
+  }
+
 }
