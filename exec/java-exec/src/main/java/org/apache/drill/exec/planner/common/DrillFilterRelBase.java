@@ -52,7 +52,7 @@ public abstract class DrillFilterRelBase extends FilterRelBase implements DrillR
     // that repeated calls to the costing function can use the saved copy
     conjunctions = RelOptUtil.conjunctions(condition);
     numConjuncts = conjunctions.size();
-    assert numConjuncts >= 1;
+    // assert numConjuncts >= 1;
 
   }
 
