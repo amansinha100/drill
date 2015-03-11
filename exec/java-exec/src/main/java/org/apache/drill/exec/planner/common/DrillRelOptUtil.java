@@ -20,19 +20,10 @@ package org.apache.drill.exec.planner.common;
 import java.util.AbstractList;
 import java.util.List;
 
-import com.google.common.collect.Lists;
-import org.apache.drill.common.types.TypeProtos;
-import org.apache.drill.common.types.Types;
-import org.apache.drill.exec.planner.logical.DrillOptiq;
-import org.apache.drill.exec.resolver.TypeCastRules;
-import org.eigenbase.rel.CalcRel;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeField;
-import org.eigenbase.rex.RexInputRef;
-import org.eigenbase.rex.RexNode;
-import org.eigenbase.sql.type.SqlTypeName;
-import org.eigenbase.util.Pair;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.Pair;
 
 /**
  * Utility class that is a subset of the RelOptUtil class and is a placeholder for Drill specific
