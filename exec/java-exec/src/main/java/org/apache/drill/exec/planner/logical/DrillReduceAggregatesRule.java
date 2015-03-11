@@ -599,7 +599,7 @@ public class DrillReduceAggregatesRule extends RelOptRule {
 
   /**
    * Do a shallow clone of oldAggRel and update aggCalls. Could be refactored
-   * into AggregateRelBase and subclasses - but it's only needed for some
+   * into Aggregate and subclasses - but it's only needed for some
    * subclasses.
    *
    * @param oldAggRel AggregateRel to clone.

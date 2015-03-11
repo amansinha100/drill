@@ -20,11 +20,11 @@ package org.apache.drill.exec.planner.physical;
 
 import java.util.List;
 
-import net.hydromatic.optiq.util.BitSets;
+import org.apache.calcite.util.BitSets;
 
 import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
-import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;

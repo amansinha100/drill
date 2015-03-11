@@ -19,7 +19,7 @@
 package org.apache.drill.exec.planner.physical;
 
 import com.google.common.collect.Lists;
-import net.hydromatic.optiq.util.BitSets;
+import org.apache.calcite.util.BitSets;
 import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.FunctionCall;
@@ -32,7 +32,7 @@ import org.apache.drill.exec.physical.config.WindowPOP;
 import org.apache.drill.exec.planner.common.DrillWindowRelBase;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.drill.exec.record.BatchSchema;
-import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;

@@ -20,7 +20,7 @@ package org.apache.drill.exec.planner.logical;
 
 import com.google.common.collect.Lists;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.WindowRel;
+import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -31,12 +31,12 @@ public class DrillWindowRule extends RelOptRule {
   public static final RelOptRule INSTANCE = new DrillWindowRule();
 
   private DrillWindowRule() {
-    super(RelOptHelper.some(WindowRel.class, Convention.NONE, RelOptHelper.any(RelNode.class)), "DrillWindowRule");
+    super(RelOptHelper.some(Window.class, Convention.NONE, RelOptHelper.any(RelNode.class)), "DrillWindowRule");
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    final WindowRel window = call.rel(0);
+    final Window window = call.rel(0);
     final RelNode input = call.rel(1);
     final RelTraitSet traits = window.getTraitSet().plus(DrillRel.DRILL_LOGICAL);
     final RelNode convertedInput = convert(input, traits);

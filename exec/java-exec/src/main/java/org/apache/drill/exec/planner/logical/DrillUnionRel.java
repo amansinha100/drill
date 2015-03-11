@@ -19,7 +19,7 @@ package org.apache.drill.exec.planner.logical;
 
 import java.util.List;
 
-import net.hydromatic.linq4j.Ord;
+import org.apache.calcite.linq4j.Ord;
 
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.common.logical.data.Union;

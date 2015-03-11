@@ -24,7 +24,7 @@ import org.apache.drill.exec.exception.UnsupportedOperatorCollector;
 import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.planner.sql.DrillOperatorTable;
 import org.apache.drill.exec.work.foreman.SqlUnsupportedException;
-import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.AggregateRel;
 import org.apache.calcite.rel.ProjectRel;
 import org.apache.calcite.rel.RelNode;

@@ -20,8 +20,8 @@ package org.apache.drill.exec.planner.logical;
 import java.io.IOException;
 
 import org.apache.calcite.schema.Schema.TableType;
-import net.hydromatic.optiq.Statistic;
-import net.hydromatic.optiq.Statistics;
+import org.apache.calcite.schema.Statistic;
+import org.apache.calcite.schema.Statistics;
 import org.apache.calcite.schema.Table;
 
 import org.apache.drill.common.JSONOptions;

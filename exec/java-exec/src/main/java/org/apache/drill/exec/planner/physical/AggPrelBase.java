@@ -19,8 +19,8 @@ package org.apache.drill.exec.planner.physical;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import net.hydromatic.linq4j.Ord;
-import net.hydromatic.optiq.util.BitSets;
+import org.apache.calcite.linq4j.Ord;
+import org.apache.calcite.util.BitSets;
 import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.FunctionCall;
@@ -28,8 +28,8 @@ import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
-import org.apache.calcite.rel.AggregateCall;
-import org.apache.calcite.rel.AggregateRelBase;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.Aggregation;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.RelNode;
@@ -48,7 +48,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public abstract class AggPrelBase extends AggregateRelBase implements Prel {
+public abstract class AggPrelBase extends Aggregate implements Prel {
 
   protected static enum OperatorPhase {PHASE_1of1, PHASE_1of2, PHASE_2of2};
 

@@ -19,8 +19,8 @@
 package org.apache.drill.exec.planner.logical;
 
 import com.google.common.collect.Lists;
-import net.hydromatic.linq4j.Ord;
-import net.hydromatic.optiq.util.BitSets;
+import org.apache.calcite.linq4j.Ord;
+import org.apache.calcite.util.BitSets;
 import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.FunctionCall;
@@ -29,7 +29,7 @@ import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.common.logical.data.Order;
 import org.apache.drill.exec.planner.common.DrillWindowRelBase;
-import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;

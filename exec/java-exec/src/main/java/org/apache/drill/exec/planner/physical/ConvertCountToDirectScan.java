@@ -29,7 +29,7 @@ import org.apache.drill.exec.planner.logical.DrillScanRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.drill.exec.store.direct.DirectGroupScan;
 import org.apache.drill.exec.store.pojo.PojoRecordReader;
-import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;

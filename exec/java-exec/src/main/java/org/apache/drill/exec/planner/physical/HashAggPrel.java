@@ -29,8 +29,8 @@ import org.apache.drill.exec.physical.config.HashAggregate;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.planner.cost.DrillCostBase.DrillCostFactory;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
-import org.apache.calcite.rel.AggregateCall;
-import org.apache.calcite.rel.AggregateRelBase;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
@@ -49,7 +49,7 @@ public class HashAggPrel extends AggPrelBase implements Prel{
   }
 
   @Override
-  public AggregateRelBase copy(RelTraitSet traitSet, RelNode input, BitSet groupSet, List<AggregateCall> aggCalls) {
+  public Aggregate copy(RelTraitSet traitSet, RelNode input, BitSet groupSet, List<AggregateCall> aggCalls) {
     try {
       return new HashAggPrel(getCluster(), traitSet, input, getGroupSet(), aggCalls,
           this.getOperatorPhase());

@@ -20,8 +20,8 @@ package org.apache.drill.exec.planner.logical;
 import java.util.List;
 
 import org.apache.calcite.schema.Schema.TableType;
-import net.hydromatic.optiq.Statistic;
-import net.hydromatic.optiq.Statistics;
+import org.apache.calcite.schema.Statistic;
+import org.apache.calcite.schema.Statistics;
 import net.hydromatic.optiq.TranslatableTable;
 
 import org.apache.drill.exec.dotdrill.View;

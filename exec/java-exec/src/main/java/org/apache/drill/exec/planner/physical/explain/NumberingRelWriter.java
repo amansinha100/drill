@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import net.hydromatic.linq4j.Ord;
+import org.apache.calcite.linq4j.Ord;
 import net.hydromatic.optiq.runtime.FlatLists;
 import net.hydromatic.optiq.runtime.Spacer;
 
