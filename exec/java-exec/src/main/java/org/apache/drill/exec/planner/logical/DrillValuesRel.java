@@ -19,9 +19,10 @@ package org.apache.drill.exec.planner.logical;
 
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.ValuesRelBase;
+import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -32,8 +33,8 @@ import org.apache.calcite.rex.RexLiteral;
 /**
  * Values implemented in Drill.
  */
-public class DrillValuesRel extends ValuesRelBase implements DrillRel {
-  protected DrillValuesRel(RelOptCluster cluster, RelDataType rowType, List<List<RexLiteral>> tuples, RelTraitSet traits) {
+public class DrillValuesRel extends Values implements DrillRel {
+  protected DrillValuesRel(RelOptCluster cluster, RelDataType rowType, ImmutableList<ImmutableList<RexLiteral>> tuples, RelTraitSet traits) {
     super(cluster, rowType, tuples, traits);
     assert getConvention() == DRILL_LOGICAL;
   }

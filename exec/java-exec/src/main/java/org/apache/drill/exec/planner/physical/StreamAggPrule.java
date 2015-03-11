@@ -33,14 +33,14 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.trace.EigenbaseTrace;
+import org.apache.calcite.util.trace.CalciteTrace;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 public class StreamAggPrule extends AggPruleBase {
   public static final RelOptRule INSTANCE = new StreamAggPrule();
-  protected static final Logger tracer = EigenbaseTrace.getPlannerTracer();
+  protected static final Logger tracer = CalciteTrace.getPlannerTracer();
 
   private StreamAggPrule() {
     super(RelOptHelper.some(DrillAggregateRel.class, RelOptHelper.any(RelNode.class)), "StreamAggPrule");

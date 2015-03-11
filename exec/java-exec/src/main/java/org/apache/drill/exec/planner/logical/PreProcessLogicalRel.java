@@ -29,7 +29,7 @@ import org.apache.calcite.rel.AggregateRel;
 import org.apache.calcite.rel.ProjectRel;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttleImpl;
-import org.apache.calcite.rel.UnionRel;
+import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -132,7 +132,7 @@ public class PreProcessLogicalRel extends RelShuttleImpl {
   }
 
   @Override
-  public RelNode visit(UnionRel union) {
+  public RelNode visit(LogicalUnion union) {
     for(RelNode child : union.getInputs()) {
       for(RelDataTypeField dataField : child.getRowType().getFieldList()) {
         if(dataField.getName().contains(StarColumnHelper.STAR_COLUMN)) {
