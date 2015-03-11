@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.calcite.linq4j.Ord;
 import org.apache.calcite.util.BitSets;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.drill.common.expression.ExpressionPosition;
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.FunctionCall;
@@ -30,7 +31,6 @@ import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Aggregate;
-import org.apache.calcite.rel.Aggregation;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;
@@ -92,9 +92,15 @@ public abstract class AggPrelBase extends Aggregate implements Prel {
 
   }
 
-  public AggPrelBase(RelOptCluster cluster, RelTraitSet traits, RelNode child, BitSet groupSet,
-      List<AggregateCall> aggCalls, OperatorPhase phase) throws InvalidRelException {
-    super(cluster, traits, child, groupSet, aggCalls);
+  public AggPrelBase(RelOptCluster cluster,
+                     RelTraitSet traits,
+                     RelNode child,
+                     boolean indicator,
+                     ImmutableBitSet groupSet,
+                     List<ImmutableBitSet> groupSets,
+                     List<AggregateCall> aggCalls,
+                     OperatorPhase phase) throws InvalidRelException {
+    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls);
     this.operPhase = phase;
     createKeysAndExprs();
   }
@@ -116,7 +122,7 @@ public abstract class AggPrelBase extends Aggregate implements Prel {
   }
 
   protected void createKeysAndExprs() {
-    final List<String> childFields = getChild().getRowType().getFieldNames();
+    final List<String> childFields = getInput().getRowType().getFieldNames();
     final List<String> fields = getRowType().getFieldNames();
 
     for (int group : BitSets.toIter(groupSet)) {
@@ -134,7 +140,7 @@ public abstract class AggPrelBase extends Aggregate implements Prel {
       if (getOperatorPhase() == OperatorPhase.PHASE_1of2) {
         if (aggCall.e.getAggregation().getName().equals("COUNT")) {
           // If we are doing a COUNT aggregate in Phase1of2, then in Phase2of2 we should SUM the COUNTs,
-          Aggregation sumAggFun = new SqlSumCountAggFunction(aggCall.e.getType());
+          SqlAggFunction sumAggFun = new SqlSumCountAggFunction(aggCall.e.getType());
           AggregateCall newAggCall =
               new AggregateCall(
                   sumAggFun,
@@ -175,7 +181,7 @@ public abstract class AggPrelBase extends Aggregate implements Prel {
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override

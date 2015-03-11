@@ -25,8 +25,8 @@ import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.planner.sql.DrillOperatorTable;
 import org.apache.drill.exec.work.foreman.SqlUnsupportedException;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.AggregateRel;
-import org.apache.calcite.rel.ProjectRel;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttleImpl;
 import org.apache.calcite.rel.logical.LogicalUnion;
@@ -67,7 +67,7 @@ public class PreProcessLogicalRel extends RelShuttleImpl {
   }
 
   @Override
-  public RelNode visit(AggregateRel aggregate) {
+  public RelNode visit(LogicalAggregate aggregate) {
     for(AggregateCall aggregateCall : aggregate.getAggCallList()) {
       if(aggregateCall.getAggregation() instanceof SqlSingleValueAggFunction) {
         unsupportedOperatorCollector.setException(SqlUnsupportedException.ExceptionType.FUNCTION,
@@ -77,11 +77,11 @@ public class PreProcessLogicalRel extends RelShuttleImpl {
       }
     }
 
-    return visitChild(aggregate, 0, aggregate.getChild());
+    return visitChild(aggregate, 0, aggregate.getInput());
   }
 
   @Override
-  public RelNode visit(ProjectRel project) {
+  public RelNode visit(LogicalProject project) {
     List<RexNode> exprList = new ArrayList<>();
     boolean rewrite = false;
 
@@ -124,11 +124,11 @@ public class PreProcessLogicalRel extends RelShuttleImpl {
     }
 
     if (rewrite == true) {
-      ProjectRel newProject = project.copy(project.getTraitSet(), project.getInput(0), exprList, project.getRowType());
-      return visitChild(newProject, 0, project.getChild());
+      LogicalProject newProject = project.copy(project.getTraitSet(), project.getInput(0), exprList, project.getRowType());
+      return visitChild(newProject, 0, project.getInput());
     }
 
-    return visitChild(project, 0, project.getChild());
+    return visitChild(project, 0, project.getInput());
   }
 
   @Override
