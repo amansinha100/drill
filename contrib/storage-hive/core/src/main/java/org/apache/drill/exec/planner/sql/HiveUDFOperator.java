@@ -19,8 +19,8 @@
 package org.apache.drill.exec.planner.sql;
 
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import org.apache.calcite.reltype.RelDataType;
-import org.apache.calcite.reltype.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlCallBinding;
 import org.apache.calcite.sql.SqlFunction;

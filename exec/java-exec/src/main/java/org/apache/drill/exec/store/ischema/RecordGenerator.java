@@ -31,8 +31,8 @@ import org.apache.drill.exec.store.AbstractSchema;
 import org.apache.drill.exec.store.RecordReader;
 import org.apache.drill.exec.store.ischema.InfoSchemaFilter.Result;
 import org.apache.drill.exec.store.pojo.PojoRecordReader;
-import org.apache.calcite.reltype.RelDataType;
-import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;

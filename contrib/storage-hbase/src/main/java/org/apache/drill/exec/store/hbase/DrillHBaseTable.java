@@ -25,8 +25,8 @@ import org.apache.drill.exec.planner.logical.DrillTable;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.calcite.reltype.RelDataType;
-import org.apache.calcite.reltype.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 public class DrillHBaseTable extends DrillTable implements DrillHBaseConstants {

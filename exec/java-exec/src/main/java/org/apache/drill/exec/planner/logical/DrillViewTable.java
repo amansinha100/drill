@@ -29,8 +29,8 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptTable.ToRelContext;
 import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.reltype.RelDataType;
-import org.apache.calcite.reltype.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 
 public class DrillViewTable implements TranslatableTable, DrillViewInfoProvider {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillViewTable.class);

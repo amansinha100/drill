@@ -32,8 +32,8 @@ import org.apache.drill.exec.planner.physical.UnorderedMuxExchangePrel;
 import org.apache.drill.exec.planner.sql.DrillSqlOperator;
 import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.reltype.RelDataType;
-import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
@@ -67,7 +67,7 @@ public class InsertLocalExchangeVisitor extends BasePrelVisitor<Prel, Void, Runt
 
   @Override
   public Prel visitExchange(ExchangePrel prel, Void value) throws RuntimeException {
-    Prel child = ((Prel)prel.getChild()).accept(this, null);
+    Prel child = ((Prel)prel.getInput()).accept(this, null);
     // Whenever we encounter a HashToRandomExchangePrel
     //   If MuxExchange is enabled, insert a UnorderedMuxExchangePrel before HashToRandomExchangePrel.
     //   If DeMuxExchange is enabled, insert a UnorderedDeMuxExchangePrel after HashToRandomExchangePrel.

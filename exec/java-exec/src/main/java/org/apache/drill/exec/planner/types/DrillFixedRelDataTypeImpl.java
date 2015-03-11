@@ -20,11 +20,11 @@ package org.apache.drill.exec.planner.types;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.calcite.reltype.RelDataTypeFactory;
-import org.apache.calcite.reltype.RelDataTypeField;
-import org.apache.calcite.reltype.RelDataTypeFieldImpl;
-import org.apache.calcite.reltype.RelDataTypeImpl;
-import org.apache.calcite.reltype.RelDataTypePrecedenceList;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataTypeFieldImpl;
+import org.apache.calcite.rel.type.RelDataTypeImpl;
+import org.apache.calcite.rel.type.RelDataTypePrecedenceList;
 import org.apache.calcite.sql.type.SqlTypeExplicitPrecedenceList;
 import org.apache.calcite.sql.type.SqlTypeName;
 

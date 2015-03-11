@@ -22,9 +22,9 @@ import java.util.List;
 import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.planner.types.RelDataTypeDrillImpl;
 import org.apache.drill.exec.planner.types.RelDataTypeHolder;
-import org.apache.calcite.reltype.RelDataType;
-import org.apache.calcite.reltype.RelDataTypeFactory;
-import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import com.fasterxml.jackson.annotation.JsonCreator;

@@ -27,7 +27,7 @@ import org.apache.drill.exec.planner.physical.ScreenPrel;
 import org.apache.drill.exec.planner.physical.UnionPrel;
 import org.apache.drill.exec.planner.physical.WriterPrel;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 

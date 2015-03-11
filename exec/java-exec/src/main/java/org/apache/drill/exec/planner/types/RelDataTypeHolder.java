@@ -19,9 +19,9 @@ package org.apache.drill.exec.planner.types;
 
 import java.util.List;
 
-import org.apache.calcite.reltype.RelDataTypeFactory;
-import org.apache.calcite.reltype.RelDataTypeField;
-import org.apache.calcite.reltype.RelDataTypeFieldImpl;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataTypeFieldImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import com.google.common.collect.Lists;

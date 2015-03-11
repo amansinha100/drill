@@ -43,7 +43,7 @@ import org.apache.drill.exec.work.foreman.ForemanSetupException;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.hep.HepPlanner;
-import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlNode;
 
 public class CreateTableHandler extends DefaultSqlHandler {

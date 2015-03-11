@@ -37,7 +37,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rel.type.RelDataType;
 
 public class ScanPrel extends AbstractRelNode implements DrillScanPrel {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory
