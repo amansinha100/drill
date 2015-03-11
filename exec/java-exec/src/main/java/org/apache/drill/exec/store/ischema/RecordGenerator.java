@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
-import net.hydromatic.optiq.Schema.TableType;
+import org.apache.calcite.schema.Schema.TableType;
 import org.apache.calcite.schema.SchemaPlus;
-import net.hydromatic.optiq.Table;
+import org.apache.calcite.schema.Table;
 import net.hydromatic.optiq.jdbc.JavaTypeFactoryImpl;
 
 import org.apache.drill.exec.planner.logical.DrillViewInfoProvider;

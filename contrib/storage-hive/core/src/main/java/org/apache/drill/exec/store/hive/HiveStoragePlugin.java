@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 
-import net.hydromatic.optiq.Schema.TableType;
+import org.apache.calcite.schema.Schema.TableType;
 import org.apache.calcite.schema.SchemaPlus;
 
 import org.apache.drill.common.JSONOptions;

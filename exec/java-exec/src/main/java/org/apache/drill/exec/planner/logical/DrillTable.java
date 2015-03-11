@@ -19,10 +19,10 @@ package org.apache.drill.exec.planner.logical;
 
 import java.io.IOException;
 
-import net.hydromatic.optiq.Schema.TableType;
+import org.apache.calcite.schema.Schema.TableType;
 import net.hydromatic.optiq.Statistic;
 import net.hydromatic.optiq.Statistics;
-import net.hydromatic.optiq.Table;
+import org.apache.calcite.schema.Table;
 
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.logical.StoragePluginConfig;

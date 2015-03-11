@@ -23,7 +23,7 @@ import org.apache.drill.exec.planner.physical.HashJoinPrel;
 import org.apache.drill.exec.planner.physical.JoinPrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.PrelUtil;
-import org.apache.calcite.rel.JoinRelType;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
 

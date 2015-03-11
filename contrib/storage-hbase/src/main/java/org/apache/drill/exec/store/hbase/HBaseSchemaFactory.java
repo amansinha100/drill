@@ -21,9 +21,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
-import net.hydromatic.optiq.Schema;
+import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
-import net.hydromatic.optiq.Table;
+import org.apache.calcite.schema.Table;
 
 import org.apache.drill.exec.rpc.user.UserSession;
 import org.apache.drill.exec.store.AbstractSchema;

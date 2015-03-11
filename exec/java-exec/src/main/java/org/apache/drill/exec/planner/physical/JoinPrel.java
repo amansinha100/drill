@@ -26,7 +26,7 @@ import org.apache.drill.common.logical.data.JoinCondition;
 import org.apache.drill.exec.planner.common.DrillJoinRelBase;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.calcite.rel.InvalidRelException;
-import org.apache.calcite.rel.JoinRelType;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptUtil;

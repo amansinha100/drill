@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Maps;
-import net.hydromatic.optiq.Schema;
+import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
 
 import org.apache.drill.common.exceptions.ExecutionSetupException;
