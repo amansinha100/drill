@@ -24,6 +24,8 @@ import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.server.options.OptionValue;
 import org.apache.drill.exec.store.RecordDataType;
 import org.apache.drill.exec.store.pojo.PojoDataType;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeFactory;
 
 import java.util.Iterator;
 

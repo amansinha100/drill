@@ -25,12 +25,12 @@ import net.hydromatic.optiq.Statistics;
 import net.hydromatic.optiq.TranslatableTable;
 
 import org.apache.drill.exec.dotdrill.View;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptTable;
-import org.eigenbase.relopt.RelOptTable.ToRelContext;
-import org.eigenbase.relopt.RelOptUtil;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeFactory;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.RelOptTable.ToRelContext;
+import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeFactory;
 
 public class DrillViewTable implements TranslatableTable, DrillViewInfoProvider {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillViewTable.class);

@@ -28,11 +28,11 @@ import org.apache.drill.exec.planner.common.DrillFilterRelBase;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
-import org.eigenbase.rel.FilterRelBase;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.rex.RexNode;
+import org.apache.calcite.rel.FilterRelBase;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rex.RexNode;
 
 
 public class FilterPrel extends DrillFilterRelBase implements Prel {

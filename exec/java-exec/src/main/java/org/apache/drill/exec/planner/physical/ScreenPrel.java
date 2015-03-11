@@ -26,9 +26,9 @@ import org.apache.drill.exec.physical.config.Screen;
 import org.apache.drill.exec.planner.common.DrillScreenRelBase;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTraitSet;
 
 public class ScreenPrel extends DrillScreenRelBase implements Prel {
 

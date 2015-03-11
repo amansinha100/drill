@@ -19,12 +19,9 @@
 package org.apache.drill.exec.physical.impl.join;
 
 import org.apache.drill.common.logical.data.JoinCondition;
-import org.eigenbase.rel.JoinRelBase;
-import org.eigenbase.rel.JoinRelType;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptTable;
-import org.eigenbase.relopt.RelOptUtil;
-import org.eigenbase.rex.RexNode;
+import org.apache.calcite.rel.JoinRelBase;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptUtil;
 
 import java.util.List;
 

@@ -43,18 +43,17 @@ import org.apache.drill.exec.planner.physical.StreamAggPrule;
 import org.apache.drill.exec.planner.physical.WindowPrule;
 import org.apache.drill.exec.planner.physical.UnionAllPrule;
 import org.apache.drill.exec.planner.physical.WriterPrule;
-import org.eigenbase.rel.RelFactories;
-import org.eigenbase.rel.rules.MergeFilterRule;
-import org.eigenbase.rel.rules.MergeProjectRule;
-import org.eigenbase.rel.rules.PushFilterPastJoinRule;
-import org.eigenbase.rel.rules.PushJoinThroughJoinRule;
-import org.eigenbase.rel.rules.ReduceExpressionsRule;
-import org.eigenbase.rel.rules.RemoveDistinctAggregateRule;
-import org.eigenbase.rel.rules.RemoveDistinctRule;
-import org.eigenbase.rel.rules.RemoveSortRule;
-import org.eigenbase.rel.rules.RemoveTrivialProjectRule;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.volcano.AbstractConverter.ExpandConversionRule;
+import org.apache.calcite.rel.RelFactories;
+import org.apache.calcite.rel.rules.MergeFilterRule;
+import org.apache.calcite.rel.rules.MergeProjectRule;
+import org.apache.calcite.rel.rules.PushFilterPastJoinRule;
+import org.apache.calcite.rel.rules.PushJoinThroughJoinRule;
+import org.apache.calcite.rel.rules.RemoveDistinctAggregateRule;
+import org.apache.calcite.rel.rules.RemoveDistinctRule;
+import org.apache.calcite.rel.rules.RemoveSortRule;
+import org.apache.calcite.rel.rules.RemoveTrivialProjectRule;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.volcano.AbstractConverter.ExpandConversionRule;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSet.Builder;
@@ -148,8 +147,8 @@ public class DrillRuleSets {
       */
 //      PushProjectPastFilterRule.INSTANCE,
       DrillPushProjectPastFilterRule.INSTANCE,
-//      PushProjectPastJoinRule.INSTANCE,
-      DrillPushProjectPastJoinRule.INSTANCE,
+//      ProjectJoinTransposeRule.INSTANCE,
+      DrillProjectJoinTransposeRule.INSTANCE,
 
 //      SwapJoinRule.INSTANCE, //
 //      PushJoinThroughJoinRule.RIGHT, //

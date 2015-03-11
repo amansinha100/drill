@@ -28,13 +28,13 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.Project;
 import org.apache.drill.exec.planner.logical.DrillOptiq;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
-import org.eigenbase.rel.ProjectRelBase;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.rex.RexNode;
-import org.eigenbase.util.Pair;
+import org.apache.calcite.rel.ProjectRelBase;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
 
 import com.google.common.collect.Lists;
 

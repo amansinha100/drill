@@ -19,9 +19,9 @@
 package org.apache.drill.exec.planner.physical;
 
 import org.apache.drill.exec.planner.logical.RelOptHelper;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.rex.RexLiteral;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.rex.RexLiteral;
 
 public class PushLimitToTopN  extends Prule{
 

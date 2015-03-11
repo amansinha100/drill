@@ -18,9 +18,9 @@
 
 package org.apache.drill.exec.planner.types;
 
-import org.eigenbase.reltype.RelDataTypeSystem;
-import org.eigenbase.reltype.RelDataTypeSystemImpl;
-import org.eigenbase.sql.type.SqlTypeName;
+import org.apache.calcite.reltype.RelDataTypeSystem;
+import org.apache.calcite.reltype.RelDataTypeSystemImpl;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 public class DrillRelDataTypeSystem extends RelDataTypeSystemImpl {
 

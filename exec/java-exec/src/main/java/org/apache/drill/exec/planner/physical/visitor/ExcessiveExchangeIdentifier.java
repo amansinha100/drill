@@ -24,7 +24,7 @@ import org.apache.drill.exec.planner.physical.ExchangePrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.ScanPrel;
 import org.apache.drill.exec.planner.physical.ScreenPrel;
-import org.eigenbase.rel.RelNode;
+import org.apache.calcite.rel.RelNode;
 
 import com.google.common.collect.Lists;
 

@@ -26,10 +26,10 @@ import org.apache.drill.exec.planner.physical.ProjectPrel;
 import org.apache.drill.exec.planner.physical.ScreenPrel;
 import org.apache.drill.exec.planner.physical.UnionPrel;
 import org.apache.drill.exec.planner.physical.WriterPrel;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.rex.RexBuilder;
-import org.eigenbase.rex.RexNode;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexNode;
 
 import com.google.common.collect.Lists;
 

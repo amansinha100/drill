@@ -31,12 +31,12 @@ import org.apache.drill.exec.planner.physical.UnorderedDeMuxExchangePrel;
 import org.apache.drill.exec.planner.physical.UnorderedMuxExchangePrel;
 import org.apache.drill.exec.planner.sql.DrillSqlOperator;
 import org.apache.drill.exec.server.options.OptionManager;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeField;
-import org.eigenbase.rex.RexBuilder;
-import org.eigenbase.rex.RexNode;
-import org.eigenbase.rex.RexUtil;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 
 import java.util.Collections;
 import java.util.List;

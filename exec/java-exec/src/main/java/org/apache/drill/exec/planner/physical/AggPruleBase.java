@@ -24,10 +24,10 @@ import net.hydromatic.optiq.util.BitSets;
 
 import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
-import org.eigenbase.rel.AggregateCall;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.relopt.RelOptRuleOperand;
+import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptRuleOperand;
 
 import com.google.common.collect.Lists;
 

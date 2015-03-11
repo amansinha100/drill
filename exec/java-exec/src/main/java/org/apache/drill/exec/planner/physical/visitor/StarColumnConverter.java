@@ -33,14 +33,14 @@ import org.apache.drill.exec.planner.physical.ProjectPrel;
 import org.apache.drill.exec.planner.physical.ScanPrel;
 import org.apache.drill.exec.planner.physical.ScreenPrel;
 import org.apache.drill.exec.planner.physical.WriterPrel;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.rules.RemoveTrivialProjectRule;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeField;
-import org.eigenbase.rex.RexInputRef;
-import org.eigenbase.rex.RexNode;
-import org.eigenbase.rex.RexUtil;
-import org.eigenbase.util.Pair;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.rules.RemoveTrivialProjectRule;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.util.Pair;
 
 import com.google.common.collect.Lists;
 

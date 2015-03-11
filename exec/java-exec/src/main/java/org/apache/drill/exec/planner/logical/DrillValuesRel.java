@@ -20,14 +20,14 @@ package org.apache.drill.exec.planner.logical;
 import java.util.List;
 
 import org.apache.drill.common.logical.data.LogicalOperator;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.ValuesRelBase;
-import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelOptCost;
-import org.eigenbase.relopt.RelOptPlanner;
-import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.rex.RexLiteral;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.ValuesRelBase;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rex.RexLiteral;
 
 /**
  * Values implemented in Drill.

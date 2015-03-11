@@ -33,7 +33,7 @@ import org.apache.drill.exec.server.options.OptionValue.OptionType;
 import org.apache.drill.exec.store.sys.PStore;
 import org.apache.drill.exec.store.sys.PStoreConfig;
 import org.apache.drill.exec.store.sys.PStoreProvider;
-import org.eigenbase.sql.SqlLiteral;
+import org.apache.calcite.sql.SqlLiteral;
 
 import com.google.common.collect.Maps;
 

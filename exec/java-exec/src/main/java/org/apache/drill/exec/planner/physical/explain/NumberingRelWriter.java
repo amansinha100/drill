@@ -29,12 +29,12 @@ import net.hydromatic.optiq.runtime.Spacer;
 import org.apache.drill.exec.planner.physical.HashJoinPrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.explain.PrelSequencer.OpId;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.RelWriter;
-import org.eigenbase.rel.metadata.RelMetadataQuery;
-import org.eigenbase.rex.RexNode;
-import org.eigenbase.sql.SqlExplainLevel;
-import org.eigenbase.util.Pair;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlExplainLevel;
+import org.apache.calcite.util.Pair;
 
 import com.google.common.collect.ImmutableList;
 

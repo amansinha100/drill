@@ -33,8 +33,8 @@ import org.apache.drill.exec.store.dfs.WorkspaceSchemaFactory.WorkspaceSchema;
 import org.apache.drill.exec.store.dfs.DrillFileSystem;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
-import org.eigenbase.sql.SqlIdentifier;
-import org.eigenbase.sql.SqlNode;
+import org.apache.calcite.sql.SqlIdentifier;
+import org.apache.calcite.sql.SqlNode;
 
 
 public class ShowFileHandler extends DefaultSqlHandler {

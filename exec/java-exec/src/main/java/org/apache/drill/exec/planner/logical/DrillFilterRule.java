@@ -26,7 +26,7 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalFilter;
 
 /**
- * Rule that converts a {@link org.eigenbase.rel.FilterRel} to a Drill "filter" operation.
+ * Rule that converts a {@link org.apache.calcite.rel.FilterRel} to a Drill "filter" operation.
  */
 public class DrillFilterRule extends RelOptRule {
   public static final RelOptRule INSTANCE = new DrillFilterRule();

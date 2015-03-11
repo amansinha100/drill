@@ -17,10 +17,10 @@
  */
 package org.apache.drill.exec.planner.physical;
 
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptPlanner;
-import org.eigenbase.relopt.RelTraitDef;
-import org.eigenbase.relopt.volcano.RelSubset;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTraitDef;
+import org.apache.calcite.plan.volcano.RelSubset;
 
 public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrait>{
   public static final DrillDistributionTraitDef INSTANCE = new DrillDistributionTraitDef();

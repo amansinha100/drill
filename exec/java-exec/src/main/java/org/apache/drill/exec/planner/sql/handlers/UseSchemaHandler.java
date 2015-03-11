@@ -27,7 +27,7 @@ import org.apache.drill.exec.physical.PhysicalPlan;
 import org.apache.drill.exec.planner.sql.DirectPlan;
 import org.apache.drill.exec.planner.sql.parser.SqlUseSchema;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
-import org.eigenbase.sql.SqlNode;
+import org.apache.calcite.sql.SqlNode;
 
 public class UseSchemaHandler extends AbstractSqlHandler {
   QueryContext context;

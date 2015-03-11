@@ -19,13 +19,13 @@
 package org.apache.drill.exec.planner.logical;
 
 import com.google.common.collect.Lists;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.WindowRel;
-import org.eigenbase.relopt.Convention;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.rex.RexLiteral;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.WindowRel;
+import org.apache.calcite.plan.Convention;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rex.RexLiteral;
 
 public class DrillWindowRule extends RelOptRule {
   public static final RelOptRule INSTANCE = new DrillWindowRule();

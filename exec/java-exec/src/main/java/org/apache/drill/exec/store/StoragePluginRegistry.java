@@ -54,7 +54,7 @@ import org.apache.drill.exec.store.sys.PStore;
 import org.apache.drill.exec.store.sys.PStoreConfig;
 import org.apache.drill.exec.store.sys.SystemTablePlugin;
 import org.apache.drill.exec.store.sys.SystemTablePluginConfig;
-import org.eigenbase.relopt.RelOptRule;
+import org.apache.calcite.plan.RelOptRule;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Stopwatch;

@@ -27,7 +27,7 @@ import net.hydromatic.optiq.tools.ValidationException;
 import org.apache.drill.exec.physical.PhysicalPlan;
 import org.apache.drill.exec.store.AbstractSchema;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
-import org.eigenbase.sql.SqlNode;
+import org.apache.calcite.sql.SqlNode;
 
 import com.google.common.base.Joiner;
 

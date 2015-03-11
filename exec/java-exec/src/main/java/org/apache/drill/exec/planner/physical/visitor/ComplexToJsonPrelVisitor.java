@@ -22,7 +22,7 @@ import java.util.Collections;
 import org.apache.drill.exec.planner.physical.ComplexToJsonPrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.ScreenPrel;
-import org.eigenbase.rel.RelNode;
+import org.apache.calcite.rel.RelNode;
 
 public class ComplexToJsonPrelVisitor extends BasePrelVisitor<Prel, Void, RuntimeException> {
 

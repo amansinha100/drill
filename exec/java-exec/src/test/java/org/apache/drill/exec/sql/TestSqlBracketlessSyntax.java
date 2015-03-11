@@ -28,8 +28,8 @@ import org.apache.drill.exec.planner.sql.DrillConvertletTable;
 import org.apache.drill.exec.planner.sql.parser.CompoundIdentifierConverter;
 import org.apache.drill.exec.planner.sql.parser.impl.DrillParserImpl;
 import org.apache.drill.test.DrillAssert;
-import org.eigenbase.sql.SqlNode;
-import org.eigenbase.sql.parser.SqlParser;
+import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.parser.SqlParser;
 import org.junit.Test;
 
 public class TestSqlBracketlessSyntax {

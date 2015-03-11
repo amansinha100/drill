@@ -17,9 +17,9 @@
  */
 package org.apache.drill.exec.planner.physical;
 
-import org.eigenbase.relopt.RelOptPlanner;
-import org.eigenbase.relopt.RelTrait;
-import org.eigenbase.relopt.RelTraitDef;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTrait;
+import org.apache.calcite.plan.RelTraitDef;
 
 import com.google.common.collect.ImmutableList;
 

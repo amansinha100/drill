@@ -17,8 +17,7 @@
  */
 package org.apache.drill.exec.server.options;
 
-import org.apache.drill.exec.server.options.OptionValue.OptionType;
-import org.eigenbase.sql.SqlLiteral;
+import org.apache.calcite.sql.SqlLiteral;
 
 public interface OptionManager extends Iterable<OptionValue> {
   public OptionValue getOption(String name);

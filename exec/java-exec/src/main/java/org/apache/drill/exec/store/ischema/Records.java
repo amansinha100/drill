@@ -18,9 +18,9 @@
 
 package org.apache.drill.exec.store.ischema;
 
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeField;
-import org.eigenbase.sql.type.SqlTypeName;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 public class Records {
 

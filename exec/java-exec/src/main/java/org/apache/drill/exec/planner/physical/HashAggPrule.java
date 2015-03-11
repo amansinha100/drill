@@ -22,13 +22,13 @@ import java.util.logging.Logger;
 import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.drill.exec.planner.physical.AggPrelBase.OperatorPhase;
-import org.eigenbase.rel.InvalidRelException;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.relopt.RelTrait;
-import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.trace.EigenbaseTrace;
+import org.apache.calcite.rel.InvalidRelException;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTrait;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.trace.EigenbaseTrace;
 
 import com.google.common.collect.ImmutableList;
 

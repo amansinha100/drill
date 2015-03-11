@@ -29,13 +29,13 @@ import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.common.logical.data.Order;
 import org.apache.drill.exec.planner.common.DrillWindowRelBase;
-import org.eigenbase.rel.AggregateCall;
-import org.eigenbase.rel.RelFieldCollation;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.rex.RexLiteral;
+import org.apache.calcite.rel.AggregateCall;
+import org.apache.calcite.rel.RelFieldCollation;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.rex.RexLiteral;
 
 import java.util.List;
 

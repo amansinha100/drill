@@ -22,14 +22,10 @@ import java.util.List;
 import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.planner.types.RelDataTypeDrillImpl;
 import org.apache.drill.exec.planner.types.RelDataTypeHolder;
-
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeFactory;
-import org.eigenbase.reltype.RelDataTypeField;
-import org.eigenbase.sql.SqlIntervalQualifier;
-import org.eigenbase.sql.parser.SqlParserPos;
-import org.eigenbase.sql.type.SqlTypeFamily;
-import org.eigenbase.sql.type.SqlTypeName;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeFactory;
+import org.apache.calcite.reltype.RelDataTypeField;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;

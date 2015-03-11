@@ -27,9 +27,9 @@ import org.apache.drill.exec.physical.PhysicalPlan;
 import org.apache.drill.exec.planner.sql.DirectPlan;
 import org.apache.drill.exec.server.options.OptionValue;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
-import org.eigenbase.sql.SqlLiteral;
-import org.eigenbase.sql.SqlNode;
-import org.eigenbase.sql.SqlSetOption;
+import org.apache.calcite.sql.SqlLiteral;
+import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.SqlSetOption;
 
 public class SetOptionHandler extends AbstractSqlHandler {
 //  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SetOptionHandler.class);

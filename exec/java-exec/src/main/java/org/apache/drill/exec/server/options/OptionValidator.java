@@ -18,8 +18,7 @@
 package org.apache.drill.exec.server.options;
 
 import org.apache.drill.common.exceptions.ExpressionParsingException;
-import org.apache.drill.exec.server.options.OptionValue.OptionType;
-import org.eigenbase.sql.SqlLiteral;
+import org.apache.calcite.sql.SqlLiteral;
 
 /**
  * Validates the values provided to Drill options.

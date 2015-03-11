@@ -17,12 +17,12 @@
  */
 package org.apache.drill.exec.planner.physical;
 
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.SortRel;
-import org.eigenbase.rel.convert.ConverterRule;
-import org.eigenbase.relopt.Convention;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Sort;
+import org.apache.calcite.rel.convert.ConverterRule;
+import org.apache.calcite.plan.Convention;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
 
 /**
  * Rule that converts an {@link SortRel} to a physical {@link SortPrel}, implemented by a Drill "order" operation.

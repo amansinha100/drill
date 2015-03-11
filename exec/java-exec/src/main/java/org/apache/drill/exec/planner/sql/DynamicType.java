@@ -17,10 +17,10 @@
  */
 package org.apache.drill.exec.planner.sql;
 
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeFactory;
-import org.eigenbase.reltype.RelProtoDataType;
-import org.eigenbase.sql.type.SqlTypeName;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeFactory;
+import org.apache.calcite.reltype.RelProtoDataType;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 class DynamicType implements RelProtoDataType {
 

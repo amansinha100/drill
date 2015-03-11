@@ -21,12 +21,12 @@ import java.util.logging.Logger;
 
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
-import org.eigenbase.rel.InvalidRelException;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.relopt.RelOptRuleOperand;
-import org.eigenbase.trace.EigenbaseTrace;
+import org.apache.calcite.rel.InvalidRelException;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptRuleOperand;
+import org.apache.calcite.trace.EigenbaseTrace;
 
 public class HashJoinPrule extends JoinPruleBase {
   public static final RelOptRule DIST_INSTANCE = new HashJoinPrule("Prel.HashJoinDistPrule", RelOptHelper.any(DrillJoinRel.class), true);

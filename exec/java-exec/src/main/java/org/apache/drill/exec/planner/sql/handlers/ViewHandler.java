@@ -35,9 +35,9 @@ import org.apache.drill.exec.planner.types.DrillFixedRelDataTypeImpl;
 import org.apache.drill.exec.store.AbstractSchema;
 import org.apache.drill.exec.store.dfs.WorkspaceSchemaFactory.WorkspaceSchema;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.sql.SqlNode;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.sql.SqlNode;
 
 import com.google.common.collect.ImmutableList;
 

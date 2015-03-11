@@ -17,11 +17,11 @@
  */
 package org.apache.drill.exec.planner.logical;
 
-import org.eigenbase.rel.ValuesRel;
-import org.eigenbase.relopt.Convention;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.relopt.RelTraitSet;
+import org.apache.calcite.rel.ValuesRel;
+import org.apache.calcite.plan.Convention;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTraitSet;
 
 /**
  * Rule that converts a {@link ValuesRel} to a Drill "values" operation.

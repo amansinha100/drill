@@ -22,15 +22,15 @@ import java.util.logging.Logger;
 
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
-import org.eigenbase.rel.InvalidRelException;
-import org.eigenbase.rel.RelCollation;
-import org.eigenbase.rel.RelCollationImpl;
-import org.eigenbase.rel.RelFieldCollation;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptRule;
-import org.eigenbase.relopt.RelOptRuleCall;
-import org.eigenbase.relopt.RelOptRuleOperand;
-import org.eigenbase.trace.EigenbaseTrace;
+import org.apache.calcite.rel.InvalidRelException;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollationImpl;
+import org.apache.calcite.rel.RelFieldCollation;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptRuleOperand;
+import org.apache.calcite.trace.EigenbaseTrace;
 
 import com.google.common.collect.Lists;
 

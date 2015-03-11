@@ -25,8 +25,8 @@ import org.apache.drill.exec.store.ischema.InfoSchemaTable.Columns;
 import org.apache.drill.exec.store.ischema.InfoSchemaTable.Schemata;
 import org.apache.drill.exec.store.ischema.InfoSchemaTable.Tables;
 import org.apache.drill.exec.store.ischema.InfoSchemaTable.Views;
-import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeFactory;
+import org.apache.calcite.reltype.RelDataType;
+import org.apache.calcite.reltype.RelDataTypeFactory;
 
 public enum SelectedTable{
   CATALOGS(new Catalogs()),

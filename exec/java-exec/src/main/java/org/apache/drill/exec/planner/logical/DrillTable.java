@@ -28,8 +28,8 @@ import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.logical.StoragePluginConfig;
 import org.apache.drill.exec.physical.base.GroupScan;
 import org.apache.drill.exec.store.StoragePlugin;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.relopt.RelOptTable;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.plan.RelOptTable;
 
 public abstract class DrillTable implements Table {
 

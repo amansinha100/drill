@@ -25,9 +25,9 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.ComplexToJson;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.SingleRel;
-import org.eigenbase.relopt.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.SingleRel;
+import org.apache.calcite.plan.RelTraitSet;
 
 public class ComplexToJsonPrel extends SingleRel implements Prel {
 
