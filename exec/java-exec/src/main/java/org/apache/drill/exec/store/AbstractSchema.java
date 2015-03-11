@@ -26,7 +26,7 @@ import net.hydromatic.linq4j.expressions.DefaultExpression;
 import net.hydromatic.linq4j.expressions.Expression;
 import net.hydromatic.optiq.Function;
 import net.hydromatic.optiq.Schema;
-import net.hydromatic.optiq.SchemaPlus;
+import org.apache.calcite.schema.SchemaPlus;
 import net.hydromatic.optiq.Table;
 
 import org.apache.drill.exec.planner.logical.CreateTableEntry;

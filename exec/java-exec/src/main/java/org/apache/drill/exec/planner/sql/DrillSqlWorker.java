@@ -23,12 +23,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.hydromatic.optiq.config.Lex;
-import net.hydromatic.optiq.tools.FrameworkConfig;
-import net.hydromatic.optiq.tools.Frameworks;
-import net.hydromatic.optiq.tools.Planner;
-import net.hydromatic.optiq.tools.RelConversionException;
-import net.hydromatic.optiq.tools.RuleSet;
-import net.hydromatic.optiq.tools.ValidationException;
+import org.apache.calcite.tools.FrameworkConfig;
+import org.apache.calcite.tools.Frameworks;
+import org.apache.calcite.tools.Planner;
+import org.apache.calcite.tools.RelConversionException;
+import org.apache.calcite.tools.RuleSet;
+import org.apache.calcite.tools.ValidationException;
 
 import org.apache.drill.exec.ops.QueryContext;
 import org.apache.drill.exec.physical.PhysicalPlan;

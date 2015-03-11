@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import net.hydromatic.optiq.Schema;
-import net.hydromatic.optiq.SchemaPlus;
+import org.apache.calcite.schema.SchemaPlus;
 import net.hydromatic.optiq.Table;
 
 import org.apache.drill.exec.rpc.user.UserSession;

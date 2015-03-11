@@ -25,8 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import net.hydromatic.optiq.SchemaPlus;
-import net.hydromatic.optiq.jdbc.SimpleOptiqSchema;
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.jdbc.SimpleCalciteSchema;
 
 import org.apache.drill.common.DeferredException;
 import org.apache.drill.common.config.DrillConfig;
@@ -183,7 +183,7 @@ public class FragmentContext implements AutoCloseable, UdfUtilities {
       return null;
     }
 
-    final SchemaPlus root = SimpleOptiqSchema.createRootSchema(false);
+    final SchemaPlus root = SimpleCalciteSchema.createRootSchema(false);
     context.getStorage().getSchemaFactory().registerSchemas(connection.getSession(), root);
     return root;
   }

@@ -19,7 +19,7 @@ package org.apache.drill.exec.planner.sql.parser;
 
 import java.util.List;
 
-import net.hydromatic.optiq.tools.Planner;
+import org.apache.calcite.tools.Planner;
 
 import org.apache.drill.exec.ops.QueryContext;
 import org.apache.drill.exec.planner.sql.handlers.AbstractSqlHandler;

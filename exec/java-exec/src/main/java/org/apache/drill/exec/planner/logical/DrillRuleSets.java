@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import net.hydromatic.optiq.tools.RuleSet;
+import org.apache.calcite.tools.RuleSet;
 
 import org.apache.calcite.rel.rules.FilterMergeRule;
 import org.apache.drill.exec.ops.QueryContext;

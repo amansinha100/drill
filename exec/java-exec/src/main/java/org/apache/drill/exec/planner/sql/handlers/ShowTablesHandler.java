@@ -22,8 +22,8 @@ import static org.apache.drill.exec.planner.sql.parser.DrillParserUtil.CHARSET;
 
 import java.util.List;
 
-import net.hydromatic.optiq.SchemaPlus;
-import net.hydromatic.optiq.tools.RelConversionException;
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.tools.RelConversionException;
 
 import org.apache.drill.exec.planner.sql.parser.DrillParserUtil;
 import org.apache.drill.exec.planner.sql.parser.SqlShowTables;

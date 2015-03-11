@@ -18,7 +18,7 @@
 package org.apache.drill.exec.planner.physical.visitor;
 
 import com.google.common.collect.Lists;
-import net.hydromatic.optiq.tools.RelConversionException;
+import org.apache.calcite.tools.RelConversionException;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
 import org.apache.drill.exec.planner.physical.FlattenPrel;

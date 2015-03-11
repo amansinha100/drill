@@ -20,8 +20,8 @@ package org.apache.drill.exec.ops;
 import java.util.Collection;
 
 import io.netty.buffer.DrillBuf;
-import net.hydromatic.optiq.SchemaPlus;
-import net.hydromatic.optiq.jdbc.SimpleOptiqSchema;
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.jdbc.SimpleCalciteSchema;
 
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
@@ -111,7 +111,7 @@ public class QueryContext implements AutoCloseable, UdfUtilities {
   }
 
   public SchemaPlus getRootSchema() {
-    final SchemaPlus rootSchema = SimpleOptiqSchema.createRootSchema(false);
+    final SchemaPlus rootSchema = SimpleCalciteSchema.createRootSchema(false);
     drillbitContext.getSchemaFactory().registerSchemas(session, rootSchema);
     return rootSchema;
   }

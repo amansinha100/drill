@@ -19,7 +19,7 @@ package org.apache.drill.exec.planner.logical;
 
 import java.util.List;
 
-import net.hydromatic.optiq.prepare.Prepare.CatalogReader;
+import org.apache.calcite.prepare.Prepare.CatalogReader;
 
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.exec.planner.common.DrillStoreRelBase;

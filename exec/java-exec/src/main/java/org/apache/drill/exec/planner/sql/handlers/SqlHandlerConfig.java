@@ -18,7 +18,7 @@
 
 package org.apache.drill.exec.planner.sql.handlers;
 
-import net.hydromatic.optiq.tools.Planner;
+import org.apache.calcite.tools.Planner;
 import org.apache.drill.exec.ops.QueryContext;
 import org.apache.calcite.plan.hep.HepPlanner;
 

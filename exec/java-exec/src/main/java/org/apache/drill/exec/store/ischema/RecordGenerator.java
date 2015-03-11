@@ -22,7 +22,7 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import net.hydromatic.optiq.Schema.TableType;
-import net.hydromatic.optiq.SchemaPlus;
+import org.apache.calcite.schema.SchemaPlus;
 import net.hydromatic.optiq.Table;
 import net.hydromatic.optiq.jdbc.JavaTypeFactoryImpl;
 

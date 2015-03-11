@@ -17,7 +17,7 @@
  */
 package org.apache.drill.exec.store.ischema;
 
-import net.hydromatic.optiq.SchemaPlus;
+import org.apache.calcite.schema.SchemaPlus;
 
 import org.apache.drill.exec.store.RecordReader;
 import org.apache.drill.exec.store.ischema.InfoSchemaTable.Catalogs;

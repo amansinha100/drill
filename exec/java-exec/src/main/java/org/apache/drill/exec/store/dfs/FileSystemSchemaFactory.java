@@ -24,7 +24,8 @@ import java.util.Map;
 import java.util.Set;
 
 import net.hydromatic.optiq.Function;
-import net.hydromatic.optiq.SchemaPlus;
+import net.hydromatic.optiq.Schema;
+import org.apache.calcite.schema.SchemaPlus;
 import net.hydromatic.optiq.Table;
 
 import org.apache.drill.exec.planner.logical.CreateTableEntry;

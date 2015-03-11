@@ -18,10 +18,10 @@
 package org.apache.drill.exec.sql;
 
 import net.hydromatic.optiq.config.Lex;
-import net.hydromatic.optiq.jdbc.SimpleOptiqSchema;
-import net.hydromatic.optiq.tools.FrameworkConfig;
-import net.hydromatic.optiq.tools.Frameworks;
-import net.hydromatic.optiq.tools.Planner;
+import org.apache.calcite.jdbc.SimpleCalciteSchema;
+import org.apache.calcite.tools.FrameworkConfig;
+import org.apache.calcite.tools.Frameworks;
+import org.apache.calcite.tools.Planner;
 
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.planner.sql.DrillConvertletTable;
@@ -40,7 +40,7 @@ public class TestSqlBracketlessSyntax {
     FrameworkConfig config = Frameworks.newConfigBuilder() //
         .parserConfig(new SqlParser.ParserConfigImpl(Lex.MYSQL, PlannerSettings.DEFAULT_IDENTIFIER_MAX_LENGTH))
         .parserFactory(DrillParserImpl.FACTORY) //
-        .defaultSchema(SimpleOptiqSchema.createRootSchema(false)) //
+        .defaultSchema(SimpleCalciteSchema.createRootSchema(false)) //
         .convertletTable(new DrillConvertletTable()) //
         .build();
     Planner planner = Frameworks.getPlanner(config);
