@@ -19,6 +19,7 @@
 package org.apache.drill.exec.planner.logical;
 
 import com.google.common.collect.Lists;
+import com.sun.java.swing.plaf.windows.resources.windows;
 import org.apache.calcite.linq4j.Ord;
 import org.apache.calcite.util.BitSets;
 import org.apache.drill.common.expression.ExpressionPosition;
@@ -47,7 +48,7 @@ public class DrillWindowRel extends DrillWindowRelBase implements DrillRel {
    * @param traits
    * @param child   Input relational expression
    * @param rowType Output row type
-   * @param windows Windows
+   * @param groups Windows
    */
   public DrillWindowRel(
       RelOptCluster cluster,
@@ -55,33 +56,33 @@ public class DrillWindowRel extends DrillWindowRelBase implements DrillRel {
       RelNode child,
       List<RexLiteral> constants,
       RelDataType rowType,
-      List<Window> windows) {
-    super(cluster, traits, child, constants, rowType, windows);
+      List<Group> groups) {
+    super(cluster, traits, child, constants, rowType, groups);
   }
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new DrillWindowRel(getCluster(), traitSet, sole(inputs), constants, getRowType(), windows);
+    return new DrillWindowRel(getCluster(), traitSet, sole(inputs), constants, getRowType(), groups);
   }
 
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
-    final LogicalOperator inputOp = implementor.visitChild(this, 0, getChild());
+    final LogicalOperator inputOp = implementor.visitChild(this, 0, getInput());
     org.apache.drill.common.logical.data.Window.Builder builder = new org.apache.drill.common.logical.data.Window.Builder();
     final List<String> fields = getRowType().getFieldNames();
-    final List<String> childFields = getChild().getRowType().getFieldNames();
-    for (Window window : windows) {
+    final List<String> childFields = getInput().getRowType().getFieldNames();
+    for (Group window : groups) {
 
       for(RelFieldCollation orderKey : window.orderKeys.getFieldCollations()) {
         builder.addOrdering(new Order.Ordering(orderKey.getDirection(), new FieldReference(fields.get(orderKey.getFieldIndex()))));
       }
 
-      for (int group : BitSets.toIter(window.groupSet)) {
+      for (int group : BitSets.toIter(window.keys)) {
         FieldReference fr = new FieldReference(childFields.get(group), ExpressionPosition.UNKNOWN);
         builder.addWithin(fr, fr);
       }
 
-      int groupCardinality = window.groupSet.cardinality();
+      int groupCardinality = window.keys.cardinality();
       for (Ord<AggregateCall> aggCall : Ord.zip(window.getAggregateCalls(this))) {
         FieldReference ref = new FieldReference(fields.get(groupCardinality + aggCall.i));
         LogicalExpression expr = toDrill(aggCall.e, childFields);

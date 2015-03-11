@@ -47,6 +47,6 @@ public class DrillWindowRule extends RelOptRule {
             convertedInput,
             Lists.<RexLiteral>newArrayList(),
             window.getRowType(),
-            window.windows));
+            window.groups));
   }
 }
