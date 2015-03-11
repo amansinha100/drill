@@ -23,6 +23,7 @@ import java.util.List;
 
 import net.hydromatic.optiq.tools.RuleSet;
 
+import org.apache.calcite.rel.rules.FilterMergeRule;
 import org.apache.drill.exec.ops.QueryContext;
 import org.apache.drill.exec.planner.logical.partition.PruneScanRule;
 import org.apache.drill.exec.planner.physical.ConvertCountToDirectScan;
@@ -127,7 +128,7 @@ public class DrillRuleSets {
       // End support for WHERE style joins.
 
       //Add back rules
-      DrillMergeFilterRule.INSTANCE,
+      FilterMergeRule.INSTANCE,   // TODO: NO NEED OF DRILL'S version?
       ExpandConversionRule.INSTANCE,
 //      SwapJoinRule.INSTANCE,
       RemoveDistinctRule.INSTANCE,
