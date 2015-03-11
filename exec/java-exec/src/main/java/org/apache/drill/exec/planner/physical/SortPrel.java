@@ -38,7 +38,7 @@ import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rex.RexNode;
 
-public class SortPrel extends SortRel implements Prel {
+public class SortPrel extends Sort implements Prel {
 
   /** Creates a DrillSortRel. */
   public SortPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input, RelCollation collation) {

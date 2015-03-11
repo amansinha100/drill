@@ -41,7 +41,7 @@ import com.google.common.collect.Maps;
 /**
  * Sort implemented in Drill.
  */
-public class DrillSortRel extends SortRel implements DrillRel {
+public class DrillSortRel extends Sort implements DrillRel {
 
   /** Creates a DrillSortRel. */
   public DrillSortRel(RelOptCluster cluster, RelTraitSet traits, RelNode input, RelCollation collation) {
@@ -61,9 +61,9 @@ public class DrillSortRel extends SortRel implements DrillRel {
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
     final Order.Builder builder = Order.builder();
-    builder.setInput(implementor.visitChild(this, 0, getChild()));
+    builder.setInput(implementor.visitChild(this, 0, getInput()));
 
-    final List<String> childFields = getChild().getRowType().getFieldNames();
+    final List<String> childFields = getInput().getRowType().getFieldNames();
     for(RelFieldCollation fieldCollation : this.collation.getFieldCollations()){
       builder.addOrdering(fieldCollation.getDirection(),
           new FieldReference(childFields.get(fieldCollation.getFieldIndex())),
