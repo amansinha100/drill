@@ -17,7 +17,7 @@
  */
 package org.apache.drill.exec.sql;
 
-import net.hydromatic.optiq.config.Lex;
+import org.apache.calcite.config.Lex;
 import org.apache.calcite.jdbc.SimpleCalciteSchema;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
@@ -38,8 +38,11 @@ public class TestSqlBracketlessSyntax {
   @Test
   public void checkComplexExpressionParsing() throws Exception{
     FrameworkConfig config = Frameworks.newConfigBuilder() //
-        .parserConfig(new SqlParser.ParserConfigImpl(Lex.MYSQL, PlannerSettings.DEFAULT_IDENTIFIER_MAX_LENGTH))
-        .parserFactory(DrillParserImpl.FACTORY) //
+        .parserConfig(SqlParser.configBuilder()
+            .setLex(Lex.MYSQL)
+            .setIdentifierMaxLength(PlannerSettings.DEFAULT_IDENTIFIER_MAX_LENGTH)
+            .setParserFactory(DrillParserImpl.FACTORY)
+            .build()) //
         .defaultSchema(SimpleCalciteSchema.createRootSchema(false)) //
         .convertletTable(new DrillConvertletTable()) //
         .build();
