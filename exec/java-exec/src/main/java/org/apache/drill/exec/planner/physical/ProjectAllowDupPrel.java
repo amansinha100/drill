@@ -28,7 +28,6 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.Project;
 import org.apache.drill.exec.planner.logical.DrillOptiq;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
-import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
@@ -52,7 +51,7 @@ public class ProjectAllowDupPrel extends ProjectPrel {
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
@@ -64,7 +63,7 @@ public class ProjectAllowDupPrel extends ProjectPrel {
   protected List<NamedExpression> getProjectExpressions(DrillParseContext context) {
     List<NamedExpression> expressions = Lists.newArrayList();
     for (Pair<RexNode, String> pair : Pair.zip(exps, getRowType().getFieldNames())) {
-      LogicalExpression expr = DrillOptiq.toDrill(context, getChild(), pair.left);
+      LogicalExpression expr = DrillOptiq.toDrill(context, getInput(), pair.left);
       expressions.add(new NamedExpression(expr, FieldReference.getWithQuotedRef(pair.right)));
     }
     return expressions;

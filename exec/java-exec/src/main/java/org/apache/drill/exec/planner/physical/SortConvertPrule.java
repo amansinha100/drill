@@ -48,8 +48,8 @@ public class SortConvertPrule extends ConverterRule {
   public RelNode convert(RelNode r) {
     Sort rel = (Sort) r;
     return new SortPrel(rel.getCluster(),
-                        rel.getChild().getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(rel.getCollation()),
-                        convert(rel.getChild(), rel.getChild().getTraitSet().replace(Prel.DRILL_PHYSICAL)),
+                        rel.getInput().getTraitSet().replace(Prel.DRILL_PHYSICAL).plus(rel.getCollation()),
+                        convert(rel.getInput(), rel.getInput().getTraitSet().replace(Prel.DRILL_PHYSICAL)),
                         rel.getCollation());
   }
 }

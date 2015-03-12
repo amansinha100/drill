@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.calcite.schema.Schema.TableType;
 import org.apache.calcite.schema.Statistic;
 import org.apache.calcite.schema.Statistics;
-import net.hydromatic.optiq.TranslatableTable;
+import org.apache.calcite.schema.TranslatableTable;
 
 import org.apache.drill.exec.dotdrill.View;
 import org.apache.calcite.rel.RelNode;

@@ -27,12 +27,12 @@ import org.apache.drill.exec.planner.cost.DrillCostBase.DrillCostFactory;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.UnionRelBase;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.core.Union;
 
 import com.google.common.collect.Lists;
 
@@ -45,7 +45,7 @@ public class UnionDistinctPrel extends UnionPrel {
 
 
   @Override
-  public UnionRelBase copy(RelTraitSet traitSet, List<RelNode> inputs, boolean all) {
+  public Union copy(RelTraitSet traitSet, List<RelNode> inputs, boolean all) {
     try {
       return new UnionDistinctPrel(this.getCluster(), traitSet, inputs,
           false /* don't check compatibility during copy */);

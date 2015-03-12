@@ -34,7 +34,7 @@ public class ComplexToJsonPrelVisitor extends BasePrelVisitor<Prel, Void, Runtim
 
   @Override
   public Prel visitScreen(ScreenPrel prel, Void value) throws RuntimeException {
-    return prel.copy(prel.getTraitSet(), Collections.singletonList((RelNode)new ComplexToJsonPrel((Prel)prel.getChild())));
+    return prel.copy(prel.getTraitSet(), Collections.singletonList((RelNode)new ComplexToJsonPrel((Prel)prel.getInput())));
   }
 
 }

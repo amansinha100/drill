@@ -24,9 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.base.Preconditions;
+import org.apache.calcite.rel.rules.ProjectRemoveRule;
 import org.apache.drill.exec.planner.StarColumnHelper;
-import org.apache.drill.exec.planner.physical.JoinPrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.ProjectAllowDupPrel;
 import org.apache.drill.exec.planner.physical.ProjectPrel;
@@ -34,7 +33,6 @@ import org.apache.drill.exec.planner.physical.ScanPrel;
 import org.apache.drill.exec.planner.physical.ScreenPrel;
 import org.apache.drill.exec.planner.physical.WriterPrel;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.rules.RemoveTrivialProjectRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexInputRef;
@@ -164,7 +162,7 @@ public class StarColumnConverter extends BasePrelVisitor<Prel, Void, RuntimeExce
 
     ProjectPrel newProj = (ProjectPrel) proj.copy(proj.getTraitSet(), child, proj.getProjects(), rowType);
 
-    if (RemoveTrivialProjectRule.isTrivial(newProj)) {
+    if (ProjectRemoveRule.isTrivial(newProj)) {
       return (Prel) child;
     } else {
       return newProj;

@@ -17,7 +17,7 @@
  */
 package org.apache.drill.exec.planner.logical;
 
-import net.hydromatic.optiq.rules.java.EnumerableConvention;
+import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 
 import org.apache.drill.exec.planner.common.DrillScreenRelBase;
 import org.apache.calcite.rel.RelNode;

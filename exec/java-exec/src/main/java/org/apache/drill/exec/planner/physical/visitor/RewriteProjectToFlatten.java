@@ -19,30 +19,19 @@ package org.apache.drill.exec.planner.physical.visitor;
 
 import com.google.common.collect.Lists;
 import org.apache.calcite.tools.RelConversionException;
-import org.apache.drill.common.exceptions.DrillRuntimeException;
-import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
 import org.apache.drill.exec.planner.physical.FlattenPrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.ProjectPrel;
-import org.apache.drill.exec.planner.physical.visitor.BasePrelVisitor;
 import org.apache.drill.exec.planner.types.RelDataTypeDrillImpl;
 import org.apache.drill.exec.planner.types.RelDataTypeHolder;
-import org.apache.calcite.rel.core.Project;
-import org.apache.calcite.rel.RelShuttleImpl;
 import org.apache.drill.exec.planner.sql.DrillOperatorTable;
-import org.apache.calcite.rel.ProjectRel;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
-import org.apache.calcite.rel.type.RelDataTypeFieldImpl;
 import org.apache.calcite.rel.type.RelRecordType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
-import org.apache.calcite.sql.SqlOperator;
-import org.apache.calcite.util.NlsString;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,7 +96,7 @@ public class RewriteProjectToFlatten extends BasePrelVisitor<Prel, Object, RelCo
       return flatten;
     }
 
-    Prel child = ((Prel)project.getChild()).accept(this, null);
+    Prel child = ((Prel)project.getInput()).accept(this, null);
     return (Prel) project.copy(project.getTraitSet(), child, exprList, new RelRecordType(relDataTypes));
   }
 

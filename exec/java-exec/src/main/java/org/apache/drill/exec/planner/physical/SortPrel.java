@@ -23,14 +23,12 @@ import java.util.Iterator;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.ExternalSort;
-import org.apache.drill.exec.physical.config.Sort;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.planner.cost.DrillCostBase.DrillCostFactory;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
@@ -38,7 +36,7 @@ import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rex.RexNode;
 
-public class SortPrel extends Sort implements Prel {
+public class SortPrel extends org.apache.calcite.rel.core.Sort implements Prel {
 
   /** Creates a DrillSortRel. */
   public SortPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input, RelCollation collation) {
@@ -57,7 +55,7 @@ public class SortPrel extends Sort implements Prel {
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
 
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
     double inputRows = RelMetadataQuery.getRowCount(child);
     // int  rowWidth = child.getRowType().getPrecision();
     int numSortFields = this.collation.getFieldCollations().size();
@@ -78,11 +76,11 @@ public class SortPrel extends Sort implements Prel {
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
-    Sort g = new ExternalSort(childPOP, PrelUtil.getOrdering(this.collation, getChild().getRowType()), false);
+    org.apache.drill.exec.physical.config.Sort g = new ExternalSort(childPOP, PrelUtil.getOrdering(this.collation, getInput().getRowType()), false);
     return creator.addMetadata(this, g);
   }
 
@@ -98,7 +96,7 @@ public class SortPrel extends Sort implements Prel {
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override

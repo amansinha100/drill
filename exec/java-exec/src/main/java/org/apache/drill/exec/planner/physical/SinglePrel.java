@@ -39,7 +39,7 @@ public abstract class SinglePrel extends SingleRel implements Prel{
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override

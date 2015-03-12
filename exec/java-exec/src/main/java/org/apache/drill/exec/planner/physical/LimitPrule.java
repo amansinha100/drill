@@ -36,7 +36,7 @@ public class LimitPrule extends Prule{
   @Override
   public void onMatch(RelOptRuleCall call) {
     final DrillLimitRel limit = (DrillLimitRel) call.rel(0);
-    final RelNode input = limit.getChild();
+    final RelNode input = limit.getInput();
 
     final RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.SINGLETON);
     final RelNode convertedInput = convert(input, traits);

@@ -22,6 +22,7 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.StreamingAggregate;
@@ -45,28 +46,32 @@ public class StreamAggPrel extends AggPrelBase implements Prel{
 
 
 
-  public StreamAggPrel(RelOptCluster cluster, RelTraitSet traits, RelNode child, BitSet groupSet,
-      List<AggregateCall> aggCalls, OperatorPhase phase) throws InvalidRelException {
-    super(cluster, traits, child, groupSet, aggCalls, phase);
+  public StreamAggPrel(RelOptCluster cluster,
+                       RelTraitSet traits,
+                       RelNode child,
+                       boolean indicator,
+                       ImmutableBitSet groupSet,
+                       List<ImmutableBitSet> groupSets,
+                       List<AggregateCall> aggCalls,
+                       OperatorPhase phase) throws InvalidRelException {
+    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase);
   }
 
   @Override
-  public Aggregate copy(RelTraitSet traitSet, RelNode input, BitSet groupSet, List<AggregateCall> aggCalls) {
+  public Aggregate copy(RelTraitSet traitSet, RelNode input, boolean indicator, ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) {
     try {
-      return new StreamAggPrel(getCluster(), traitSet, input, getGroupSet(), aggCalls,
-          this.getOperatorPhase());
+      return new StreamAggPrel(getCluster(), traitSet, input, indicator, groupSet, groupSets, aggCalls, this.getOperatorPhase());
     } catch (InvalidRelException e) {
       throw new AssertionError(e);
     }
   }
-
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
     if(PrelUtil.getSettings(getCluster()).useDefaultCosting()) {
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
     double inputRows = RelMetadataQuery.getRowCount(child);
 
     int numGroupByFields = this.getGroupCount();
@@ -81,7 +86,7 @@ public class StreamAggPrel extends AggPrelBase implements Prel{
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
 
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
     StreamingAggregate g = new StreamingAggregate(child.getPhysicalOperator(creator), keys.toArray(new NamedExpression[keys.size()]),
         aggExprs.toArray(new NamedExpression[aggExprs.size()]), 1.0f);
 
@@ -91,7 +96,7 @@ public class StreamAggPrel extends AggPrelBase implements Prel{
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override

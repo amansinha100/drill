@@ -53,7 +53,7 @@ public class ProjectPrule extends Prule {
   @Override
   public void onMatch(RelOptRuleCall call) {
     final DrillProjectRel project = (DrillProjectRel) call.rel(0);
-    final RelNode input = project.getChild();
+    final RelNode input = project.getInput();
 
     RelTraitSet traits = input.getTraitSet().plus(Prel.DRILL_PHYSICAL);
     RelNode convertedInput = convert(input, traits);

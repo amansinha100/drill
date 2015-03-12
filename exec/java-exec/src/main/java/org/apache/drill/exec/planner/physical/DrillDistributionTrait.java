@@ -53,7 +53,8 @@ public class DrillDistributionTrait implements RelTrait {
   public void register(RelOptPlanner planner) {
   }
 
-  public boolean subsumes(RelTrait trait) {
+  @Override
+  public boolean satisfies(RelTrait trait) {
 
     if (trait instanceof DrillDistributionTrait) {
       DistributionType requiredDist = ((DrillDistributionTrait) trait).getType();

@@ -54,7 +54,7 @@ public class StreamAggPrule extends AggPruleBase {
   @Override
   public void onMatch(RelOptRuleCall call) {
     final DrillAggregateRel aggregate = (DrillAggregateRel) call.rel(0);
-    RelNode input = aggregate.getChild();
+    RelNode input = aggregate.getInput();
     final RelCollation collation = getCollation(aggregate);
     RelTraitSet traits = null;
 
@@ -80,16 +80,26 @@ public class StreamAggPrule extends AggPruleBase {
               RelTraitSet traits = newTraitSet(Prel.DRILL_PHYSICAL, toDist);
               RelNode newInput = convert(rel, traits);
 
-              StreamAggPrel phase1Agg = new StreamAggPrel(aggregate.getCluster(), traits, newInput,
+              StreamAggPrel phase1Agg = new StreamAggPrel(
+                  aggregate.getCluster(),
+                  traits,
+                  newInput,
+                  aggregate.indicator,
                   aggregate.getGroupSet(),
+                  aggregate.getGroupSets(),
                   aggregate.getAggCallList(),
                   OperatorPhase.PHASE_1of2);
 
               UnionExchangePrel exch =
                   new UnionExchangePrel(phase1Agg.getCluster(), singleDistTrait, phase1Agg);
 
-              return  new StreamAggPrel(aggregate.getCluster(), singleDistTrait, exch,
+              return  new StreamAggPrel(
+                  aggregate.getCluster(),
+                  singleDistTrait,
+                  exch,
+                  aggregate.indicator,
                   aggregate.getGroupSet(),
+                  aggregate.getGroupSets(),
                   phase1Agg.getPhase2AggCalls(),
                   OperatorPhase.PHASE_2of2);
             }
@@ -132,8 +142,13 @@ public class StreamAggPrule extends AggPruleBase {
               RelTraitSet traits = newTraitSet(Prel.DRILL_PHYSICAL, collation, toDist);
               RelNode newInput = convert(rel, traits);
 
-              StreamAggPrel phase1Agg = new StreamAggPrel(aggregate.getCluster(), traits, newInput,
+              StreamAggPrel phase1Agg = new StreamAggPrel(
+                  aggregate.getCluster(),
+                  traits,
+                  newInput,
+                  aggregate.indicator,
                   aggregate.getGroupSet(),
+                  aggregate.getGroupSets(),
                   aggregate.getAggCallList(),
                   OperatorPhase.PHASE_1of2);
 
@@ -145,8 +160,13 @@ public class StreamAggPrule extends AggPruleBase {
                       collation,
                       numEndPoints);
 
-              return new StreamAggPrel(aggregate.getCluster(), exch.getTraitSet(), exch,
+              return new StreamAggPrel(
+                  aggregate.getCluster(),
+                  exch.getTraitSet(),
+                  exch,
+                  aggregate.indicator,
                   aggregate.getGroupSet(),
+                  aggregate.getGroupSets(),
                   phase1Agg.getPhase2AggCalls(),
                   OperatorPhase.PHASE_2of2);
             }
@@ -163,8 +183,15 @@ public class StreamAggPrule extends AggPruleBase {
 
     final RelNode convertedInput = convert(input, traits);
 
-    StreamAggPrel newAgg = new StreamAggPrel(aggregate.getCluster(), traits, convertedInput, aggregate.getGroupSet(),
-                                             aggregate.getAggCallList(), OperatorPhase.PHASE_1of1);
+    StreamAggPrel newAgg = new StreamAggPrel(
+        aggregate.getCluster(),
+        traits,
+        convertedInput,
+        aggregate.indicator,
+        aggregate.getGroupSet(),
+        aggregate.getGroupSets(),
+        aggregate.getAggCallList(),
+        OperatorPhase.PHASE_1of1);
 
     call.transformTo(newAgg);
   }
