@@ -54,17 +54,7 @@ public class DrillFixedRelDataTypeImpl extends RelDataTypeImpl {
   }
 
   @Override
-  public List<RelDataTypeField> getFieldList() {
-    return fields;
-  }
-
-  @Override
-  public int getFieldCount() {
-    return fields.size();
-  }
-
-  @Override
-  public RelDataTypeField getField(String fieldName, boolean caseSensitive) {
+  public RelDataTypeField getField(String fieldName, boolean caseSensitive, boolean elideRecord) {
     // return the field with given name if available.
     for (RelDataTypeField f : fields) {
       if (fieldName.equalsIgnoreCase(f.getName())) {
@@ -72,6 +62,16 @@ public class DrillFixedRelDataTypeImpl extends RelDataTypeImpl {
       }
     }
     return null;
+  }
+
+  @Override
+  public List<RelDataTypeField> getFieldList() {
+    return fields;
+  }
+
+  @Override
+  public int getFieldCount() {
+    return fields.size();
   }
 
   @Override
