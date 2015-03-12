@@ -112,8 +112,13 @@ public class HashAggPrule extends AggPruleBase {
       RelTraitSet traits = newTraitSet(Prel.DRILL_PHYSICAL, input.getTraitSet().getTrait(DrillDistributionTraitDef.INSTANCE));
       RelNode newInput = convert(input, traits);
 
-      HashAggPrel phase1Agg = new HashAggPrel(aggregate.getCluster(), traits, newInput,
+      HashAggPrel phase1Agg = new HashAggPrel(
+          aggregate.getCluster(),
+          traits,
+          newInput,
+          aggregate.indicator,
           aggregate.getGroupSet(),
+          aggregate.getGroupSets(),
           aggregate.getAggCallList(),
           OperatorPhase.PHASE_1of2);
 
@@ -121,10 +126,15 @@ public class HashAggPrule extends AggPruleBase {
           new HashToRandomExchangePrel(phase1Agg.getCluster(), phase1Agg.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys),
               phase1Agg, ImmutableList.copyOf(getDistributionField(aggregate, true)));
 
-      HashAggPrel phase2Agg =  new HashAggPrel(aggregate.getCluster(), exch.getTraitSet(), exch,
-                                               aggregate.getGroupSet(),
-                                               phase1Agg.getPhase2AggCalls(),
-                                               OperatorPhase.PHASE_2of2);
+      HashAggPrel phase2Agg =  new HashAggPrel(
+          aggregate.getCluster(),
+          exch.getTraitSet(),
+          exch,
+          aggregate.indicator,
+          aggregate.getGroupSet(),
+          aggregate.getGroupSets(),
+          phase1Agg.getPhase2AggCalls(),
+          OperatorPhase.PHASE_2of2);
       return phase2Agg;
     }
 
@@ -135,8 +145,15 @@ public class HashAggPrule extends AggPruleBase {
 
     final RelNode convertedInput = convert(input, PrelUtil.fixTraits(call, traits));
 
-    HashAggPrel newAgg = new HashAggPrel(aggregate.getCluster(), traits, convertedInput, aggregate.getGroupSet(),
-                                         aggregate.getAggCallList(), OperatorPhase.PHASE_1of1);
+    HashAggPrel newAgg = new HashAggPrel(
+        aggregate.getCluster(),
+        traits,
+        convertedInput,
+        aggregate.indicator,
+        aggregate.getGroupSet(),
+        aggregate.getGroupSets(),
+        aggregate.getAggCallList(),
+        OperatorPhase.PHASE_1of1);
 
     call.transformTo(newAgg);
   }

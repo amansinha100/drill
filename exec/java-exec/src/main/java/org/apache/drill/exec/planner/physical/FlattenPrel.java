@@ -53,12 +53,12 @@ public class FlattenPrel extends SinglePrel implements Prel {
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
     FlattenPOP f = new FlattenPOP(childPOP, (SchemaPath) getFlattenExpression(new DrillParseContext()));
@@ -75,6 +75,6 @@ public class FlattenPrel extends SinglePrel implements Prel {
   }
 
   protected LogicalExpression getFlattenExpression(DrillParseContext context){
-    return DrillOptiq.toDrill(context, getChild(), toFlatten);
+    return DrillOptiq.toDrill(context, getInput(), toFlatten);
   }
 }

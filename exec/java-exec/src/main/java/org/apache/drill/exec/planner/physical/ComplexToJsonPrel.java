@@ -42,13 +42,13 @@ public class ComplexToJsonPrel extends SingleRel implements Prel {
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    ComplexToJson p = new ComplexToJson(((Prel) getChild()).getPhysicalOperator(creator));
+    ComplexToJson p = new ComplexToJson(((Prel) getInput()).getPhysicalOperator(creator));
     return creator.addMetadata(this, p);
   }
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override

@@ -50,7 +50,7 @@ public class BroadcastExchangePrel extends ExchangePrel{
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
 
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
 
     final int numEndPoints = PrelUtil.getSettings(getCluster()).numEndPoints();
     final double broadcastFactor = PrelUtil.getSettings(getCluster()).getBroadcastFactor();
@@ -79,7 +79,7 @@ public class BroadcastExchangePrel extends ExchangePrel{
   }
 
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 

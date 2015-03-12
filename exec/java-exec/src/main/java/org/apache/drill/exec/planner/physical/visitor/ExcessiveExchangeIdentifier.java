@@ -46,7 +46,7 @@ public class ExcessiveExchangeIdentifier extends BasePrelVisitor<Prel, Excessive
   public Prel visitExchange(ExchangePrel prel, MajorFragmentStat parent) throws RuntimeException {
     parent.add(prel);
     MajorFragmentStat newFrag = new MajorFragmentStat();
-    Prel newChild = ((Prel) prel.getChild()).accept(this, newFrag);
+    Prel newChild = ((Prel) prel.getInput()).accept(this, newFrag);
 
     if (newFrag.isSingular() && parent.isSingular()) {
       return newChild;
@@ -58,7 +58,7 @@ public class ExcessiveExchangeIdentifier extends BasePrelVisitor<Prel, Excessive
   @Override
   public Prel visitScreen(ScreenPrel prel, MajorFragmentStat s) throws RuntimeException {
     s.setSingular();
-    RelNode child = ((Prel)prel.getChild()).accept(this, s);
+    RelNode child = ((Prel)prel.getInput()).accept(this, s);
     return (Prel) prel.copy(prel.getTraitSet(), Collections.singletonList(child));
   }
 

@@ -68,7 +68,7 @@ public class HashToRandomExchangePrel extends ExchangePrel {
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
 
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
     double inputRows = RelMetadataQuery.getRowCount(child);
 
     int  rowWidth = child.getRowType().getFieldCount() * DrillCostBase.AVG_FIELD_WIDTH;
@@ -86,7 +86,7 @@ public class HashToRandomExchangePrel extends ExchangePrel {
   }
 
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
@@ -95,7 +95,7 @@ public class HashToRandomExchangePrel extends ExchangePrel {
     }
 
     // TODO - refactor to different exchange name
-    HashToRandomExchange g = new HashToRandomExchange(childPOP, PrelUtil.getHashExpression(this.fields, getChild().getRowType()));
+    HashToRandomExchange g = new HashToRandomExchange(childPOP, PrelUtil.getHashExpression(this.fields, getInput().getRowType()));
     return creator.addMetadata(this, g);
   }
 

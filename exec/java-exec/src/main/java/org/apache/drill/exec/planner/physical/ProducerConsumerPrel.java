@@ -46,7 +46,7 @@ public class ProducerConsumerPrel extends SingleRel implements DrillRelNode, Pre
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
@@ -57,7 +57,7 @@ public class ProducerConsumerPrel extends SingleRel implements DrillRelNode, Pre
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override

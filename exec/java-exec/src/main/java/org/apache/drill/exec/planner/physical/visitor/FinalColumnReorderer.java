@@ -44,7 +44,7 @@ public class FinalColumnReorderer extends BasePrelVisitor<Prel, Void, RuntimeExc
 
   @Override
   public Prel visitScreen(ScreenPrel prel, Void value) throws RuntimeException {
-    Prel newChild = ((Prel) prel.getChild()).accept(this, value);
+    Prel newChild = ((Prel) prel.getInput()).accept(this, value);
     return prel.copy(prel.getTraitSet(), Collections.singletonList( (RelNode) addTrivialOrderedProjectPrel(newChild, true)));
   }
 
@@ -76,7 +76,7 @@ public class FinalColumnReorderer extends BasePrelVisitor<Prel, Void, RuntimeExc
 
   @Override
   public Prel visitWriter(WriterPrel prel, Void value) throws RuntimeException {
-    Prel newChild = ((Prel) prel.getChild()).accept(this, null);
+    Prel newChild = ((Prel) prel.getInput()).accept(this, null);
     return prel.copy(prel.getTraitSet(), Collections.singletonList( (RelNode) addTrivialOrderedProjectPrel(newChild, true)));
   }
 

@@ -56,7 +56,7 @@ public class HashToMergeExchangePrel extends ExchangePrel {
     if (PrelUtil.getSettings(getCluster()).useDefaultCosting()) {
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
     double inputRows = RelMetadataQuery.getRowCount(child);
 
     int  rowWidth = child.getRowType().getFieldCount() * DrillCostBase.AVG_FIELD_WIDTH;
@@ -75,7 +75,7 @@ public class HashToMergeExchangePrel extends ExchangePrel {
   }
 
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
@@ -84,8 +84,8 @@ public class HashToMergeExchangePrel extends ExchangePrel {
     }
 
     HashToMergeExchange g = new HashToMergeExchange(childPOP,
-        PrelUtil.getHashExpression(this.distFields, getChild().getRowType()),
-        PrelUtil.getOrdering(this.collation, getChild().getRowType()));
+        PrelUtil.getHashExpression(this.distFields, getInput().getRowType()),
+        PrelUtil.getOrdering(this.collation, getInput().getRowType()));
     return creator.addMetadata(this, g);
 
   }

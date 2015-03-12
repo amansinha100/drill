@@ -41,7 +41,7 @@ public class PushLimitToTopN  extends Prule{
     int offset = limit.getOffset() != null ? Math.max(0, RexLiteral.intValue(limit.getOffset())) : 0;
     int fetch = limit.getFetch() != null?  Math.max(0, RexLiteral.intValue(limit.getFetch())) : 0;
 
-    final TopNPrel topN = new TopNPrel(limit.getCluster(), sort.getTraitSet(), sort.getChild(), offset + fetch, sort.getCollation());
+    final TopNPrel topN = new TopNPrel(limit.getCluster(), sort.getTraitSet(), sort.getInput(), offset + fetch, sort.getCollation());
     final LimitPrel newLimit = new LimitPrel(limit.getCluster(), limit.getTraitSet(),
         new SingleMergeExchangePrel(smex.getCluster(), smex.getTraitSet(), topN, sort.getCollation()),
         limit.getOffset(), limit.getFetch());

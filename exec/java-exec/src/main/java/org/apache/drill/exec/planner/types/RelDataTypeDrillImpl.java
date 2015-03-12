@@ -57,7 +57,7 @@ public class RelDataTypeDrillImpl extends RelDataTypeImpl {
     }
 
     @Override
-    public RelDataTypeField getField(String fieldName, boolean caseSensitive) {
+    public RelDataTypeField getField(String fieldName, boolean caseSensitive, boolean elideRecord) {
       return holder.getField(typeFactory, fieldName);
     }
 

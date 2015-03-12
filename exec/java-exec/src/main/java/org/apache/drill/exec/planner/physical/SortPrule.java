@@ -48,7 +48,7 @@ public class SortPrule extends Prule{
   @Override
   public void onMatch(RelOptRuleCall call) {
     final DrillSortRel sort = (DrillSortRel) call.rel(0);
-    final RelNode input = sort.getChild();
+    final RelNode input = sort.getInput();
 
     // Keep the collation in logical sort. Convert input into a RelNode with 1) this collation, 2) Physical, 3) hash distributed on
 

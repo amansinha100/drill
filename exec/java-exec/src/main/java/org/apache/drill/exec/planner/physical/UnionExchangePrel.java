@@ -56,7 +56,7 @@ public class UnionExchangePrel extends ExchangePrel {
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
 
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
     double inputRows = RelMetadataQuery.getRowCount(child);
     int  rowWidth = child.getRowType().getFieldCount() * DrillCostBase.AVG_FIELD_WIDTH;
     double svrCpuCost = DrillCostBase.SVR_CPU_COST * inputRows;
@@ -71,7 +71,7 @@ public class UnionExchangePrel extends ExchangePrel {
   }
 
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 

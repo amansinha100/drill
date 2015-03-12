@@ -45,7 +45,7 @@ public class LimitPrel extends DrillLimitRelBase implements Prel {
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
@@ -62,7 +62,7 @@ public class LimitPrel extends DrillLimitRelBase implements Prel {
 
   @Override
   public Iterator<Prel> iterator() {
-    return PrelUtil.iter(getChild());
+    return PrelUtil.iter(getInput());
   }
 
   @Override
@@ -87,7 +87,7 @@ public class LimitPrel extends DrillLimitRelBase implements Prel {
 
 //  @Override
 //  public LogicalOperator implement(DrillImplementor implementor) {
-//    LogicalOperator inputOp = implementor.visitChild(this, 0, getChild());
+//    LogicalOperator inputOp = implementor.visitChild(this, 0, getInput());
 //
 //    // First offset to include into results (inclusive). Null implies it is starting from offset 0
 //    int first = offset != null ? Math.max(0, RexLiteral.intValue(offset)) : 0;

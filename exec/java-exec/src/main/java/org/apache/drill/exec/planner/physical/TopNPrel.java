@@ -52,11 +52,11 @@ public class TopNPrel extends SinglePrel {
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
-    TopN topN = new TopN(childPOP, PrelUtil.getOrdering(this.collation, getChild().getRowType()), false, this.limit);
+    TopN topN = new TopN(childPOP, PrelUtil.getOrdering(this.collation, getInput().getRowType()), false, this.limit);
     return creator.addMetadata(this, topN);
   }
 
@@ -71,7 +71,7 @@ public class TopNPrel extends SinglePrel {
       //We use multiplier 0.05 for TopN operator, and 0.1 for Sort, to make TopN a preferred choice.
       return super.computeSelfCost(planner).multiplyBy(0.05);
     }
-    RelNode child = this.getChild();
+    RelNode child = this.getInput();
     double inputRows = RelMetadataQuery.getRowCount(child);
     int numSortFields = this.collation.getFieldCollations().size();
     double cpuCost = DrillCostBase.COMPARE_CPU_COST * numSortFields * inputRows * (Math.log(limit)/Math.log(2));

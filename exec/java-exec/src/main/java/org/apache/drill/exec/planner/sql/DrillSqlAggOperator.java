@@ -51,13 +51,13 @@ public class DrillSqlAggOperator extends SqlAggFunction {
 //    return new RelDataTypeDrillImpl(new RelDataTypeHolder(), factory);
   }
 
-  @Override
-  public List<RelDataType> getParameterTypes(RelDataTypeFactory typeFactory) {
-    return ImmutableList.of(typeFactory.createSqlType(SqlTypeName.ANY));
-  }
-
-  @Override
-  public RelDataType getReturnType(RelDataTypeFactory typeFactory) {
-    return getAny(typeFactory);
-  }
+//  @Override
+//  public List<RelDataType> getParameterTypes(RelDataTypeFactory typeFactory) {
+//    return ImmutableList.of(typeFactory.createSqlType(SqlTypeName.ANY));
+//  }
+//
+//  @Override
+//  public RelDataType getReturnType(RelDataTypeFactory typeFactory) {
+//    return getAny(typeFactory);
+//  }
 }

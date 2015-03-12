@@ -42,7 +42,7 @@ public class DrillScreenRel extends DrillScreenRelBase implements DrillRel {
 
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
-    LogicalOperator childOp = implementor.visitChild(this, 0, getChild());
+    LogicalOperator childOp = implementor.visitChild(this, 0, getInput());
     return Store.builder().setInput(childOp).storageEngine("--SCREEN--").build();
   }
 

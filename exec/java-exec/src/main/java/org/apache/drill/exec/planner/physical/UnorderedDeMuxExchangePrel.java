@@ -45,11 +45,11 @@ public class UnorderedDeMuxExchangePrel extends ExchangePrel {
 
   @Override
   public PhysicalOperator getPhysicalOperator(PhysicalPlanCreator creator) throws IOException {
-    Prel child = (Prel) this.getChild();
+    Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
 
-    UnorderedDeMuxExchange p = new UnorderedDeMuxExchange(childPOP, PrelUtil.getHashExpression(this.fields, getChild().getRowType()));
+    UnorderedDeMuxExchange p = new UnorderedDeMuxExchange(childPOP, PrelUtil.getHashExpression(this.fields, getInput().getRowType()));
     return creator.addMetadata(this, p);
   }
 
