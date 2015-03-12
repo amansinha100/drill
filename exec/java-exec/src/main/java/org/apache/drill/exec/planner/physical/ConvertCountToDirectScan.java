@@ -111,7 +111,7 @@ public class ConvertCountToDirectScan extends Prule {
       //  count(Not-null-input) ==> rowCount
       if (aggCall.getArgList().isEmpty() ||
           (aggCall.getArgList().size() == 1 &&
-           ! agg.getChild().getRowType().getFieldList().get(aggCall.getArgList().get(0).intValue()).getType().isNullable())) {
+           ! agg.getInput().getRowType().getFieldList().get(aggCall.getArgList().get(0).intValue()).getType().isNullable())) {
         cnt = (long) oldGrpScan.getScanStats().getRecordCount();
       } else if (aggCall.getArgList().size() == 1) {
       // count(columnName) ==> Agg ( Scan )) ==> columnValueCount

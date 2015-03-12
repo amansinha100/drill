@@ -21,6 +21,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.calcite.rel.rules.AggregateExpandDistinctAggregatesRule;
+import org.apache.calcite.rel.rules.AggregateRemoveRule;
+import org.apache.calcite.rel.rules.FilterJoinRule;
+import org.apache.calcite.rel.rules.JoinPushThroughJoinRule;
+import org.apache.calcite.rel.rules.ProjectRemoveRule;
+import org.apache.calcite.rel.rules.SortRemoveRule;
 import org.apache.calcite.tools.RuleSet;
 
 import org.apache.calcite.rel.rules.FilterMergeRule;
@@ -43,15 +49,7 @@ import org.apache.drill.exec.planner.physical.StreamAggPrule;
 import org.apache.drill.exec.planner.physical.WindowPrule;
 import org.apache.drill.exec.planner.physical.UnionAllPrule;
 import org.apache.drill.exec.planner.physical.WriterPrule;
-import org.apache.calcite.rel.RelFactories;
-import org.apache.calcite.rel.rules.MergeFilterRule;
-import org.apache.calcite.rel.rules.MergeProjectRule;
-import org.apache.calcite.rel.rules.PushFilterPastJoinRule;
-import org.apache.calcite.rel.rules.PushJoinThroughJoinRule;
-import org.apache.calcite.rel.rules.RemoveDistinctAggregateRule;
-import org.apache.calcite.rel.rules.RemoveDistinctRule;
-import org.apache.calcite.rel.rules.RemoveSortRule;
-import org.apache.calcite.rel.rules.RemoveTrivialProjectRule;
+import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.volcano.AbstractConverter.ExpandConversionRule;
 
@@ -120,26 +118,26 @@ public class DrillRuleSets {
         // Add support for WHERE style joins.
 //      PushFilterPastProjectRule.INSTANCE, // Replaced by DrillPushFilterPastProjectRule
       DrillPushFilterPastProjectRule.INSTANCE,
-      PushFilterPastJoinRule.FILTER_ON_JOIN,
-      PushFilterPastJoinRule.JOIN,
-      PushJoinThroughJoinRule.RIGHT,
-      PushJoinThroughJoinRule.LEFT,
+      FilterJoinRule.FILTER_ON_JOIN,   // PushFilterPastJoinRule
+      FilterJoinRule.JOIN,             // PushFilterPastJoinRule
+      JoinPushThroughJoinRule.RIGHT,   // PushJoinThroughJoinRule
+      JoinPushThroughJoinRule.LEFT,    // PushJoinThroughJoinRule
       // End support for WHERE style joins.
 
       //Add back rules
-      FilterMergeRule.INSTANCE,   // TODO: NO NEED OF DRILL'S version?
+      FilterMergeRule.INSTANCE,   // MergeFilterRule. TODO: NO NEED OF DRILL'S version?
       ExpandConversionRule.INSTANCE,
 //      SwapJoinRule.INSTANCE,
-      RemoveDistinctRule.INSTANCE,
+      AggregateRemoveRule.INSTANCE,   // RemoveDistinctRule
 //      UnionToDistinctRule.INSTANCE,
-      RemoveTrivialProjectRule.INSTANCE,
+      ProjectRemoveRule.INSTANCE,     // RemoveTrivialProjectRule
 //      RemoveTrivialCalcRule.INSTANCE,
-      RemoveSortRule.INSTANCE,
+      SortRemoveRule.INSTANCE,      //RemoveSortRule.INSTANCE,
 
 //      TableAccessRule.INSTANCE, //
       //MergeProjectRule.INSTANCE, //
       DrillMergeProjectRule.getInstance(true, RelFactories.DEFAULT_PROJECT_FACTORY, context.getFunctionRegistry()),
-      RemoveDistinctAggregateRule.INSTANCE, //
+      AggregateExpandDistinctAggregatesRule.INSTANCE, //RemoveDistinctAggregateRule.INSTANCE, //
       // ReduceAggregatesRule.INSTANCE, // replaced by DrillReduceAggregatesRule
 
       /*
@@ -148,7 +146,7 @@ public class DrillRuleSets {
 //      PushProjectPastFilterRule.INSTANCE,
       DrillPushProjectPastFilterRule.INSTANCE,
 //      ProjectJoinTransposeRule.INSTANCE,
-      DrillProjectJoinTransposeRule.INSTANCE,
+      DrillPushProjectPastJoinRule.INSTANCE,
 
 //      SwapJoinRule.INSTANCE, //
 //      PushJoinThroughJoinRule.RIGHT, //

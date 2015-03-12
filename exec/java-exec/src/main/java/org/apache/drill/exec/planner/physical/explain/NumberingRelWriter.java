@@ -22,10 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.calcite.avatica.util.Spacer;
 import org.apache.calcite.linq4j.Ord;
-import net.hydromatic.optiq.runtime.FlatLists;
-import net.hydromatic.optiq.runtime.Spacer;
-
+import org.apache.calcite.runtime.FlatLists;
 import org.apache.drill.exec.planner.physical.HashJoinPrel;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.explain.PrelSequencer.OpId;

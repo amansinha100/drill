@@ -22,7 +22,8 @@ import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.hydromatic.optiq.config.Lex;
+import org.apache.calcite.config.Lex;
+import org.apache.calcite.rel.rules.ProjectToWindowRule;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
@@ -50,7 +51,6 @@ import org.apache.drill.exec.util.Pointer;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
-import org.apache.calcite.rel.rules.WindowedAggSplitterRule;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCostFactory;
 import org.apache.calcite.plan.RelTraitDef;
@@ -83,8 +83,11 @@ public class DrillSqlWorker {
     int idMaxLength = (int)context.getPlannerSettings().getIdentifierMaxLength();
 
     FrameworkConfig config = Frameworks.newConfigBuilder() //
-        .parserConfig(new SqlParser.ParserConfigImpl(Lex.MYSQL, idMaxLength)) //
-        .parserFactory(DrillParserWithCompoundIdConverter.FACTORY) //
+        .parserConfig(SqlParser.configBuilder()
+            .setLex(Lex.MYSQL)
+            .setIdentifierMaxLength(idMaxLength)
+            .setParserFactory(DrillParserWithCompoundIdConverter.FACTORY)
+            .build()) //
         .defaultSchema(context.getNewDefaultSchema()) //
         .operatorTable(context.getDrillOperatorTable()) //
         .traitDefs(traitDefs) //
@@ -98,10 +101,10 @@ public class DrillSqlWorker {
     this.planner = Frameworks.getPlanner(config);
     HepProgramBuilder builder = new HepProgramBuilder();
     builder.addRuleClass(ReduceExpressionsRule.class);
-    builder.addRuleClass(WindowedAggSplitterRule.class);
+    builder.addRuleClass(ProjectToWindowRule.class);
     this.hepPlanner = new HepPlanner(builder.build());
     hepPlanner.addRule(ReduceExpressionsRule.CALC_INSTANCE);
-    hepPlanner.addRule(WindowedAggSplitterRule.PROJECT);
+    hepPlanner.addRule(ProjectToWindowRule.PROJECT);
   }
 
   private RuleSet[] getRules(QueryContext context) {
