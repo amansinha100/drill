@@ -23,9 +23,12 @@ import java.util.List;
 import org.apache.drill.common.exceptions.DrillException;
 import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
+import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.common.logical.data.Order;
+import org.apache.drill.common.types.TypeProtos;
+import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.compile.sig.GeneratorMapping;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
@@ -66,6 +69,34 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
 
   private boolean noMoreBatches;
   private BatchSchema schema;
+
+  public static enum WindowFunction {
+    ROW_NUMBER(false),
+    RANK(false),
+    DENSE_RANK(false),
+    PERCENT_RANK(true),
+    CUME_DIST(true);
+
+    private final boolean useDouble;
+
+    WindowFunction(boolean useDouble) {
+      this.useDouble = useDouble;
+    }
+
+    public boolean isDouble() {
+      return useDouble;
+    }
+  }
+
+  public static class WindowVector {
+    public final ValueVector vector;
+    public final WindowFunction func;
+
+    public WindowVector(WindowFunction func, ValueVector vector) {
+      this.func = func;
+      this.vector = vector;
+    }
+  }
 
   public WindowFrameRecordBatch(WindowPOP popConfig, FragmentContext context, RecordBatch incoming) throws OutOfMemoryException {
     super(popConfig, context);
@@ -200,6 +231,18 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     }
   }
 
+  private WindowFunction getFunctionType(LogicalExpression expr) {
+    if (expr instanceof FunctionCall) {
+      String name = ((FunctionCall) expr).getName();
+      try {
+        return WindowFunction.valueOf(name.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        // return null
+      }
+    }
+    return null;
+  }
+
   private WindowFramer createFramer(VectorAccessible batch) throws SchemaChangeException, IOException, ClassTransformationException {
     logger.trace("creating framer");
 
@@ -233,20 +276,31 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     }
 
     // add aggregation vectors to the container, and materialize corresponding expressions
-    LogicalExpression[] aggExprs = new LogicalExpression[popConfig.getAggregations().length];
-    for (int i = 0; i < aggExprs.length; i++) {
+    List<LogicalExpression> aggExprs = Lists.newArrayList();
+    List<WindowVector> winvecs = Lists.newArrayList();
+
+    for (int i = 0; i < popConfig.getAggregations().length; i++) {
       // evaluate expression over saved batch
       NamedExpression ne = popConfig.getAggregations()[i];
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), batch, collector, context.getFunctionRegistry());
+      WindowFunction wf = getFunctionType(ne.getExpr());
+      if (wf == null) {
+        final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), batch, collector, context.getFunctionRegistry());
 
-      // add corresponding ValueVector to container
-      final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
-      ValueVector vv = container.addOrGet(outputField);
-      vv.allocateNew();
+        // add corresponding ValueVector to container
+        final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
+        ValueVector vv = container.addOrGet(outputField);
+        vv.allocateNew();
 
-      // write value into container
-      TypedFieldId id = container.getValueVectorId(ne.getRef());
-      aggExprs[i] = new ValueVectorWriteExpression(id, expr, true);
+        // write value into container
+        TypedFieldId id = container.getValueVectorId(ne.getRef());
+        aggExprs.add(new ValueVectorWriteExpression(id, expr, true));
+      } else {
+        // add corresponding ValueVector to container
+        final MaterializedField outputField = MaterializedField.create(ne.getRef(), wf.isDouble() ? Types.required(TypeProtos.MinorType.FLOAT8) : Types.required(TypeProtos.MinorType.BIGINT));
+        ValueVector vv = container.addOrGet(outputField);
+        vv.allocateNew();
+        winvecs.add(new WindowVector(wf, vv));
+      }
     }
 
     if (container.isSchemaChanged()) {
@@ -284,7 +338,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     cg.getBlock("resetValues")._return(JExpr.TRUE);
 
     WindowFramer framer = context.getImplementationClass(cg);
-    framer.setup(batches, container);
+    framer.setup(batches, container, winvecs);
 
     return framer;
   }
@@ -324,7 +378,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   /**
    * setup for addRecords() and outputRecordValues()
    */
-  private void setupAddRecords(ClassGenerator<WindowFramer> cg, LogicalExpression[] valueExprs) {
+  private void setupAddRecords(ClassGenerator<WindowFramer> cg, List<LogicalExpression> valueExprs) {
     cg.setMappingSet(eval);
     for (LogicalExpression ex : valueExprs) {
       cg.addExpr(ex);

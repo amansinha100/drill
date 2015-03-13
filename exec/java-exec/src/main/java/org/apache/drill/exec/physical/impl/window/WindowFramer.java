@@ -28,7 +28,7 @@ import java.util.List;
 public interface WindowFramer {
   public static TemplateClassDefinition<WindowFramer> TEMPLATE_DEFINITION = new TemplateClassDefinition<>(WindowFramer.class, WindowFrameTemplate.class);
 
-  public abstract void setup(List<RecordBatchData> batches, VectorAccessible container) throws SchemaChangeException;
+  public abstract void setup(List<RecordBatchData> batches, VectorAccessible container, List<WindowFrameRecordBatch.WindowVector> winvecs) throws SchemaChangeException;
 
   /**
    * process the inner batch and write the aggregated values in the container

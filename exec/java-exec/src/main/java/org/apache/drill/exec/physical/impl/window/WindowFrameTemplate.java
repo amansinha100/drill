@@ -22,6 +22,9 @@ import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.record.VectorAccessible;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.physical.impl.window.WindowFrameRecordBatch.WindowVector;
+import org.apache.drill.exec.vector.BigIntVector;
+import org.apache.drill.exec.vector.Float8Vector;
 
 import javax.inject.Named;
 import java.util.Iterator;
@@ -35,6 +38,8 @@ public abstract class WindowFrameTemplate implements WindowFramer {
   private List<RecordBatchData> batches;
   private int outputCount; // number of rows in currently/last processed batch
 
+  private List<WindowVector> winvecs;
+
   /**
    * current partition being processed. Can span over multiple batches, so we may need to keep it between calls to doWork()
    */
@@ -43,13 +48,16 @@ public abstract class WindowFrameTemplate implements WindowFramer {
   private int currentBatch; // first unprocessed batch
 
   @Override
-  public void setup(List<RecordBatchData> batches, VectorAccessible container) throws SchemaChangeException {
+  public void setup(List<RecordBatchData> batches, VectorAccessible container, List<WindowVector> winvecs) throws SchemaChangeException {
     this.container = container;
     this.batches = batches;
 
     outputCount = 0;
     partition = null;
     currentBatch = 0;
+
+    logger.debug("winvecs.size = {}", winvecs.size());
+    this.winvecs = winvecs;
 
     setupOutgoing(container);
   }
@@ -149,20 +157,54 @@ public abstract class WindowFrameTemplate implements WindowFramer {
     }
     remaining -= currentRow - partition.start;
 
+    long row_number = partition.length - remaining + 1;
+
+    // rank and dense_Rank won't be computed correctly unless we save pending frame between batches
+    long rank = -1;
+    long dense_rank = -1;
+    double cume_dist = -1;
+
     // when computing the frame for the current row, keep track of how many peer rows need to be processed
     // because all peer rows share the same frame, we only need to compute and aggregate the frame once
-    for (int peers = 0; currentRow < outputCount && remaining > 0; currentRow++, remaining--) {
+    for (int peers = 0; currentRow < outputCount && remaining > 0; currentRow++, remaining--, row_number++) {
       if (peers == 0) {
         Interval frame = computeFrame(currentBatch, currentRow);
         resetValues();
         aggregate(frame);
         peers = frame.peers;
+        rank = row_number;
+        cume_dist = (double)(rank + frame.peers) / partition.length;
+        dense_rank++;
       } else {
         peers--;
       }
 
       outputRecordValues(currentRow);
       outputWindowValues(currentRow);
+
+      //TODO investigate how we could generate this computation unit to avoid for/switch
+      {
+        for (WindowVector wv : winvecs) {
+          //TODO move the computation inside WindowVector and pass the min amount of information needed
+          switch (wv.func) {
+            case ROW_NUMBER:
+              ((BigIntVector) wv.vector).getMutator().set(currentRow, row_number);
+              break;
+            case RANK:
+              ((BigIntVector) wv.vector).getMutator().set(currentRow, rank);
+              break;
+            case DENSE_RANK:
+              ((BigIntVector) wv.vector).getMutator().set(currentRow, dense_rank + 1);
+              break;
+            case PERCENT_RANK:
+              ((Float8Vector) wv.vector).getMutator().set(currentRow, (double) (rank - 1) / (partition.length - 1));
+              break;
+            case CUME_DIST:
+              ((Float8Vector) wv.vector).getMutator().set(currentRow, cume_dist);
+              break;
+          }
+        }
+      }
     }
 
     if (remaining == 0) {
@@ -295,6 +337,10 @@ public abstract class WindowFrameTemplate implements WindowFramer {
 
   @Override
   public void cleanup() {
+//    for (WindowVector wv : winvecs) {
+//      wv.vector.clear();
+//    }
+    winvecs = null;
   }
 
   /**
