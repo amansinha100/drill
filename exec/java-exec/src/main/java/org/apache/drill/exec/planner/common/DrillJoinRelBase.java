@@ -26,7 +26,9 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
+import org.apache.drill.exec.physical.impl.join.JoinUtils;
 import org.apache.drill.exec.planner.cost.DrillCostBase.DrillCostFactory;
+import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.physical.PrelUtil;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.core.Join;
@@ -131,4 +133,13 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
     return costFactory.makeCost(buildRowCount + probeRowCount, cpuCost, 0, 0, memCost);
 
   }
+  private boolean hasScalarSubqueryInput() {
+    if (JoinUtils.isScalarSubquery(this.getLeft())
+        || JoinUtils.isScalarSubquery(this.getRight())) {
+      return true;
+    }
+
+    return false;
+  }
+
 }
