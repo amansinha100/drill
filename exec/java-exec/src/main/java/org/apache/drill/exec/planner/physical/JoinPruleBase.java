@@ -21,6 +21,7 @@ package org.apache.drill.exec.planner.physical;
 import java.util.List;
 
 import org.apache.drill.exec.planner.common.DrillJoinRelBase;
+import org.apache.drill.exec.planner.logical.DrillFilterRel;
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
 import org.eigenbase.rel.InvalidRelException;
@@ -33,6 +34,8 @@ import org.eigenbase.relopt.RelOptRuleCall;
 import org.eigenbase.relopt.RelOptRuleOperand;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.rex.RexBuilder;
+import org.eigenbase.rex.RexLiteral;
 import org.eigenbase.rex.RexNode;
 
 import com.google.common.collect.ImmutableList;
@@ -41,15 +44,16 @@ import com.google.common.collect.Lists;
 // abstract base class for the join physical rules
 public abstract class JoinPruleBase extends Prule {
 
-  protected static enum PhysicalJoinType {HASH_JOIN, MERGE_JOIN};
+  protected static enum PhysicalJoinType {HASH_JOIN, MERGE_JOIN, NESTEDLOOP_JOIN};
 
   protected JoinPruleBase(RelOptRuleOperand operand, String description) {
     super(operand, description);
   }
 
-  protected boolean checkPreconditions(DrillJoinRel join, RelNode left, RelNode right) {
+  protected boolean checkPreconditions(DrillJoinRel join, RelNode left, RelNode right,
+      PlannerSettings settings) {
     if (join.getCondition().isAlwaysTrue()) {
-      // this indicates a cartesian join which is not supported by existing rules
+      // this indicates a cartesian join which is not supported by hash join and merge join
       return false;
     }
 
@@ -57,7 +61,7 @@ public abstract class JoinPruleBase extends Prule {
     List<Integer> rightKeys = Lists.newArrayList() ;
     RexNode remaining = RelOptUtil.splitJoinCondition(left, right, join.getCondition(), leftKeys, rightKeys);
     if (!remaining.isAlwaysTrue() && (leftKeys.size() == 0 || rightKeys.size() == 0)) {
-      // this is a non-equijoin which is not supported by existing rules
+      // this is a non-equijoin which is not supported by hash join and merge join
       return false;
     }
     return true;
@@ -167,7 +171,8 @@ public abstract class JoinPruleBase extends Prule {
   // Create join plan with left child ANY distributed and right child BROADCAST distributed. If the physical join type
   // is MergeJoin, a collation must be provided for both left and right child and the plan will contain sort converter
   // if necessary to provide the collation.
-  protected void createBroadcastPlan(RelOptRuleCall call, DrillJoinRel join,
+  protected void createBroadcastPlan(final RelOptRuleCall call, final DrillJoinRel join,
+      final RexNode joinCondition,
       final PhysicalJoinType physicalJoinType,
       final RelNode left, final RelNode right,
       final RelCollation collationLeft, final RelCollation collationRight) throws InvalidRelException {
@@ -180,7 +185,8 @@ public abstract class JoinPruleBase extends Prule {
       assert collationLeft != null && collationRight != null;
       traitsLeft = traitsLeft.plus(collationLeft);
       traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(collationRight).plus(distBroadcastRight);
-    } else {
+    } else if (physicalJoinType == PhysicalJoinType.HASH_JOIN ||
+        physicalJoinType == PhysicalJoinType.NESTEDLOOP_JOIN) {
       traitsRight = right.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distBroadcastRight);
     }
 
@@ -199,16 +205,14 @@ public abstract class JoinPruleBase extends Prule {
             RelTraitSet newTraitsLeft = newTraitSet(Prel.DRILL_PHYSICAL, collationLeft, toDist);
 
             RelNode newLeft = convert(left, newTraitsLeft);
-              return new MergeJoinPrel(join.getCluster(), newTraitsLeft, newLeft, convertedRight, join.getCondition(),
+              return new MergeJoinPrel(join.getCluster(), newTraitsLeft, newLeft, convertedRight, joinCondition,
                                           join.getJoinType());
           }
 
         }.go(join, convertedLeft);
 
 
-      }else{
-
-
+      } else if (physicalJoinType == PhysicalJoinType.HASH_JOIN) {
         new SubsetTransformer<DrillJoinRel, InvalidRelException>(call) {
 
           @Override
@@ -216,26 +220,51 @@ public abstract class JoinPruleBase extends Prule {
             DrillDistributionTrait toDist = rel.getTraitSet().getTrait(DrillDistributionTraitDef.INSTANCE);
             RelTraitSet newTraitsLeft = newTraitSet(Prel.DRILL_PHYSICAL, toDist);
             RelNode newLeft = convert(left, newTraitsLeft);
-            return new HashJoinPrel(join.getCluster(), newTraitsLeft, newLeft, convertedRight, join.getCondition(),
+            return new HashJoinPrel(join.getCluster(), newTraitsLeft, newLeft, convertedRight, joinCondition,
                                          join.getJoinType());
 
           }
 
         }.go(join, convertedLeft);
+      } else if (physicalJoinType == PhysicalJoinType.NESTEDLOOP_JOIN) {
+        new SubsetTransformer<DrillJoinRel, InvalidRelException>(call) {
+
+          @Override
+          public RelNode convertChild(final DrillJoinRel join,  final RelNode rel) throws InvalidRelException {
+            DrillDistributionTrait toDist = rel.getTraitSet().getTrait(DrillDistributionTraitDef.INSTANCE);
+            RelTraitSet newTraitsLeft = newTraitSet(Prel.DRILL_PHYSICAL, toDist);
+            RelNode newLeft = convert(left, newTraitsLeft);
+            return new NestedLoopJoinPrel(join.getCluster(), newTraitsLeft, newLeft, convertedRight, joinCondition,
+                                         join.getJoinType());
+          }
+
+        }.go(join, convertedLeft);
       }
 
-    }else{
+    } else {
       if (physicalJoinType == PhysicalJoinType.MERGE_JOIN) {
-        call.transformTo(new MergeJoinPrel(join.getCluster(), convertedLeft.getTraitSet(), convertedLeft, convertedRight, join.getCondition(),
+        call.transformTo(new MergeJoinPrel(join.getCluster(), convertedLeft.getTraitSet(), convertedLeft, convertedRight, joinCondition,
             join.getJoinType()));
 
-      }else{
-        call.transformTo(new HashJoinPrel(join.getCluster(), convertedLeft.getTraitSet(), convertedLeft, convertedRight, join.getCondition(),
-                                       join.getJoinType()));
+      } else if (physicalJoinType == PhysicalJoinType.HASH_JOIN) {
+        call.transformTo(new HashJoinPrel(join.getCluster(), convertedLeft.getTraitSet(), convertedLeft, convertedRight, joinCondition,
+            join.getJoinType()));
+      } else if (physicalJoinType == PhysicalJoinType.NESTEDLOOP_JOIN) {
+        if (joinCondition.isAlwaysTrue()) {
+          call.transformTo(new NestedLoopJoinPrel(join.getCluster(), convertedLeft.getTraitSet(), convertedLeft, convertedRight, joinCondition,
+            join.getJoinType()));
+        } else {
+          RexBuilder builder = join.getCluster().getRexBuilder();
+          RexLiteral condition = builder.makeLiteral(true); // TRUE condition for the NLJ
+
+          FilterPrel newFilterRel = new FilterPrel(join.getCluster(), convertedLeft.getTraitSet(),
+              new NestedLoopJoinPrel(join.getCluster(), convertedLeft.getTraitSet(), convertedLeft, convertedRight,
+                  condition, join.getJoinType()),
+              joinCondition);
+          call.transformTo(newFilterRel);
+        }
       }
     }
-
-
 
   }
 

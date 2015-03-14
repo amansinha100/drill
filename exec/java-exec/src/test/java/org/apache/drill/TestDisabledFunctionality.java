@@ -312,4 +312,5 @@ public class TestDisabledFunctionality extends BaseTestQuery{
       throw ex;
     }
   }
+
 }

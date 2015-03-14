@@ -17,39 +17,57 @@
  */
 package org.apache.drill.exec.planner.physical;
 
+import java.util.List;
 import java.util.logging.Logger;
 
+import org.apache.drill.exec.physical.impl.join.JoinUtils;
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.eigenbase.rel.InvalidRelException;
+import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
 import org.eigenbase.relopt.RelOptRuleOperand;
+import org.eigenbase.relopt.RelOptUtil;
+import org.eigenbase.rex.RexNode;
+import org.eigenbase.sql.JoinType;
 import org.eigenbase.trace.EigenbaseTrace;
 
-public class HashJoinPrule extends JoinPruleBase {
-  public static final RelOptRule DIST_INSTANCE = new HashJoinPrule("Prel.HashJoinDistPrule", RelOptHelper.any(DrillJoinRel.class), true);
-  public static final RelOptRule BROADCAST_INSTANCE = new HashJoinPrule("Prel.HashJoinBroadcastPrule", RelOptHelper.any(DrillJoinRel.class), false);
+import com.google.common.collect.Lists;
+
+public class NestedLoopJoinPrule extends JoinPruleBase {
+  public static final RelOptRule INSTANCE = new NestedLoopJoinPrule("Prel.NestedLoopJoinPrule", RelOptHelper.any(DrillJoinRel.class));
 
   protected static final Logger tracer = EigenbaseTrace.getPlannerTracer();
 
-  private final boolean isDist;
-  private HashJoinPrule(String name, RelOptRuleOperand operand, boolean isDist) {
+  private NestedLoopJoinPrule(String name, RelOptRuleOperand operand) {
     super(operand, name);
-    this.isDist = isDist;
+  }
+
+  @Override
+  protected boolean checkPreconditions(DrillJoinRel join, RelNode left, RelNode right,
+      PlannerSettings settings) {
+    JoinRelType type = join.getJoinType();
+    boolean match = (type == JoinRelType.INNER || type == JoinRelType.LEFT);
+    if (match) {
+      if (settings.isNlJoinForScalarOnly() &&
+          !(JoinUtils.isScalarSubquery(left) || JoinUtils.isScalarSubquery(right))) {
+        match = false;
+      }
+    }
+    return match;
   }
 
   @Override
   public boolean matches(RelOptRuleCall call) {
-    PlannerSettings settings = PrelUtil.getPlannerSettings(call.getPlanner());
-    return settings.isMemoryEstimationEnabled() || settings.isHashJoinEnabled();
+    return PrelUtil.getPlannerSettings(call.getPlanner()).isNestedLoopJoinEnabled();
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
     PlannerSettings settings = PrelUtil.getPlannerSettings(call.getPlanner());
-    if (!settings.isHashJoinEnabled()) {
+    if (!settings.isNestedLoopJoinEnabled()) {
       return;
     }
 
@@ -61,20 +79,12 @@ public class HashJoinPrule extends JoinPruleBase {
       return;
     }
 
-    boolean hashSingleKey = PrelUtil.getPlannerSettings(call.getPlanner()).isHashSingleKey();
-
     try {
 
-      if(isDist){
-        createDistBothPlan(call, join, PhysicalJoinType.HASH_JOIN,
-            left, right, null /* left collation */, null /* right collation */, hashSingleKey);
-      }else{
-        if (checkBroadcastConditions(call.getPlanner(), join, left, right)) {
-          createBroadcastPlan(call, join, join.getCondition(), PhysicalJoinType.HASH_JOIN,
-              left, right, null /* left collation */, null /* right collation */);
-        }
+      if (checkBroadcastConditions(call.getPlanner(), join, left, right)) {
+        createBroadcastPlan(call, join, join.getCondition(), PhysicalJoinType.NESTEDLOOP_JOIN,
+            left, right, null /* left collation */, null /* right collation */);
       }
-
 
     } catch (InvalidRelException e) {
       tracer.warning(e.toString());
