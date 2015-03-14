@@ -19,11 +19,13 @@
 package org.apache.drill.exec.physical.impl.join;
 
 import org.apache.drill.common.logical.data.JoinCondition;
+import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptTable;
 import org.eigenbase.relopt.RelOptUtil;
+import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.rex.RexNode;
 
 import java.util.List;
@@ -102,4 +104,24 @@ public class JoinUtils {
 
     return false;
   }
+
+  public static boolean isScalarSubquery(RelNode childrel) {
+    DrillAggregateRel agg = null;
+    if (childrel instanceof DrillAggregateRel) {
+      agg = (DrillAggregateRel)childrel;
+    }
+    if (agg == null && childrel instanceof RelSubset) {
+      RelNode rel = ((RelSubset)childrel).getBest() ;
+      if (rel != null && rel instanceof DrillAggregateRel) {
+        agg = (DrillAggregateRel) rel;
+      }
+    }
+    if (agg != null) {
+      if (agg.getGroupSet().isEmpty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
 }

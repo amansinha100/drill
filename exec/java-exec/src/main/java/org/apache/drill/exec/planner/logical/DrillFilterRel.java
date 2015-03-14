@@ -31,7 +31,7 @@ import org.eigenbase.rex.RexNode;
 
 
 public class DrillFilterRel extends DrillFilterRelBase implements DrillRel {
-  protected DrillFilterRel(RelOptCluster cluster, RelTraitSet traits, RelNode child, RexNode condition) {
+  public DrillFilterRel(RelOptCluster cluster, RelTraitSet traits, RelNode child, RexNode condition) {
     super(DRILL_LOGICAL, cluster, traits, child, condition);
   }
 

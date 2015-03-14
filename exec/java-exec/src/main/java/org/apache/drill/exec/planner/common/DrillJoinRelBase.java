@@ -21,8 +21,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
+import org.apache.drill.exec.physical.impl.join.JoinUtils;
 import org.apache.drill.exec.planner.cost.DrillCostBase.DrillCostFactory;
+import org.apache.drill.exec.planner.logical.DrillAggregateRel;
 import org.apache.drill.exec.planner.physical.PrelUtil;
+import org.eigenbase.rel.AggregateRel;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.JoinRelType;
@@ -31,6 +34,7 @@ import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.rex.RexNode;
 
@@ -52,9 +56,16 @@ public abstract class DrillJoinRelBase extends JoinRelBase implements DrillRelNo
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    if(condition.isAlwaysTrue()){
+    boolean checkForScalar = false;
+    if (PrelUtil.getPlannerSettings(planner).isNestedLoopJoinEnabled() &&
+        PrelUtil.getPlannerSettings(planner).isNlJoinForScalarOnly()) {
+      checkForScalar = true;
+    }
+
+    if(condition.isAlwaysTrue() && (checkForScalar && !hasScalarSubqueryInput())) {
       return ((DrillCostFactory)planner.getCostFactory()).makeInfiniteCost();
     }
+
     return super.computeSelfCost(planner);
   }
 
@@ -84,6 +95,15 @@ public abstract class DrillJoinRelBase extends JoinRelBase implements DrillRelNo
 
   public List<Integer> getRightKeys() {
     return this.rightKeys;
+  }
+
+  private boolean hasScalarSubqueryInput() {
+    if (JoinUtils.isScalarSubquery(this.getLeft())
+        || JoinUtils.isScalarSubquery(this.getRight())) {
+      return true;
+    }
+
+    return false;
   }
 
 }

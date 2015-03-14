@@ -31,6 +31,7 @@ import org.apache.drill.exec.planner.physical.HashAggPrule;
 import org.apache.drill.exec.planner.physical.HashJoinPrule;
 import org.apache.drill.exec.planner.physical.LimitPrule;
 import org.apache.drill.exec.planner.physical.MergeJoinPrule;
+import org.apache.drill.exec.planner.physical.NestedLoopJoinPrule;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.planner.physical.ProjectPrule;
 import org.apache.drill.exec.planner.physical.PushLimitToTopN;
@@ -232,6 +233,10 @@ public class DrillRuleSets {
         ruleList.add(MergeJoinPrule.BROADCAST_INSTANCE);
       }
 
+    }
+
+    if (ps.isNestedLoopJoinEnabled() && ps.isBroadcastJoinEnabled()) {
+      ruleList.add(NestedLoopJoinPrule.INSTANCE);
     }
 
     return new DrillRuleSet(ImmutableSet.copyOf(ruleList));
