@@ -120,7 +120,7 @@ public class ProjectPrule extends Prule {
     }
 
     if (newFields.isEmpty()) {
-      return RelCollationImpl.EMPTY;
+      return RelCollationImpl.of();
     } else {
       return RelCollationImpl.of(newFields);
     }

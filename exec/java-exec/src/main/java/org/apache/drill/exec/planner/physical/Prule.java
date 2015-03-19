@@ -34,6 +34,7 @@ public abstract class Prule extends RelOptRule{
 
 
   public static RelNode convert(RelNode rel, RelTraitSet toTraits){
+    toTraits = toTraits.simplify();
 
     PlannerSettings settings = PrelUtil.getSettings(rel.getCluster());
     if(settings.isSingleMode()){
