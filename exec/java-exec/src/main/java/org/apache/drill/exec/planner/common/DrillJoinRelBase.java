@@ -53,9 +53,13 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    if(condition.isAlwaysTrue() || (leftKeys.size() == 0 || rightKeys.size() == 0)){
+    List<Integer> tmpLeftKeys = Lists.newArrayList();
+    List<Integer> tmpRightKeys = Lists.newArrayList();
+    RexNode remaining = RelOptUtil.splitJoinCondition(left, right, condition, tmpLeftKeys, tmpRightKeys);
+    if (!remaining.isAlwaysTrue() || (tmpLeftKeys.size() == 0 || tmpRightKeys.size() == 0)) {
       return ((DrillCostFactory)planner.getCostFactory()).makeInfiniteCost();
     }
+
     return super.computeSelfCost(planner);
   }
 
