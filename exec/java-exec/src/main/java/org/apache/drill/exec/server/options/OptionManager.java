@@ -30,6 +30,6 @@ public interface OptionManager extends Iterable<OptionValue> {
   public interface OptionAdmin {
     public void registerOptionType(OptionValidator validator);
     public void validate(OptionValue v) throws SetOptionException;
-    public OptionValue validate(String name, SqlLiteral value, OptionType optionType) throws SetOptionException;
+    public OptionValue validate(String name, SqlLiteral value, OptionValue.OptionType optionType) throws SetOptionException;
   }
 }

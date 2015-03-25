@@ -24,6 +24,8 @@ import java.util.Set;
 import org.apache.drill.common.exceptions.ExpressionParsingException;
 import org.apache.drill.exec.server.options.OptionValue.Kind;
 import org.apache.drill.exec.server.options.OptionValue.OptionType;
+
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.SqlLiteral;
 import org.apache.calcite.util.NlsString;
 

@@ -46,7 +46,7 @@ public abstract class OptionValidator {
    *            while allowing some flexibility for users
    * @throws ExpressionParsingException - message to describe error with value, including range or list of expected values
    */
-  public abstract OptionValue validate(SqlLiteral value, OptionType optionType) throws ExpressionParsingException;
+  public abstract OptionValue validate(SqlLiteral value, OptionValue.OptionType optionType) throws ExpressionParsingException;
 
   public String getOptionName() {
     return optionName;
