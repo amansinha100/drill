@@ -27,6 +27,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import com.google.common.collect.Lists;
+import org.apache.drill.exec.store.RecordDataType;
 
 /**
  * This class uses reflection of a Java class to construct a {@link org.apache.drill.exec.store.RecordDataType}.

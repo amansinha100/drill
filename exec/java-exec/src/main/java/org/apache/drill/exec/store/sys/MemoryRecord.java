@@ -29,7 +29,7 @@ import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.vector.BigIntVector;
 import org.apache.drill.exec.vector.VarCharVector;
-import org.eigenbase.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;

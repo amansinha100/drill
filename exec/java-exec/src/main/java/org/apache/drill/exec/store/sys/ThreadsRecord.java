@@ -18,6 +18,7 @@
 package org.apache.drill.exec.store.sys;
 
 import com.google.common.collect.Lists;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.exception.SchemaChangeException;
@@ -28,7 +29,7 @@ import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.vector.BigIntVector;
 import org.apache.drill.exec.vector.VarCharVector;
-import org.eigenbase.sql.type.SqlTypeName;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
