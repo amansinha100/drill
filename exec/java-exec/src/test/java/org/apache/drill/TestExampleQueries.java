@@ -755,4 +755,10 @@ public class TestExampleQueries extends BaseTestQuery{
         .baselineValues((long) 3, (long) 6)
         .build().run();
   }
+
+  @Test
+  public void testProjPush() throws Exception {
+    test("explain plan for select t.one.two[1], t.three[2] from cp.`employee.json` t where t.foure = 2");
+  }
+
 }

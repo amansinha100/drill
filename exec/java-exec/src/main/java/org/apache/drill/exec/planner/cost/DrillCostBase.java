@@ -200,20 +200,14 @@ public class DrillCostBase implements DrillRelOptCost {
     DrillCostBase that = (DrillCostBase) other;
 
     return this == that
-      || ( (this.cpu + this.io + this.network) <=
-           (that.cpu + that.io + that.network)
-          && this.rowCount <= that.rowCount
-         );
+      || ( (this.cpu + this.io + this.network) <= (that.cpu + that.io + that.network));
   }
 
   @Override
   public boolean isLt(RelOptCost other) {
     DrillCostBase that = (DrillCostBase) other;
 
-     return ( (this.cpu + this.io + this.network) <
-             (that.cpu + that.io + that.network)
-            && this.rowCount <= that.rowCount
-           );
+     return  ( (this.cpu + this.io + this.network)  < (that.cpu + that.io + that.network) );
   }
 
   @Override
