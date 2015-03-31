@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.util.BitSets;
 
 import org.apache.drill.common.expression.ErrorCollectorImpl;

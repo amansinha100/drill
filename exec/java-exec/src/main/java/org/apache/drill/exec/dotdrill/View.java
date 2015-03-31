@@ -19,6 +19,10 @@ package org.apache.drill.exec.dotdrill;
 
 import java.util.List;
 
+import org.apache.calcite.avatica.util.TimeUnit;
+import org.apache.calcite.sql.SqlIntervalQualifier;
+import org.apache.calcite.sql.parser.SqlParserPos;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.planner.types.RelDataTypeDrillImpl;
 import org.apache.drill.exec.planner.types.RelDataTypeHolder;
@@ -63,8 +67,8 @@ public class View {
         @JsonProperty("type")                       SqlTypeName type,
         @JsonProperty("precision")                  Integer precision,
         @JsonProperty("scale")                      Integer scale,
-        @JsonProperty("startUnit")                  SqlIntervalQualifier.TimeUnit startUnit,
-        @JsonProperty("endUnit")                    SqlIntervalQualifier.TimeUnit endUnit,
+        @JsonProperty("startUnit")                  TimeUnit startUnit,
+        @JsonProperty("endUnit")                    TimeUnit endUnit,
         @JsonProperty("fractionalSecondPrecision")  Integer fractionalSecondPrecision,
         @JsonProperty("isNullable")                 Boolean isNullable) {
       this.name = name;
@@ -104,7 +108,7 @@ public class View {
         break;
       case INTERVAL_YEAR_MONTH:
       case INTERVAL_DAY_TIME:
-        p = dataType.getIntervalQualifier().getStartPrecision();
+        p = dataType.getIntervalQualifier().getStartPrecisionPreservingDefault();
       default:
         break;
       }
@@ -159,7 +163,7 @@ public class View {
      * Gets the time range start unit of the type qualifier of the interval data
      * type descriptor of this field (<i>iff</i> interval type).
      */
-    public SqlIntervalQualifier.TimeUnit getStartUnit() {
+    public TimeUnit getStartUnit() {
       return null == intervalQualifier ? null : intervalQualifier.getStartUnit();
     }
 
@@ -167,7 +171,7 @@ public class View {
      * Gets the time range end unit of the type qualifier of the interval data
      * type descriptor of this field (<i>iff</i> interval type).
      */
-    public SqlIntervalQualifier.TimeUnit getEndUnit() {
+    public TimeUnit getEndUnit() {
       return null == intervalQualifier ? null : intervalQualifier.getEndUnit();
     }
 
@@ -178,7 +182,7 @@ public class View {
      * (<i>iff</i> interval type).
      */
     public Integer getFractionalSecondPrecision() {
-      return null == intervalQualifier ? null : intervalQualifier.getFractionalSecondPrecision();
+      return null == intervalQualifier ? null : intervalQualifier.getFractionalSecondPrecisionPreservingDefault();
     }
 
     /**

@@ -26,8 +26,6 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlJoin;
 import org.apache.calcite.sql.JoinType;
 import org.apache.calcite.sql.SqlNode;
-import org.apache.calcite.sql.SqlNodeList;
-import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.util.SqlShuttle;
 import org.apache.calcite.sql.SqlDataTypeSpec;

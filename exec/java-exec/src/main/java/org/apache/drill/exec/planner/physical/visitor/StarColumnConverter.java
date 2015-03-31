@@ -79,7 +79,7 @@ public class StarColumnConverter extends BasePrelVisitor<Prel, Void, RuntimeExce
     if (prefixedForStar) {
       if (!prefixedForWriter) {
         // Prefix is added for SELECT only, not for CTAS writer.
-        return insertProjUnderScreenOrWriter(prel, prel.getChild().getRowType(), child);
+        return insertProjUnderScreenOrWriter(prel, prel.getInput().getRowType(), child);
       } else {
         // Prefix is added under CTAS Writer. We need create a new Screen with the converted child.
         return (Prel) prel.copy(prel.getTraitSet(), Collections.<RelNode>singletonList(child));
@@ -95,7 +95,7 @@ public class StarColumnConverter extends BasePrelVisitor<Prel, Void, RuntimeExce
     Prel child = ((Prel) prel.getInput(0)).accept(this, null);
     if (prefixedForStar) {
       prefixedForWriter = true;
-      return insertProjUnderScreenOrWriter(prel, prel.getChild().getRowType(), child);
+      return insertProjUnderScreenOrWriter(prel, prel.getInput().getRowType(), child);
     } else {
       return prel;
     }
@@ -133,7 +133,7 @@ public class StarColumnConverter extends BasePrelVisitor<Prel, Void, RuntimeExce
 
     // Require prefix rename : there exists other expression, in addition to a star column.
     if (!prefixedForStar  // not set yet.
-        && StarColumnHelper.containsStarColumnInProject(prel.getChild().getRowType(), proj.getProjects())
+        && StarColumnHelper.containsStarColumnInProject(prel.getInput().getRowType(), proj.getProjects())
         && prel.getRowType().getFieldNames().size() > 1) {
       prefixedForStar = true;
     }
