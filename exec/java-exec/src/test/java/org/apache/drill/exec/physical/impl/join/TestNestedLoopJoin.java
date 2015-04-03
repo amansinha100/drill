@@ -27,14 +27,21 @@ public class TestNestedLoopJoin extends PlanTestBase {
   private static String nlpattern = "NestedLoopJoin";
 
   @Test
-  public void testNljoinExists1() throws Exception {
+  public void testNljoinExists_1() throws Exception {
     String query = String.format("select r_regionkey from cp.`tpch/region.parquet` where exists (select n_regionkey from cp.`tpch/nation.parquet` where n_nationkey < 10)");
     testPlanMatchingPatterns(query, new String[]{nlpattern}, new String[]{});
   }
 
   @Test
-  public void testNljoinNotIn() throws Exception {
+  public void testNljoinNotIn_1() throws Exception {
     String query = String.format("select r_regionkey from cp.`tpch/region.parquet` where r_regionkey not in (select n_regionkey from cp.`tpch/nation.parquet` where n_nationkey < 10)");
+    // testPlanMatchingPatterns(query, new String[]{nlpattern}, new String[]{});
+    testSql(query);
+  }
+
+  @Test
+  public void testNljoinInequality_1() throws Exception {
+    String query = String.format("select r_regionkey from cp.`tpch/region.parquet` where r_regionkey > (select min(n_regionkey) from cp.`tpch/nation.parquet` where n_nationkey < 10)");
     testPlanMatchingPatterns(query, new String[]{nlpattern}, new String[]{});
   }
 
