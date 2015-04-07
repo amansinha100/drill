@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.sql.TypedSqlNode;
 import org.apache.calcite.tools.Planner;
 import org.apache.calcite.tools.RelConversionException;
 import org.apache.calcite.tools.ValidationException;
@@ -57,8 +58,13 @@ public class CreateTableHandler extends DefaultSqlHandler {
 
     try {
       // Convert the query in CTAS statement into a RelNode
-      SqlNode validatedQuery = validateNode(sqlCreateTable.getQuery());
+      TypedSqlNode validatedTypedSqlNode = validateNode(sqlCreateTable.getQuery());
+      SqlNode validatedQuery = validatedTypedSqlNode.getSqlNode();
+      RelDataType validatedRowType = validatedTypedSqlNode.getType();
+
       RelNode relQuery = convertToRel(validatedQuery);
+
+      relQuery = addRenamedProject(relQuery, validatedRowType);
 
       List<String> tblFiledNames = sqlCreateTable.getFieldNames();
       RelDataType queryRowType = relQuery.getRowType();
