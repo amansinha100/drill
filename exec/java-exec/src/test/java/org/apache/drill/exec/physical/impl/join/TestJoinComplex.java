@@ -20,12 +20,14 @@ package org.apache.drill.exec.physical.impl.join;
 
 
 import org.apache.drill.BaseTestQuery;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestJoinComplex extends BaseTestQuery {
 
 
   @Test //DRILL-2197 Left Self Join with complex type in projection
+  @Ignore("DRILL-2630")
   public void testLeftSelfHashJoinWithMap() throws Exception {
     final String query = " select a.id, b.oooi.oa.oab.oabc oabc, b.ooof.oa.oab oab from cp.`join/complex_1.json` a left outer join cp.`join/complex_1.json` b on a.id=b.id order by a.id";
 
@@ -38,6 +40,7 @@ public class TestJoinComplex extends BaseTestQuery {
   }
 
   @Test //DRILL-2197 Left Join with complex type in projection
+  @Ignore("DRILL-2630")
   public void testLeftHashJoinWithMap() throws Exception {
     final String query = " select a.id, b.oooi.oa.oab.oabc oabc, b.ooof.oa.oab oab from cp.`join/complex_1.json` a left outer join cp.`join/complex_2.json` b on a.id=b.id order by a.id";
 
