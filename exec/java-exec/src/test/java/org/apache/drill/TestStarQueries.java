@@ -19,6 +19,7 @@ package org.apache.drill;
 
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.util.TestTools;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.apache.drill.exec.rpc.RpcException;
 
@@ -245,6 +246,7 @@ public class TestStarQueries extends BaseTestQuery{
   }
 
   @Test  // Join a select star of SchemaTable, with a select star of Schema-less table.
+  @Ignore("DRILL-2714")
   public void testSelStarJoinSchemaWithSchemaLess() throws Exception {
     String query = "select t1.name, t1.kind, t2.n_nationkey from " +
         "(select * from sys.options) t1 " +
