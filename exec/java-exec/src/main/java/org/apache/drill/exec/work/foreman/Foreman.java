@@ -341,8 +341,8 @@ public class Foreman implements Runnable {
     final PlanFragment rootPlanFragment = work.getRootFragment();
     assert queryId == rootPlanFragment.getHandle().getQueryId();
 
-    drillbitContext.getWorkBus().addFragmentStatusListener(queryId, queryManager);
-    drillbitContext.getClusterCoordinator().addDrillbitStatusListener(queryManager);
+    drillbitContext.getWorkBus().addFragmentStatusListener(queryId, queryManager.getFragmentStatusListener());
+    drillbitContext.getClusterCoordinator().addDrillbitStatusListener(queryManager.getDrillbitStatusListener());
 
     logger.debug("Submitting fragments to run.");
 
@@ -588,7 +588,7 @@ public class Foreman implements Runnable {
 
       // These are straight forward removals from maps, so they won't throw.
       drillbitContext.getWorkBus().removeFragmentStatusListener(queryId);
-      drillbitContext.getClusterCoordinator().removeDrillbitStatusListener(queryManager);
+      drillbitContext.getClusterCoordinator().removeDrillbitStatusListener(queryManager.getDrillbitStatusListener());
 
       suppressingClose(queryContext);
 

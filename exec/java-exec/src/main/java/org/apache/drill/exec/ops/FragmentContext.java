@@ -161,15 +161,26 @@ public class FragmentContext implements AutoCloseable, UdfUtilities {
   }
 
   /**
-   * Allowed transitions from left to right: OK -> FAILED -> CANCELED
+   * Allowed transitions from left to right: OK -> CANCELED -> FAILED
    * @param newState
    */
   private synchronized void setState(FragmentContextState newState) {
     if (state == FragmentContextState.OK) {
       state = newState;
-    } else if (newState == FragmentContextState.CANCELED) {
+    } else if (newState == FragmentContextState.FAILED) {
       state = newState;
     }
+  }
+
+  /**
+   * Tells individual operations whether they should continue. In some cases, an external event (typically cancellation)
+   * will mean that the fragment should prematurely exit execution. Long running operations should check this every so
+   * often so that Drill is responsive to cancellation operations.
+   *
+   * @return false if the action should terminate immediately, true if everything is okay.
+   */
+  public boolean shouldContinue(){
+    return !isFailed() && !isCancelled();
   }
 
   public DrillbitContext getDrillbitContext() {
@@ -309,8 +320,11 @@ public class FragmentContext implements AutoCloseable, UdfUtilities {
     return deferredException;
   }
 
-  @Override
-  public void close() throws Exception {
+  /**
+   * Close out internal resources. Note that this can be called multiple times so all resources must support multiple
+   * close calls.
+   */
+  private void closeResources() {
     /*
      * TODO wait for threads working on this Fragment to terminate (or at least stop working
      * on this Fragment's query)
@@ -318,8 +332,28 @@ public class FragmentContext implements AutoCloseable, UdfUtilities {
     deferredException.suppressingClose(bufferManager);
     deferredException.suppressingClose(buffers);
     deferredException.suppressingClose(allocator);
+  }
 
-    deferredException.close(); // must be last, as this may throw
+  /**
+   * Ensures all shared resources can be closed cleanly.
+   *
+   * Used in situations where we may want to ensure that all resources are cleaned before we close FragmentContext for
+   * the final time.
+   *
+   * @param Deferred
+   *          Exception object to populate with any issues.
+   * @throws Exception
+   *           when one or more contained resources cannot be closed cleanly.
+   */
+  public void preClose() throws Exception {
+    closeResources();
+    deferredException.throwAndClear();
+  }
+
+  @Override
+  public void close() throws Exception {
+    closeResources();
+    deferredException.close();
   }
 
   public DrillBuf replace(DrillBuf old, int newSize) {

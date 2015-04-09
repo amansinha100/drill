@@ -48,7 +48,7 @@ public class FragmentExecutor implements Runnable {
   private final FragmentContext fragmentContext;
   private final StatusReporter listener;
   private volatile boolean canceled;
-  private volatile boolean closed;
+  private volatile boolean operatorTreeStopped;
   private RootExec root;
 
 
@@ -63,7 +63,7 @@ public class FragmentExecutor implements Runnable {
   public String toString() {
     return
         super.toString()
-        + "[closed = " + closed
+        + "[operatorTreeStopped = " + operatorTreeStopped
         + ", state = " + state
         + ", rootOperator = " + rootOperator
         + ", fragmentContext = " + fragmentContext
@@ -98,6 +98,9 @@ public class FragmentExecutor implements Runnable {
      * then the request to cancel is a no-op anyway, so it doesn't matter that we won't see the flag.
      */
     canceled = true;
+
+    // this needs to be done here so this is what operators monitor to know they should terminate early.
+    fragmentContext.cancel();
   }
 
   public void receivingFragmentFinished(FragmentHandle handle) {
@@ -134,57 +137,45 @@ public class FragmentExecutor implements Runnable {
       /*
        * Run the query until root.next returns false OR cancel() changes the
        * state.
-       * Note that we closeOutResources() here if we're done.  That's because
-       * this can also throw exceptions that we want to treat as failures of the
-       * request, even if the request did fine up until this point.  Any
-       * failures there will be caught in the catch clause below, which will be
-       * reported to the user.  If they were to come from the finally clause,
-       * the uncaught exception there will simply terminate this thread without
-       * alerting the user--the behavior then is to hang.
+       * Note that
        */
-      while (state.get() == FragmentState.RUNNING_VALUE) {
-        if (canceled) {
-          logger.debug("Cancelling fragment {}", fragmentContext.getHandle());
-
-          // Change state checked by main loop to terminate it (if not already done):
-          updateState(FragmentState.CANCELLED);
-
-          fragmentContext.cancel();
-
-          logger.debug("Cancelled fragment {}", fragmentContext.getHandle());
-
-          /*
-           * The state will be altered because of the updateState(), which would cause
-           * us to fall out of the enclosing while loop; we just short-circuit that here
-           */
-          break;
+      try{
+        while (state.get() == FragmentState.RUNNING_VALUE && !canceled && root.next()) {
+          // loop
         }
-
-        if (!root.next()) {
-          if (fragmentContext.isFailed()) {
-            internalFail(fragmentContext.getFailureCause());
-            closeOutResources();
-          } else {
-            /*
-             * Close out resources before we report success. We do this so that we'll get an
-             * error if there's a problem cleaning up, even though the query execution portion
-             * succeeded.
-             */
-            closeOutResources();
-            updateStateOrFail(FragmentState.RUNNING, FragmentState.FINISHED);
-          }
-          break;
-        }
+      } catch (AssertionError | Exception e) {
+        fragmentContext.fail(e);
       }
+
+      /*
+       * We closeOutResources() here as we're done. That's because this can also throw exceptions that we also want to
+       * treat as failures of the request, even if the request did fine up until this point. Any failures there will be
+       * caught in the catch clause below, which will be reported to the user. If they were to come from the finally
+       * clause, the we will simply log the failure.
+       */
+      closeOutResources(false);
+
+
+      /*
+       * If we've gotten this far, we're either successfully completed the fragment or successfully canceled it. Report
+       * that status back to foreman.
+       */
+      final FragmentState finalState = canceled ? FragmentState.CANCELLED : FragmentState.FINISHED;
+      updateStateOrFail(FragmentState.RUNNING, finalState);
+
     } catch (AssertionError | Exception e) {
-      logger.warn("Error while initializing or executing fragment", e);
-      fragmentContext.fail(e);
       internalFail(e);
     } finally {
       clusterCoordinator.removeDrillbitStatusListener(drillbitStatusListener);
 
       // Final check to make sure RecordBatches are cleaned up.
-      closeOutResources();
+      try {
+        closeOutResources(true);
+      } catch (Exception e) {
+        // We shouldn't leak any exceptions here. If we did, they would leak to the JVM. Since we've already completed
+        // our messaging to the foreman, the only thing we can do here is log the failure.
+        logger.error("Failue in final cleanup of fragment {}", QueryIdHelper.getQueryIdentifier(this.getContext().getHandle()), e);
+      }
 
       myThread.setName(originalThreadName);
     }
@@ -192,37 +183,32 @@ public class FragmentExecutor implements Runnable {
 
   private static final String CLOSE_FAILURE = "Failure while closing out resources";
 
-  private void closeOutResources() {
+  private void closeOutResources(final boolean isFinalClose) throws Exception {
+
     /*
-     * Because of the way this method can be called, it needs to be idempotent; it must
+     * The operator tree can only be closed once.  As such, Because of the way this method can be called, it needs to be idempotent; it must
      * be safe to call it more than once. We use this flag to bypass the body if it has
      * been called before.
      */
     synchronized(this) { // synchronize for the state of closed
-      if (closed) {
-        return;
+      if (!operatorTreeStopped) {
+        try {
+          root.stop(); // TODO make this an AutoCloseable so we can detect lack of closure
+        } catch (Exception e) {
+          logger.warn(CLOSE_FAILURE, e);
+          fragmentContext.getDeferredException().addException(e);
+        }
+        operatorTreeStopped = true;
       }
-
-      final DeferredException deferredException = fragmentContext.getDeferredException();
-      try {
-        root.stop(); // TODO make this an AutoCloseable so we can detect lack of closure
-      } catch (RuntimeException e) {
-        logger.warn(CLOSE_FAILURE, e);
-        deferredException.addException(e);
-      }
-
-      closed = true;
     }
 
-    /*
-     * This must be last, because this may throw deferred exceptions.
-     * We are forced to wrap the checked exception (if any) so that it will be unchecked.
-     */
-    try {
+
+    if(!isFinalClose){
+      fragmentContext.preClose();
+    }else{
       fragmentContext.close();
-    } catch(Exception e) {
-      throw new RuntimeException("Error closing fragment context.", e);
     }
+
   }
 
   private void internalFail(final Throwable excep) {

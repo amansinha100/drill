@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBuf;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,12 +54,12 @@ import org.apache.drill.exec.work.fragment.FragmentExecutor;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Maps;
 
 /**
  * Each Foreman holds its own QueryManager.  This manages the events associated with execution of a particular query across all fragments.
  */
-public class QueryManager implements FragmentStatusListener, DrillbitStatusListener {
+public class QueryManager {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(QueryManager.class);
 
   public static final PStoreConfig<QueryProfile> QUERY_PROFILE = PStoreConfig.
@@ -74,7 +75,7 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
       .ephemeral()
       .build();
 
-  private final Set<DrillbitEndpoint> includedBits;
+  private final Map<DrillbitEndpoint, NodeTracker> nodeMap = Maps.newHashMap();
   private final StateListener stateListener;
   private final QueryId queryId;
   private final String stringQueryId;
@@ -96,6 +97,11 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
   private String planText;
   private long startTime;
   private long endTime;
+
+  // How many nodes have finished their execution.  Query is complete when all nodes are complete.
+  private final AtomicInteger finishedNodes = new AtomicInteger(0);
+
+  // How many fragments have finished their execution.
   private final AtomicInteger finishedFragments = new AtomicInteger(0);
 
   public QueryManager(final QueryId queryId, final RunQuery runQuery, final PStoreProvider pStoreProvider,
@@ -112,80 +118,22 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
     } catch (IOException e) {
       throw new DrillRuntimeException(e);
     }
-
-    includedBits = Sets.newHashSet();
   }
 
-  @Override
-  public void drillbitRegistered(final Set<DrillbitEndpoint> registeredDrillbits) {
-  }
-
-  @Override
-  public void drillbitUnregistered(final Set<DrillbitEndpoint> unregisteredDrillbits) {
-    for(DrillbitEndpoint ep : unregisteredDrillbits) {
-      if (includedBits.contains(ep)) {
-        logger.warn("Drillbit {} no longer registered in cluster.  Canceling query {}",
-            ep.getAddress() + ep.getControlPort(), QueryIdHelper.getQueryId(queryId));
-        stateListener.moveToState(QueryState.FAILED,
-            new ForemanException("One more more nodes lost connectivity during query.  Identified node was "
-                + ep.getAddress()));
-      }
-    }
-  }
-
-  @Override
-  public void statusUpdate(final FragmentStatus status) {
-    logger.debug("New fragment status was provided to QueryManager of {}", status);
-    switch(status.getProfile().getState()) {
-    case AWAITING_ALLOCATION:
-    case RUNNING:
-      updateFragmentStatus(status);
-      break;
-
-    case FINISHED:
-      fragmentDone(status);
-      break;
-
-    case CANCELLED:
-      /*
-       * TODO
-       * This doesn't seem right; shouldn't this be similar to FAILED?
-       * and this means once all are cancelled we'll get to COMPLETED, even though some weren't?
-       *
-       * So, we add it to the finishedFragments if we ourselves we receive a statusUpdate (from where),
-       * but not if our cancellation listener gets it?
-       */
-      // TODO(DRILL-2370) we might not get these, so we need to take extra care for cleanup
-      fragmentDone(status);
-      break;
-
-    case FAILED:
-      stateListener.moveToState(QueryState.FAILED, new RemoteRpcException(status.getProfile().getError()));
-      break;
-
-    default:
-      throw new UnsupportedOperationException(String.format("Received status of %s", status));
-    }
-  }
-
-  private void updateFragmentStatus(final FragmentStatus fragmentStatus) {
+  private boolean updateFragmentStatus(final FragmentStatus fragmentStatus) {
     final FragmentHandle fragmentHandle = fragmentStatus.getHandle();
     final int majorFragmentId = fragmentHandle.getMajorFragmentId();
     final int minorFragmentId = fragmentHandle.getMinorFragmentId();
-    fragmentDataMap.get(majorFragmentId).get(minorFragmentId).setStatus(fragmentStatus);
+    FragmentData data = fragmentDataMap.get(majorFragmentId).get(minorFragmentId);
+    return data.setStatus(fragmentStatus);
   }
 
   private void fragmentDone(final FragmentStatus status) {
-    updateFragmentStatus(status);
-
-    final int finishedFragments = this.finishedFragments.incrementAndGet();
-    final int totalFragments = fragmentDataSet.size();
-    assert finishedFragments <= totalFragments : "The finished fragment count exceeds the total fragment count";
-    final int remaining = totalFragments - finishedFragments;
-    logger.debug("waiting for {} fragments", remaining);
-    if (remaining == 0) {
-      // this target state may be adjusted in moveToState() based on current FAILURE/CANCELLATION_REQUESTED status
-      stateListener.moveToState(QueryState.COMPLETED, null);
+    boolean stateChanged = updateFragmentStatus(status);
+    if(stateChanged){
+      NodeTracker node = nodeMap.get(status.getProfile().getEndpoint());
+      node.fragmentComplete();
+      this.finishedFragments.incrementAndGet();
     }
   }
 
@@ -201,9 +149,6 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
     }
     minorMap.put(minorFragmentId, fragmentData);
     fragmentDataSet.add(fragmentData);
-
-    // keep track of all the drill bits that are used by this query
-    includedBits.add(fragmentData.getEndpoint());
   }
 
   public String getFragmentStatesAsString() {
@@ -211,7 +156,16 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
   }
 
   void addFragmentStatusTracker(final PlanFragment fragment, final boolean isRoot) {
-    addFragment(new FragmentData(fragment.getHandle(), fragment.getAssignment(), isRoot));
+    final DrillbitEndpoint assignment = fragment.getAssignment();
+
+    NodeTracker tracker = nodeMap.get(assignment);
+    if(tracker == null){
+      tracker = new NodeTracker(assignment);
+      nodeMap.put(assignment, tracker);
+    }
+
+    tracker.addFragment();
+    addFragment(new FragmentData(fragment.getHandle(), assignment, isRoot));
   }
 
   /**
@@ -220,8 +174,7 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
   void cancelExecutingFragments(final DrillbitContext drillbitContext, final FragmentExecutor rootRunner) {
     final Controller controller = drillbitContext.getController();
     for(FragmentData data : fragmentDataSet) {
-      final FragmentStatus fragmentStatus = data.getStatus();
-      switch(fragmentStatus.getProfile().getState()) {
+      switch(data.getState()) {
       case SENDING:
       case AWAITING_ALLOCATION:
       case RUNNING:
@@ -229,7 +182,7 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
             rootRunner.cancel();
         } else {
           final DrillbitEndpoint endpoint = data.getEndpoint();
-          final FragmentHandle handle = fragmentStatus.getHandle();
+          final FragmentHandle handle = data.getHandle();
           // TODO is the CancelListener redundant? Does the FragmentStatusListener get notified of the same?
           controller.getTunnel(endpoint).cancelFragment(new CancelListener(endpoint, handle), handle);
         }
@@ -264,21 +217,6 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
       if (!value.getOk()) {
         logger.warn("Remote node {} responded negative on cancellation request for fragment {}.", endpoint, value);
       }
-    }
-  }
-
-  public RootStatusReporter getRootStatusHandler(final FragmentContext context) {
-    return new RootStatusReporter(context);
-  }
-
-  class RootStatusReporter extends AbstractStatusReporter {
-    private RootStatusReporter(final FragmentContext context) {
-      super(context);
-    }
-
-    @Override
-    protected void statusChange(final FragmentHandle handle, final FragmentStatus status) {
-      statusUpdate(status);
     }
   }
 
@@ -345,7 +283,7 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
         for (int v = 0; v < minorMap.allocated.length; v++) {
           if (minorMap.allocated[v]) {
             final FragmentData data = (FragmentData) ((Object[]) minorMap.values)[v];
-            fb.addMinorFragmentProfile(data.getStatus().getProfile());
+            fb.addMinorFragmentProfile(data.getProfile());
           }
         }
         profileBuilder.addFragmentProfile(fb);
@@ -366,4 +304,163 @@ public class QueryManager implements FragmentStatusListener, DrillbitStatusListe
   void markEndTime() {
     endTime = System.currentTimeMillis();
   }
+
+  /**
+   * Internal class used to track the number of pending completion messages required from particular node.
+   */
+  private class NodeTracker {
+    private final DrillbitEndpoint endpoint;
+    private final AtomicInteger totalFragments = new AtomicInteger(0);
+    private final AtomicInteger completedFragments = new AtomicInteger(0);
+
+    public NodeTracker(DrillbitEndpoint endpoint) {
+      this.endpoint = endpoint;
+    }
+
+    /**
+     * Increments the number of fragment this node is running.
+     */
+    public void addFragment(){
+      totalFragments.incrementAndGet();
+    }
+
+    /**
+     * Increments the number of fragments completed on this node.  Once the number of fragments completed
+     * equals the number of fragments running, this will be marked as a finished node and result in the finishedNodes being incremented.
+     *
+     * If the number of remaining nodes has been decremented to zero, this will allow the query to move to a completed state.
+     */
+    public void fragmentComplete(){
+      if(totalFragments.get() == completedFragments.incrementAndGet()){
+        final int finishedNodes = QueryManager.this.finishedNodes.incrementAndGet();
+        final int totalNodes = nodeMap.size();
+        assert finishedNodes <= finishedNodes : "The finished node count exceeds the total node count";
+        final int remaining = totalNodes - finishedNodes;
+        logger.debug("waiting for {} nodes and {} fragments", remaining, finishedFragments.get());
+        if (remaining == 0) {
+          // this target state may be adjusted in moveToState() based on current FAILURE/CANCELLATION_REQUESTED status
+          stateListener.moveToState(QueryState.COMPLETED, null);
+        }      };
+    }
+
+    /**
+     * Increments the number of fragments completed on this node until we mark this node complete (which will additionally make
+     * sure that
+     */
+    public void nodeDead(){
+      while(completedFragments.get() < totalFragments.get()){
+        fragmentComplete();
+      }
+    }
+
+    public DrillbitEndpoint getEndpoint() {
+      return endpoint;
+    }
+
+  }
+
+  public RootStatusReporter getRootStatusHandler(final FragmentContext context) {
+    return new RootStatusReporter(context);
+  }
+
+  class RootStatusReporter extends AbstractStatusReporter {
+    private RootStatusReporter(final FragmentContext context) {
+      super(context);
+    }
+
+    @Override
+    protected void statusChange(final FragmentHandle handle, final FragmentStatus status) {
+      fragmentStatusListener.statusUpdate(status);
+    }
+  }
+
+  public FragmentStatusListener getFragmentStatusListener(){
+    return fragmentStatusListener;
+  }
+
+  private final FragmentStatusListener fragmentStatusListener = new FragmentStatusListener(){
+    @Override
+    public void statusUpdate(final FragmentStatus status) {
+      logger.debug("New fragment status was provided to QueryManager of {}", status);
+      switch(status.getProfile().getState()) {
+      case AWAITING_ALLOCATION:
+      case RUNNING:
+        updateFragmentStatus(status);
+        break;
+
+      case FINISHED:
+        fragmentDone(status);
+        break;
+
+      case CANCELLED:
+        /*
+         * TODO
+         * This doesn't seem right; shouldn't this be similar to FAILED?
+         * and this means once all are cancelled we'll get to COMPLETED, even though some weren't?
+         *
+         * So, we add it to the finishedFragments if we ourselves we receive a statusUpdate (from where),
+         * but not if our cancellation listener gets it?
+         */
+        // TODO(DRILL-2370) we might not get these, so we need to take extra care for cleanup
+        fragmentDone(status);
+        break;
+
+      case FAILED:
+        stateListener.moveToState(QueryState.FAILED, new RemoteRpcException(status.getProfile().getError()));
+        break;
+
+      default:
+        throw new UnsupportedOperationException(String.format("Received status of %s", status));
+      }
+    }
+  };
+
+
+  public DrillbitStatusListener getDrillbitStatusListener(){
+    return drillbitStatusListener;
+  }
+
+  private final DrillbitStatusListener drillbitStatusListener = new DrillbitStatusListener(){
+
+    @Override
+    public void drillbitRegistered(final Set<DrillbitEndpoint> registeredDrillbits) {
+    }
+
+    @Override
+    public void drillbitUnregistered(final Set<DrillbitEndpoint> unregisteredDrillbits) {
+      List<NodeTracker> failedNodes = Lists.newArrayList();
+      for(DrillbitEndpoint ep : unregisteredDrillbits) {
+        NodeTracker tracker = nodeMap.get(ep);
+        if (tracker != null) {
+          failedNodes.add(tracker);
+        }
+      }
+
+      if(!failedNodes.isEmpty()){
+        StringBuffer failedNodeList = new StringBuffer();
+        boolean first = true;
+        for(NodeTracker t : failedNodes){
+
+          // mark node dead so we don't wait for completion messages.
+          t.nodeDead();
+
+          // add node to list of dead nodes.
+          if(!first){
+            failedNodeList.append(", ");
+          }else{
+            first = false;
+          }
+          failedNodeList.append(t.getEndpoint().getAddress());
+          failedNodeList.append(t.getEndpoint().getUserPort());
+        }
+
+        logger.warn("Drillbits [{}] no longer registered in cluster.  Canceling query {}",
+            failedNodeList, QueryIdHelper.getQueryId(queryId));
+        stateListener.moveToState(QueryState.FAILED,
+            new ForemanException(String.format("One more more nodes lost connectivity during query.  Identified nodes were [%s].",
+                failedNodeList)));
+      }
+
+    }
+  };
 }

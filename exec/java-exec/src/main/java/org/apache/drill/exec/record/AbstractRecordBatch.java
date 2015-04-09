@@ -85,7 +85,9 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
   }
 
   public final IterOutcome next(RecordBatch b) {
-
+    if(!context.shouldContinue()){
+      return IterOutcome.STOP;
+    }
     return next(0, b);
   }
 
