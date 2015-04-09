@@ -88,6 +88,7 @@ public class DrillDistributionTraitDef extends RelTraitDef<DrillDistributionTrai
         break;
       case BROADCAST_DISTRIBUTED:
         newRel = new BroadcastExchangePrel(rel.getCluster(), planner.emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(toDist), rel);
+        break;
       default:
         newRel = null;
     }
