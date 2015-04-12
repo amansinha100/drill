@@ -57,6 +57,9 @@ public class DrillCostBase implements DrillRelOptCost {
   // add to the end of hash chain if no match found
   public static final int HASH_CPU_COST = 8 * BASE_CPU_COST;
 
+  // The ratio to convert memory cost into CPU cost.
+  public static final double MEMORY_TO_CPU_RATIO = 1.0;
+
   public static final int RANGE_PARTITION_CPU_COST = 12 * BASE_CPU_COST;
 
   // cost of comparing one field with another (ignoring data types for now)
