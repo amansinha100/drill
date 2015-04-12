@@ -27,10 +27,10 @@ public interface OptionManager extends Iterable<OptionValue> {
   public OptionManager getSystemManager();
   public OptionList getOptionList();
 
-  public boolean getOption(BooleanValidator validator);
-  public double getOption(DoubleValidator validator);
-  public long getOption(LongValidator validator);
-  public String getOption(StringValidator validator);
+  public boolean getOption(TypeValidators.BooleanValidator validator);
+  public double getOption(TypeValidators.DoubleValidator validator);
+  public long getOption(TypeValidators.LongValidator validator);
+  public String getOption(TypeValidators.StringValidator validator);
 
   public interface OptionAdmin {
     public void registerOptionType(OptionValidator validator);

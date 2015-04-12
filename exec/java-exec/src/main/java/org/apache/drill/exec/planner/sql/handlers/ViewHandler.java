@@ -20,7 +20,9 @@ package org.apache.drill.exec.planner.sql.handlers;
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.Table;
 import org.apache.calcite.tools.Planner;
 import org.apache.calcite.tools.RelConversionException;
 import org.apache.calcite.tools.ValidationException;
@@ -35,7 +37,6 @@ import org.apache.drill.exec.store.AbstractSchema;
 import org.apache.drill.exec.store.dfs.WorkspaceSchemaFactory.WorkspaceSchema;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlNode;
 
 import com.google.common.collect.ImmutableList;
@@ -91,14 +92,14 @@ public abstract class ViewHandler extends AbstractSqlHandler {
         final Table existingTable = SqlHandlerUtil.getTableFromSchema(drillSchema, viewName);
 
         if (existingTable != null) {
-          if (existingTable.getJdbcTableType() != TableType.VIEW) {
+          if (existingTable.getJdbcTableType() != Schema.TableType.VIEW) {
             // existing table is not a view
             throw new ValidationException(
                 String.format("A non-view table with given name [%s] already exists in schema [%s]",
                     viewName, schemaPath));
           }
 
-          if (existingTable.getJdbcTableType() == TableType.VIEW && !createView.getReplace()) {
+          if (existingTable.getJdbcTableType() == Schema.TableType.VIEW && !createView.getReplace()) {
             // existing table is a view and create view has no "REPLACE" clause
             throw new ValidationException(
                 String.format("A view with given name [%s] already exists in schema [%s]",

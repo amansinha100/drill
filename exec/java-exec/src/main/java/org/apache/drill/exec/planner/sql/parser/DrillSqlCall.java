@@ -26,6 +26,7 @@ import org.apache.drill.exec.planner.sql.handlers.SqlHandlerConfig;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.parser.SqlParserPos;
+import org.apache.drill.exec.util.Pointer;
 
 /**
  * SqlCall interface with addition of method to get the handler.

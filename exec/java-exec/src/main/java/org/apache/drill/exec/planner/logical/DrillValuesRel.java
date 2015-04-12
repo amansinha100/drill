@@ -25,9 +25,17 @@ import java.util.GregorianCalendar;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.calcite.rel.AbstractRelNode;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.sql.SqlExplainLevel;
+import org.apache.calcite.sql.type.SqlTypeUtil;
+import org.apache.calcite.util.NlsString;
+import org.apache.calcite.util.Pair;
+import org.apache.drill.common.JSONOptions;
+import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -39,7 +47,11 @@ import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.TokenBuffer;
-import com.google.common.base.Functions;
+import org.apache.drill.common.logical.data.Values;
+import org.apache.drill.exec.vector.complex.fn.ExtendedJsonOutput;
+import org.apache.drill.exec.vector.complex.fn.JsonOutput;
+import org.joda.time.DateTime;
+import org.joda.time.Period;
 
 /**
  * Values implemented in Drill.
@@ -53,7 +65,7 @@ public class DrillValuesRel extends AbstractRelNode implements DrillRel {
   private final JSONOptions options;
   private final double rowCount;
 
-  protected DrillValuesRel(RelOptCluster cluster, RelDataType rowType, List<List<RexLiteral>> tuples, RelTraitSet traits) {
+  protected DrillValuesRel(RelOptCluster cluster, RelDataType rowType, ImmutableList<ImmutableList<RexLiteral>> tuples, RelTraitSet traits) {
     super(cluster, traits);
     assert getConvention() == DRILL_LOGICAL;
     verifyRowType(tuples, rowType);
@@ -76,7 +88,7 @@ public class DrillValuesRel extends AbstractRelNode implements DrillRel {
     this.rowType = rowType;
   }
 
-  private static void verifyRowType(final List<List<RexLiteral>> tuples, RelDataType rowType){
+  private static void verifyRowType(final ImmutableList<ImmutableList<RexLiteral>> tuples, RelDataType rowType){
       for (List<RexLiteral> tuple : tuples) {
         assert (tuple.size() == rowType.getFieldCount());
 
@@ -126,7 +138,7 @@ public class DrillValuesRel extends AbstractRelNode implements DrillRel {
         .itemIf("tuples", options.asNode(), pw.getDetailLevel() == SqlExplainLevel.ALL_ATTRIBUTES);
   }
 
-  private static JsonNode convertToJsonNode(RelDataType rowType, List<List<RexLiteral>> tuples) throws IOException{
+  private static JsonNode convertToJsonNode(RelDataType rowType, ImmutableList<ImmutableList<RexLiteral>> tuples) throws IOException{
     TokenBuffer out = new TokenBuffer(MAPPER.getFactory().getCodec(), false);
     JsonOutput json = new ExtendedJsonOutput(out);
     json.writeStartArray();
