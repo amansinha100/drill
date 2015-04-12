@@ -19,10 +19,14 @@ package org.apache.drill.exec.planner.common;
 
 import java.util.List;
 
+import com.google.common.collect.Lists;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.Pair;
+import org.apache.drill.common.types.TypeProtos;
+import org.apache.drill.common.types.Types;
+import org.apache.drill.exec.resolver.TypeCastRules;
 
 /**
  * Utility class that is a subset of the RelOptUtil class and is a placeholder for Drill specific
