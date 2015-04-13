@@ -22,6 +22,7 @@ import org.apache.drill.common.util.FileUtils;
 import org.apache.drill.exec.rpc.RpcException;
 import org.apache.drill.exec.work.foreman.SqlUnsupportedException;
 import org.apache.drill.exec.work.foreman.UnsupportedRelOperatorException;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestUnionAll extends BaseTestQuery{
@@ -431,6 +432,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2717
+  @Ignore
   public void testUnionInputsGroupByOnCSV() throws Exception {
     String root = FileUtils.getResourceAsFile("/multilevel/csv/1994/Q1/orders_94_q1.csv").toURI().toString();
     String query = String.format("select * from \n" +
