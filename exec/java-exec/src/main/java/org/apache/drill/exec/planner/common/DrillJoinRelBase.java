@@ -74,7 +74,11 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
 
   @Override
   public double getRows() {
-    return joinRowFactor * Math.max(this.getLeft().getRows(), this.getRight().getRows());
+    if (this.condition.isAlwaysTrue()) {
+      return joinRowFactor * this.getLeft().getRows() * this.getRight().getRows();
+    } else {
+      return joinRowFactor * Math.max(this.getLeft().getRows(), this.getRight().getRows());
+    }
   }
 
   /**
