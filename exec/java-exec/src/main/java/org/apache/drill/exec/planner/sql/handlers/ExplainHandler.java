@@ -62,10 +62,8 @@ public class ExplainHandler extends DefaultSqlHandler {
     RelNode rel = convertToRel(validated);
     rel = preprocessNode(rel);
 
-    rel = addRenamedProject(rel, validatedRowType);
-
     log("Optiq Logical", rel);
-    DrillRel drel = convertToDrel(rel);
+    DrillRel drel = convertToDrel(rel, validatedRowType);
     log("Drill Logical", drel);
 
     if (mode == ResultMode.LOGICAL) {

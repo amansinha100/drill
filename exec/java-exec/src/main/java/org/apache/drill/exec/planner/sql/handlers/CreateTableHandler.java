@@ -64,8 +64,6 @@ public class CreateTableHandler extends DefaultSqlHandler {
 
       RelNode relQuery = convertToRel(validatedQuery);
 
-      relQuery = addRenamedProject(relQuery, validatedRowType);
-
       List<String> tblFiledNames = sqlCreateTable.getFieldNames();
       RelDataType queryRowType = relQuery.getRowType();
 
@@ -93,6 +91,7 @@ public class CreateTableHandler extends DefaultSqlHandler {
         RelDataType rowType = new DrillFixedRelDataTypeImpl(planner.getTypeFactory(), tblFiledNames);
 
         relQuery = RelOptUtil.createCastRel(relQuery, rowType, true);
+        validatedRowType = rowType;  // the CTAS's field lists become the validated Rowtype.
       }
 
       SchemaPlus schema = findSchema(context.getRootSchema(), context.getNewDefaultSchema(),
@@ -113,7 +112,7 @@ public class CreateTableHandler extends DefaultSqlHandler {
       log("Optiq Logical", relQuery);
 
       // Convert the query to Drill Logical plan and insert a writer operator on top.
-      DrillRel drel = convertToDrel(relQuery, drillSchema, newTblName);
+      DrillRel drel = convertToDrel(relQuery, drillSchema, newTblName, validatedRowType);
       log("Drill Logical", drel);
       Prel prel = convertToPrel(drel);
       log("Drill Physical", prel);
@@ -128,7 +127,7 @@ public class CreateTableHandler extends DefaultSqlHandler {
     }
   }
 
-  private DrillRel convertToDrel(RelNode relNode, AbstractSchema schema, String tableName) throws RelConversionException {
+  private DrillRel convertToDrel(RelNode relNode, AbstractSchema schema, String tableName, RelDataType validatedRowType) throws RelConversionException {
     RelNode convertedRelNode = planner.transform(DrillSqlWorker.LOGICAL_RULES,
         relNode.getTraitSet().plus(DrillRel.DRILL_LOGICAL), relNode);
 
@@ -136,8 +135,11 @@ public class CreateTableHandler extends DefaultSqlHandler {
       throw new UnsupportedOperationException();
     }
 
-    DrillWriterRel writerRel = new DrillWriterRel(convertedRelNode.getCluster(), convertedRelNode.getTraitSet(),
-        convertedRelNode, schema.createNewTable(tableName));
+    // Put a non-trivial topProject to ensure the final output field name is preserved, when necessary.
+    DrillRel topPreservedNameProj = addRenamedProject((DrillRel)convertedRelNode, validatedRowType);
+
+    DrillWriterRel writerRel = new DrillWriterRel(topPreservedNameProj.getCluster(), topPreservedNameProj.getTraitSet(),
+        topPreservedNameProj, schema.createNewTable(tableName));
     return new DrillScreenRel(writerRel.getCluster(), writerRel.getTraitSet(), writerRel);
   }
 

@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.rules.ProjectRemoveRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
@@ -44,6 +46,7 @@ import org.apache.drill.exec.physical.PhysicalPlan;
 import org.apache.drill.exec.physical.base.AbstractPhysicalVisitor;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.impl.join.JoinUtils;
+import org.apache.drill.exec.planner.logical.DrillProjectRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
 import org.apache.drill.exec.planner.logical.DrillStoreRel;
@@ -144,10 +147,10 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     RelNode rel = convertToRel(validated);
     rel = preprocessNode(rel);
 
-    rel = addRenamedProject(rel, validatedRowType);
 
     log("Optiq Logical", rel);
-    DrillRel drel = convertToDrel(rel);
+    DrillRel drel = convertToDrel(rel, validatedRowType);
+
     log("Drill Logical", drel);
     Prel prel = convertToPrel(drel);
     log("Drill Physical", prel);
@@ -157,7 +160,7 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     return plan;
   }
 
-  protected RelNode addRenamedProject(RelNode rel, RelDataType validatedRowType) {
+  protected DrillRel addRenamedProject(DrillRel rel, RelDataType validatedRowType) {
     RelDataType t = rel.getRowType();
 
     RexBuilder b = rel.getCluster().getRexBuilder();
@@ -170,7 +173,16 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
 
     final List<String> fieldNames2 = SqlValidatorUtil.uniquify(validatedRowType.getFieldNames(), SqlValidatorUtil.F_SUGGESTER2);
 
-    return RelOptUtil.createProject(rel, projections, fieldNames2);
+    RelDataType newRowType = RexUtil.createStructType(rel.getCluster().getTypeFactory(), projections, fieldNames2);
+
+    DrillProjectRel topProj = DrillProjectRel.create(rel.getCluster(), rel.getTraitSet(), rel, projections, newRowType);
+
+    if (ProjectRemoveRule.isTrivial(topProj, true)) {
+      return rel;
+    } else{
+      return topProj;
+    }
+    //return RelOptUtil.createProject(rel, projections, fieldNames2);
 
   }
 
@@ -224,14 +236,16 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     return rel;
   }
 
-  protected DrillRel convertToDrel(RelNode relNode) throws RelConversionException, SqlUnsupportedException {
+  protected DrillRel convertToDrel(RelNode relNode, RelDataType validatedRowType) throws RelConversionException, SqlUnsupportedException {
     try {
       RelNode convertedRelNode = planner.transform(DrillSqlWorker.LOGICAL_RULES,
           relNode.getTraitSet().plus(DrillRel.DRILL_LOGICAL), relNode);
       if (convertedRelNode instanceof DrillStoreRel) {
         throw new UnsupportedOperationException();
       } else {
-        return new DrillScreenRel(convertedRelNode.getCluster(), convertedRelNode.getTraitSet(), convertedRelNode);
+        // Put a non-trivial topProject to ensure the final output field name is preserved, when necessary.
+        DrillRel topPreservedNameProj = addRenamedProject((DrillRel)convertedRelNode, validatedRowType);
+        return new DrillScreenRel(topPreservedNameProj.getCluster(), topPreservedNameProj.getTraitSet(), topPreservedNameProj);
       }
     } catch (RelOptPlanner.CannotPlanException ex) {
       logger.error(ex.getMessage());
