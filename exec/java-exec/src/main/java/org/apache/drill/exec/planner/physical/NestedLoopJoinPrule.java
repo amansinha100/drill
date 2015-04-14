@@ -44,14 +44,22 @@ public class NestedLoopJoinPrule extends JoinPruleBase {
   protected boolean checkPreconditions(DrillJoinRel join, RelNode left, RelNode right,
       PlannerSettings settings) {
     JoinRelType type = join.getJoinType();
-    boolean match = (type == JoinRelType.INNER || type == JoinRelType.LEFT);
-    if (match) {
-      if (settings.isNlJoinForScalarOnly() &&
-          !(JoinUtils.isScalarSubquery(left) || JoinUtils.isScalarSubquery(right))) {
-        match = false;
-      }
+
+    if (! (type == JoinRelType.INNER || type == JoinRelType.LEFT)) {
+      return false;
     }
-    return match;
+
+    if (!join.getCondition().isAlwaysTrue()
+        && (settings.isHashJoinEnabled() || settings.isMergeJoinEnabled())) {
+      return false;
+    }
+
+    if (settings.isNlJoinForScalarOnly() &&
+        !(JoinUtils.isScalarSubquery(left) || JoinUtils.isScalarSubquery(right))) {
+      return false;
+    }
+
+    return true;
   }
 
   @Override
