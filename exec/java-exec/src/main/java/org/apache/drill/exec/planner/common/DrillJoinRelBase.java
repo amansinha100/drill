@@ -59,12 +59,14 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    /*
     List<Integer> tmpLeftKeys = Lists.newArrayList();
     List<Integer> tmpRightKeys = Lists.newArrayList();
     RexNode remaining = RelOptUtil.splitJoinCondition(left, right, condition, tmpLeftKeys, tmpRightKeys);
     if (!remaining.isAlwaysTrue() || (tmpLeftKeys.size() == 0 || tmpRightKeys.size() == 0)) {
       return ((DrillCostFactory)planner.getCostFactory()).makeInfiniteCost();
     }
+    */
 
     // We do not know which join method, i.e HASH-join or MergeJoin, will be used in Logical Planning.
     // Here, we assume to use Hash-join, since this is a more commonly-used Join method in Drill.

@@ -64,7 +64,6 @@ public class TestNestedLoopJoin extends PlanTestBase {
   }
 
   @Test
-  @Ignore
   public void testNlJoinNotIn_1_planning() throws Exception {
     testPlanMatchingPatterns(testNlJoinNotIn_1, new String[]{nlpattern}, new String[]{});
   }
