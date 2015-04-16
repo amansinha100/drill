@@ -62,10 +62,13 @@ import com.google.common.collect.Lists;
  * Base class for logical and physical Project implemented in Drill
  */
 public abstract class DrillProjectRelBase extends Project implements DrillRelNode {
+  private final int nonSimpleFieldCount ;
+
   protected DrillProjectRelBase(Convention convention, RelOptCluster cluster, RelTraitSet traits, RelNode child, List<RexNode> exps,
       RelDataType rowType) {
     super(cluster, traits, child, exps, rowType, Flags.BOXED);
     assert getConvention() == convention;
+    nonSimpleFieldCount = this.getRowType().getFieldCount() - getSimpleFieldCount();
   }
 
   @Override
@@ -74,10 +77,11 @@ public abstract class DrillProjectRelBase extends Project implements DrillRelNod
       return super.computeSelfCost(planner).multiplyBy(.1);
     }
 
-    int nonSimpleFieldCount = this.getRowType().getFieldCount() - getSimpleFieldCount();
+    // int nonSimpleFieldCount = this.getRowType().getFieldCount() - getSimpleFieldCount();
     // cost is proportional to the number of rows and number of columns being projected
     double rowCount = nonSimpleFieldCount >0 ? RelMetadataQuery.getRowCount(this) : 0;
     double cpuCost = DrillCostBase.PROJECT_CPU_COST * rowCount * nonSimpleFieldCount;
+
     DrillCostFactory costFactory = (DrillCostFactory)planner.getCostFactory();
     return costFactory.makeCost(rowCount, cpuCost, 0, 0);
   }
@@ -200,32 +204,6 @@ public abstract class DrillProjectRelBase extends Project implements DrillRelNod
     private boolean doUnknown(Object o) {
       return false;
     }
-  }
-
-
-  private boolean isComplexFieldWithNamedSegmentOnly(RexCall call) {
-    while (call != null) {
-      if (call.getOperator() == SqlStdOperatorTable.ITEM) {
-        final RexNode op0 = call.getOperands().get(0);
-        final RexNode op1 = call.getOperands().get(1);
-
-        if (op0 instanceof RexInputRef &&
-            op1 instanceof RexLiteral &&
-            ((RexLiteral) op1).getTypeName() == SqlTypeName.CHAR) {
-          return true;
-        } else if (op1 instanceof RexLiteral
-            && ((RexLiteral) op1).getTypeName() == SqlTypeName.DECIMAL) {
-          return false;
-        }  else if (op0 instanceof RexCall) {
-          call = (RexCall) op0;
-        } else{
-          return false;
-        }
-      } else{
-        return false;
-      }
-    }
-    return false;
   }
 
 }
