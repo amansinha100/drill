@@ -139,4 +139,32 @@ public class TestNestedLoopJoin extends PlanTestBase {
     test("alter session set `planner.slice_target` = 100000");
   }
 
+  // EXECUTION TESTS
+
+  @Test
+  public void testNlJoinExists_1_exec() throws Exception {
+    testBuilder()
+        .sqlQuery(testNlJoinExists_1)
+        .unOrdered()
+        .baselineColumns("r_regionkey")
+        .baselineValues(0)
+        .baselineValues(1)
+        .baselineValues(2)
+        .baselineValues(3)
+        .baselineValues(4)
+        .go();
+  }
+
+  @Test
+  public void testNlJoinNotIn_1_exec() throws Exception {
+    testBuilder()
+        .sqlQuery(testNlJoinNotIn_1)
+        .unOrdered()
+        .baselineColumns("r_regionkey")
+        .baselineValues(2)
+        .baselineValues(3)
+        .baselineValues(4)
+        .go();
+  }
+
 }
