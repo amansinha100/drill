@@ -54,9 +54,12 @@ public class NestedLoopJoinPrule extends JoinPruleBase {
       return false;
     }
 
-    if (settings.isNlJoinForScalarOnly() &&
-        !(JoinUtils.isScalarSubquery(left) || JoinUtils.isScalarSubquery(right))) {
-      return false;
+    if (settings.isNlJoinForScalarOnly()) {
+      if (JoinUtils.isScalarSubquery(left) || JoinUtils.isScalarSubquery(right)) {
+        return true;
+      } else {
+        return false;
+      }
     }
 
     return true;

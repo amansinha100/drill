@@ -26,6 +26,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.drill.exec.planner.logical.DrillAggregateRel;
+import org.apache.drill.exec.planner.logical.DrillFilterRel;
 
 import java.util.List;
 
@@ -106,15 +107,21 @@ public class JoinUtils {
 
   public static boolean isScalarSubquery(RelNode childrel) {
     DrillAggregateRel agg = null;
-    if (childrel instanceof DrillAggregateRel) {
-      agg = (DrillAggregateRel)childrel;
-    }
-    if (agg == null && childrel instanceof RelSubset) {
-      RelNode rel = ((RelSubset)childrel).getBest() ;
-      if (rel != null && rel instanceof DrillAggregateRel) {
-        agg = (DrillAggregateRel) rel;
+    RelNode currentrel = childrel;
+    while (true) {
+      if (currentrel instanceof DrillAggregateRel) {
+        agg = (DrillAggregateRel)currentrel;
+        break;
+      } else if (currentrel instanceof DrillFilterRel) {
+        currentrel = currentrel.getInput(0);
+      } else if (currentrel instanceof RelSubset) {
+        currentrel = ((RelSubset)currentrel).getBest() ;
+        if (currentrel == null) break;
+      } else {
+        break;
       }
     }
+
     if (agg != null) {
       if (agg.getGroupSet().isEmpty()) {
         return true;
