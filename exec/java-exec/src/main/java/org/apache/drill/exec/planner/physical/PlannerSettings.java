@@ -19,6 +19,7 @@ package org.apache.drill.exec.planner.physical;
 
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
+import org.apache.drill.exec.ops.QueryContext;
 import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.server.options.OptionValidator;
 import org.apache.drill.exec.server.options.TypeValidators.BooleanValidator;
@@ -36,6 +37,7 @@ public class PlannerSettings implements Context{
 
   public static final int MAX_BROADCAST_THRESHOLD = Integer.MAX_VALUE;
   public static final int DEFAULT_IDENTIFIER_MAX_LENGTH = 1024;
+
 
   public static final OptionValidator CONSTANT_FOLDING = new BooleanValidator("planner.enable_constant_folding", true);
   public static final OptionValidator EXCHANGE = new BooleanValidator("planner.disable_exchanges", false);
@@ -58,6 +60,9 @@ public class PlannerSettings implements Context{
   public static final OptionValidator HASH_SINGLE_KEY = new BooleanValidator("planner.enable_hash_single_key", true);
   public static final OptionValidator HASH_JOIN_SWAP = new BooleanValidator("planner.enable_hashjoin_swap", true);
   public static final OptionValidator HASH_JOIN_SWAP_MARGIN_FACTOR = new RangeDoubleValidator("planner.join.hash_join_swap_margin_factor", 0, 100, 10d);
+  public static final OptionValidator PLANNER_CONTEXT_MAX_OFF_HEAP_MEMORY =
+      new RangeLongValidator("planner.context_max_off_heap_memory", QueryContext.INITIAL_OFF_HEAP_ALLOCATION_IN_BYTES,
+          Long.MAX_VALUE, QueryContext.DEFAULT_MAX_OFF_HEAP_ALLOCATION_IN_BYTES);
 
   public static final OptionValidator IDENTIFIER_MAX_LENGTH =
       new RangeLongValidator("planner.identifier_max_length", 128 /* A minimum length is needed because option names are identifiers themselves */,
@@ -161,6 +166,10 @@ public class PlannerSettings implements Context{
 
   public long getIdentifierMaxLength(){
     return options.getOption(IDENTIFIER_MAX_LENGTH.getOptionName()).num_val;
+  }
+
+  public long getPlannerMaxOffHeapMemory() {
+    return options.getOption(PLANNER_CONTEXT_MAX_OFF_HEAP_MEMORY.getOptionName()).num_val;
   }
 
   @Override

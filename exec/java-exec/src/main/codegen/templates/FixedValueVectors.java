@@ -116,6 +116,9 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements F
     logger.info("Realloc vector {}. [{}] -> [{}]", field, allocationValueCount * ${type.width}, allocationValueCount * 2 * ${type.width});
     allocationValueCount *= 2;
     DrillBuf newBuf = allocator.buffer(allocationValueCount * ${type.width});
+    if (newBuf == null) {
+      throw new OutOfMemoryRuntimeException("Failure while re-allocating buffer.");
+    }
     newBuf.setBytes(0, data, 0, data.capacity());
     newBuf.setZero(newBuf.capacity() / 2, newBuf.capacity() / 2);
     newBuf.writerIndex(data.writerIndex());

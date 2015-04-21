@@ -185,7 +185,7 @@ public abstract class PruneScanRule extends RelOptRule {
       final NullableVarCharVector[] vectors = new NullableVarCharVector[descriptor.getMaxHierarchyLevel()];
       for(int dirIndex : BitSets.toIter(dirBitset)){
         NullableVarCharVector vector = new NullableVarCharVector(MaterializedField.create(dirNames.get(dirIndex), Types.optional(MinorType.VARCHAR)), allocator);
-        vector.allocateNew(5000, partitions.size());
+        vector.allocateNew();
         vectors[dirIndex] = vector;
         container.add(vector);
       }

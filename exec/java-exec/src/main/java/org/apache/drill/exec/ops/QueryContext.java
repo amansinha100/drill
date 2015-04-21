@@ -58,8 +58,8 @@ public class QueryContext implements AutoCloseable, UdfUtilities {
   private final BufferAllocator allocator;
   private final BufferManager bufferManager;
   private final QueryDateTimeInfo queryDateTimeInfo;
-  private static final int INITIAL_OFF_HEAP_ALLOCATION_IN_BYTES = 1024 * 1024;
-  private static final int MAX_OFF_HEAP_ALLOCATION_IN_BYTES = 16 * 1024 * 1024;
+  public static final int INITIAL_OFF_HEAP_ALLOCATION_IN_BYTES = 1024 * 1024;
+  public static final int DEFAULT_MAX_OFF_HEAP_ALLOCATION_IN_BYTES = 256 * 1024 * 1024;
 
   /*
    * Flag to indicate if close has been called, after calling close the first
@@ -82,7 +82,7 @@ public class QueryContext implements AutoCloseable, UdfUtilities {
 
     try {
       allocator = drillbitContext.getAllocator().getChildAllocator(null, INITIAL_OFF_HEAP_ALLOCATION_IN_BYTES,
-          MAX_OFF_HEAP_ALLOCATION_IN_BYTES, false);
+          plannerSettings.getPlannerMaxOffHeapMemory(), false);
     } catch (OutOfMemoryException e) {
       throw new DrillRuntimeException("Error creating off-heap allocator for planning context.",e);
     }
