@@ -67,6 +67,7 @@ public class SystemOptionManager extends BaseOptionManager {
       PlannerSettings.PARTITION_SENDER_THREADS_FACTOR,
       PlannerSettings.PARTITION_SENDER_MAX_THREADS,
       PlannerSettings.PARTITION_SENDER_SET_THREADS,
+      PlannerSettings.PLANNER_CONTEXT_MAX_OFF_HEAP_MEMORY,
       ExecConstants.CAST_TO_NULLABLE_NUMERIC_OPTION,
       ExecConstants.OUTPUT_FORMAT_VALIDATOR,
       ExecConstants.PARQUET_BLOCK_SIZE_VALIDATOR,
