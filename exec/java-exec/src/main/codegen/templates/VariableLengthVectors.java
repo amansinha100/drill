@@ -299,6 +299,9 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements V
     public void reAlloc() {
       allocationTotalByteCount *= 2;
       DrillBuf newBuf = allocator.buffer(allocationTotalByteCount);
+      if (newBuf == null) {
+        throw new OutOfMemoryRuntimeException("Failure while re-allocating buffer.");
+      }      
       newBuf.setBytes(0, data, 0, data.capacity());
       data.release();
       data = newBuf;
