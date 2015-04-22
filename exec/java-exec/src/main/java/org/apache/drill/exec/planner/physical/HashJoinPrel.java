@@ -24,6 +24,9 @@ import org.apache.calcite.rel.core.Join;
 import org.apache.drill.common.logical.data.JoinCondition;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.HashJoinPOP;
+import org.apache.drill.exec.physical.impl.join.JoinUtils;
+import org.apache.drill.exec.physical.impl.join.JoinUtils.JoinCategory;
+import org.apache.drill.exec.planner.cost.DrillCostBase.DrillCostFactory;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.core.JoinRelType;
@@ -31,7 +34,6 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rex.RexNode;
 
@@ -44,13 +46,14 @@ public class HashJoinPrel  extends JoinPrel {
   public HashJoinPrel(RelOptCluster cluster, RelTraitSet traits, RelNode left, RelNode right, RexNode condition,
                       JoinRelType joinType) throws InvalidRelException {
     this(cluster, traits, left, right, condition, joinType, false);
+    joincategory = JoinUtils.getJoinCategory(left, right, condition, leftKeys, rightKeys);
   }
 
   public HashJoinPrel(RelOptCluster cluster, RelTraitSet traits, RelNode left, RelNode right, RexNode condition,
       JoinRelType joinType, boolean swapped) throws InvalidRelException {
     super(cluster, traits, left, right, condition, joinType);
     this.swapped = swapped;
-    RelOptUtil.splitJoinCondition(left, right, condition, leftKeys, rightKeys);
+    joincategory = JoinUtils.getJoinCategory(left, right, condition, leftKeys, rightKeys);
   }
 
   @Override
@@ -66,6 +69,9 @@ public class HashJoinPrel  extends JoinPrel {
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
     if(PrelUtil.getSettings(getCluster()).useDefaultCosting()) {
       return super.computeSelfCost(planner).multiplyBy(.1);
+    }
+    if (joincategory == JoinCategory.CARTESIAN || joincategory == JoinCategory.INEQUALITY) {
+      return ((DrillCostFactory)planner.getCostFactory()).makeInfiniteCost();
     }
     return computeHashJoinCost(planner);
   }

@@ -20,6 +20,8 @@ package org.apache.drill.exec.planner.physical;
 
 import java.util.List;
 
+import org.apache.drill.exec.physical.impl.join.JoinUtils;
+import org.apache.drill.exec.physical.impl.join.JoinUtils.JoinCategory;
 import org.apache.drill.exec.planner.common.DrillJoinRelBase;
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait.DistributionField;
@@ -31,7 +33,6 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
@@ -51,16 +52,10 @@ public abstract class JoinPruleBase extends Prule {
 
   protected boolean checkPreconditions(DrillJoinRel join, RelNode left, RelNode right,
       PlannerSettings settings) {
-    if (join.getCondition().isAlwaysTrue()) {
-      // this indicates a cartesian join which is not supported by hash join and merge join
-      return false;
-    }
-
     List<Integer> leftKeys = Lists.newArrayList();
     List<Integer> rightKeys = Lists.newArrayList() ;
-    RexNode remaining = RelOptUtil.splitJoinCondition(left, right, join.getCondition(), leftKeys, rightKeys);
-    if (!remaining.isAlwaysTrue() && (leftKeys.size() == 0 || rightKeys.size() == 0)) {
-      // this is a non-equijoin which is not supported by hash join and merge join
+    JoinCategory category = JoinUtils.getJoinCategory(left, right, join.getCondition(), leftKeys, rightKeys);
+    if (category == JoinCategory.CARTESIAN || category == JoinCategory.INEQUALITY) {
       return false;
     }
     return true;

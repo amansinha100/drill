@@ -18,14 +18,10 @@
 
 package org.apache.drill.exec.physical.impl.join;
 
-import static org.junit.Assert.assertEquals;
-
 import org.apache.drill.PlanTestBase;
 import org.apache.drill.common.util.TestTools;
 import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 
 public class TestNestedLoopJoin extends PlanTestBase {
 
@@ -53,9 +49,20 @@ public class TestNestedLoopJoin extends PlanTestBase {
       + " where r_regionkey not in (select n_regionkey from cp.`tpch/nation.parquet` "
       + "                            where n_nationkey < 4)";
 
+  // not-in subquery produces empty set
+  private static final String testNlJoinNotIn_2 = "select r_regionkey from cp.`tpch/region.parquet` "
+      + " where r_regionkey not in (select n_regionkey from cp.`tpch/nation.parquet` "
+      + "                            where 1=0)";
+
   private static final String testNlJoinInequality_1 = "select r_regionkey from cp.`tpch/region.parquet` "
       + " where r_regionkey > (select min(n_regionkey) from cp.`tpch/nation.parquet` "
       + "                        where n_nationkey < 4)";
+
+  private static final String testNlJoinInequality_2 = "select r.r_regionkey, n.n_nationkey from cp.`tpch/nation.parquet` n "
+      + " inner join cp.`tpch/region.parquet` r on n.n_regionkey < r.r_regionkey where n.n_nationkey < 3";
+
+  private static final String testNlJoinInequality_3 = "select r_regionkey from cp.`tpch/region.parquet` "
+      + " where r_regionkey > (select min(n_regionkey) * 2 from cp.`tpch/nation.parquet` )";
 
 
   @Test
@@ -64,7 +71,7 @@ public class TestNestedLoopJoin extends PlanTestBase {
   }
 
   @Test
-  @Ignore
+  // @Ignore
   public void testNlJoinNotIn_1_planning() throws Exception {
     testPlanMatchingPatterns(testNlJoinNotIn_1, new String[]{nlpattern}, new String[]{});
   }
@@ -72,6 +79,21 @@ public class TestNestedLoopJoin extends PlanTestBase {
   @Test
   public void testNlJoinInequality_1() throws Exception {
     testPlanMatchingPatterns(testNlJoinInequality_1, new String[]{nlpattern}, new String[]{});
+  }
+
+  @Test
+  public void testNlJoinInequality_2() throws Exception {
+    test(DISABLE_NLJ_SCALAR);
+    testPlanMatchingPatterns(testNlJoinInequality_2, new String[]{nlpattern}, new String[]{});
+    test(ENABLE_NLJ_SCALAR);
+  }
+
+  @Test
+  @Ignore // Re-test after CALCITE-695 is resolved
+  public void testNlJoinInequality_3() throws Exception {
+    test(DISABLE_NLJ_SCALAR);
+    testPlanMatchingPatterns(testNlJoinInequality_3, new String[]{nlpattern}, new String[]{});
+    test(ENABLE_NLJ_SCALAR);
   }
 
   @Test
@@ -123,8 +145,6 @@ public class TestNestedLoopJoin extends PlanTestBase {
 
   @Test // equality join and non-scalar right input, hj and mj disabled, enforce exchanges
   public void testNlJoinEqualityNonScalar_2_planning() throws Exception {
-    // String query = "select r.r_regionkey from cp.`tpch/region.parquet` r inner join cp.`tpch/nation.parquet` n"
-    //  + " on r.r_regionkey = n.n_regionkey where n.n_nationkey < 10";
     String query = String.format("select n.n_nationkey from cp.`tpch/nation.parquet` n, "
         + " dfs_test.`%s/multilevel/parquet` o "
         + " where n.n_regionkey = o.o_orderkey and o.o_custkey < 5", TEST_RES_PATH);
@@ -161,6 +181,20 @@ public class TestNestedLoopJoin extends PlanTestBase {
         .sqlQuery(testNlJoinNotIn_1)
         .unOrdered()
         .baselineColumns("r_regionkey")
+        .baselineValues(2)
+        .baselineValues(3)
+        .baselineValues(4)
+        .go();
+  }
+
+  @Test
+  public void testNlJoinNotIn_2_exec() throws Exception {
+    testBuilder()
+        .sqlQuery(testNlJoinNotIn_2)
+        .unOrdered()
+        .baselineColumns("r_regionkey")
+        .baselineValues(0)
+        .baselineValues(1)
         .baselineValues(2)
         .baselineValues(3)
         .baselineValues(4)

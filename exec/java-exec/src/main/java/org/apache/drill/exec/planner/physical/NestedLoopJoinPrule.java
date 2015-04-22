@@ -17,9 +17,11 @@
  */
 package org.apache.drill.exec.planner.physical;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 import org.apache.drill.exec.physical.impl.join.JoinUtils;
+import org.apache.drill.exec.physical.impl.join.JoinUtils.JoinCategory;
 import org.apache.drill.exec.planner.logical.DrillJoinRel;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.calcite.rel.InvalidRelException;
@@ -29,6 +31,8 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
 import org.apache.calcite.util.trace.CalciteTrace;
+
+import com.google.common.collect.Lists;
 
 
 public class NestedLoopJoinPrule extends JoinPruleBase {
@@ -49,7 +53,10 @@ public class NestedLoopJoinPrule extends JoinPruleBase {
       return false;
     }
 
-    if (!join.getCondition().isAlwaysTrue()
+    List<Integer> leftKeys = Lists.newArrayList();
+    List<Integer> rightKeys = Lists.newArrayList() ;
+    JoinCategory category = JoinUtils.getJoinCategory(left, right, join.getCondition(), leftKeys, rightKeys);
+    if (category == JoinCategory.EQUALITY
         && (settings.isHashJoinEnabled() || settings.isMergeJoinEnabled())) {
       return false;
     }
