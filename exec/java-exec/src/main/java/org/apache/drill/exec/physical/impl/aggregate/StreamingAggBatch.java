@@ -60,7 +60,21 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   private final RecordBatch incoming;
   private boolean done = false;
   private boolean first = true;
-  private boolean schemaBuilt = false;
+  private int recordCount = 0;
+
+  /*
+   * DRILL-2277, DRILL-2411: For straight aggregates without a group by clause we need to perform special handling when
+   * the incoming batch is empty. In the case of the empty input into the streaming aggregate we need
+   * to return a single batch with one row. For count we need to return 0 and for all other aggregate
+   * functions like sum, avg etc we need to return an explicit row with NULL. Since we correctly allocate the type of
+   * the outgoing vectors (required for count and nullable for other aggregate functions) all we really need to do
+   * is simply set the record count to be 1 in such cases. By default behavior this will be equivalent to 0 for count
+   * and NULL for other functions.
+   *
+   * We maintain some state to remember that we have done such special handling.
+   */
+  private boolean specialBatchSent = false;
+  private static final int SPECIAL_BATCH_COUNT = 1;
 
   public StreamingAggBatch(StreamingAggregate popConfig, RecordBatch incoming, FragmentContext context) throws OutOfMemoryException {
     super(popConfig, context);
@@ -69,13 +83,10 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
   @Override
   public int getRecordCount() {
-    if (done) {
+    if (done || aggregator == null) {
       return 0;
     }
-    if (aggregator == null) {
-      return 0;
-    }
-    return aggregator.getOutputCount();
+    return recordCount;
   }
 
   @Override
@@ -95,7 +106,13 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
   @Override
   public IterOutcome innerNext() {
-      // this is only called on the first batch. Beyond this, the aggregator manages batches.
+
+    // if a special batch has been sent, we have no data in the incoming so exit early
+    if (specialBatchSent) {
+      return IterOutcome.NONE;
+    }
+
+    // this is only called on the first batch. Beyond this, the aggregator manages batches.
     if (aggregator == null || first) {
       IterOutcome outcome;
       if (first && incoming.getRecordCount() > 0) {
@@ -107,6 +124,18 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
       logger.debug("Next outcome of {}", outcome);
       switch (outcome) {
       case NONE:
+        if (first && popConfig.getKeys().length == 0) {
+          // if we have a straight aggregate and empty input batch, we need to handle it in a different way
+          for (VectorWrapper vw: container) {
+            vw.getValueVector().getMutator().setValueCount(SPECIAL_BATCH_COUNT);
+          }
+          container.setRecordCount(SPECIAL_BATCH_COUNT);
+          recordCount = SPECIAL_BATCH_COUNT;
+          first = false;
+          // set state to indicate the fact that we have sent a special batch and input is empty
+          specialBatchSent = true;
+          return IterOutcome.OK;
+        }
       case NOT_YET:
       case STOP:
         return outcome;
@@ -125,6 +154,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
     while (true) {
       AggOutcome out = aggregator.doWork();
+      recordCount = aggregator.getOutputCount();
       logger.debug("Aggregator response {}, records {}", out, aggregator.getOutputCount());
       switch (out) {
       case CLEANUP_AND_RETURN:
