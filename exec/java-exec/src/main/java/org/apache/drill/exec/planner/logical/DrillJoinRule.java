@@ -108,11 +108,11 @@ public class DrillJoinRule extends RelOptRule {
     try {
       if (!addFilter) {
        RelNode joinRel = new DrillJoinRel(join.getCluster(), traits, convertedLeft, convertedRight, origJoinCondition,
-                                         join.getJoinType(), leftKeys, rightKeys, false);
+                                         join.getJoinType(), leftKeys, rightKeys);
        call.transformTo(joinRel);
       } else {
         RelNode joinRel = new DrillJoinRel(join.getCluster(), traits, convertedLeft, convertedRight, newJoinCondition,
-                                           join.getJoinType(), leftKeys, rightKeys, false);
+                                           join.getJoinType(), leftKeys, rightKeys);
         call.transformTo(new DrillFilterRel(join.getCluster(), traits, joinRel, remaining));
       }
     } catch (InvalidRelException e) {
