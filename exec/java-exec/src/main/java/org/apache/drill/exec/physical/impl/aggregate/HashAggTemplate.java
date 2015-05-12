@@ -51,6 +51,7 @@ import org.apache.drill.exec.record.RecordBatch.IterOutcome;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.testing.ExecutionControlsInjector;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.FixedWidthVector;
 import org.apache.drill.exec.vector.ObjectVector;
@@ -59,6 +60,7 @@ import org.apache.drill.exec.vector.VariableWidthVector;
 
 public abstract class HashAggTemplate implements HashAggregator {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggregator.class);
+  private final static ExecutionControlsInjector injector = ExecutionControlsInjector.getInjector(HashAggTemplate.class);
 
   private static final long ALLOCATOR_INITIAL_RESERVATION = 1 * 1024 * 1024;
   private static final long ALLOCATOR_MAX_RESERVATION = 20L * 1000 * 1000 * 1000;

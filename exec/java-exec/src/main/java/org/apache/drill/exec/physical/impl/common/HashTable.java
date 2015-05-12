@@ -31,7 +31,7 @@ public interface HashTable {
   /**
    * The initial default capacity of the hash table (in terms of number of buckets).
    */
-  static final public int DEFAULT_INITIAL_CAPACITY = 1 << 16;
+  static final public int DEFAULT_INITIAL_CAPACITY = 1 << 4;
 
   /**
    * The maximum capacity of the hash table (in terms of number of buckets).

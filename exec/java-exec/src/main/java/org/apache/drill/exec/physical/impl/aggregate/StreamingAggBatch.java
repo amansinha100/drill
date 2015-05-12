@@ -50,6 +50,7 @@ import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
+import org.apache.drill.exec.testing.ExecutionControlsInjector;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.FixedWidthVector;
 import org.apache.drill.exec.vector.ValueVector;
@@ -59,6 +60,11 @@ import com.sun.codemodel.JVar;
 
 public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StreamingAggBatch.class);
+  private final static ExecutionControlsInjector injector = ExecutionControlsInjector.getInjector(StreamingAggBatch.class);
+  public static final String TEST_STREAMAGG_RETURN_OUTCOME = "test-streamagg-return-outcome";
+  public static final String TEST_STREAMAGG_FIRST_BATCH = "test-streamagg-first-batch";
+  public static final String TEST_STREAMAGG_OUTPUT_PREV = "test-streamagg-output-prev";
+
 
   private StreamingAggregator aggregator;
   private final RecordBatch incoming;
@@ -128,6 +134,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
     // this is only called on the first batch. Beyond this, the aggregator manages batches.
     if (aggregator == null || first) {
+      injector.injectUnchecked(context.getExecutionControls(), TEST_STREAMAGG_FIRST_BATCH);
       IterOutcome outcome;
       if (first && incoming.getRecordCount() > 0) {
         first = false;
@@ -174,6 +181,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
       done = true;
       // fall through
     case RETURN_OUTCOME:
+      injector.injectUnchecked(context.getExecutionControls(), TEST_STREAMAGG_RETURN_OUTCOME);
       IterOutcome outcome = aggregator.getOutcome();
       if (outcome == IterOutcome.NONE && first) {
         first = false;
@@ -382,6 +390,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
   private void outputRecordKeysPrev(ClassGenerator<StreamingAggregator> cg, TypedFieldId[] keyOutputIds, LogicalExpression[] keyExprs) {
     cg.setMappingSet(RECORD_KEYS_PREV);
+    injector.injectUnchecked(context.getExecutionControls(), TEST_STREAMAGG_OUTPUT_PREV);
 
     for (int i =0; i < keyExprs.length; i++) {
       // IMPORTANT: there is an implicit assertion here that the TypedFieldIds for the previous batch and the current batch are the same.  This is possible because InternalBatch guarantees this.

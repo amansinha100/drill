@@ -79,4 +79,5 @@ public class TestAllocationException extends BaseTestQuery {
   public void testWithOOM() throws Exception{
     testWithException("queries/tpch/03.sql", NullPointerException.class);
   }
+
 }

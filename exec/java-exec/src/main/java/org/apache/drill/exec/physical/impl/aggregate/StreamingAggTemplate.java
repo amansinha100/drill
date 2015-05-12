@@ -24,11 +24,15 @@ import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.testing.ExecutionControlsInjector;
 
 public abstract class StreamingAggTemplate implements StreamingAggregator {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StreamingAggregator.class);
+  private final static ExecutionControlsInjector injector = ExecutionControlsInjector.getInjector(StreamingAggTemplate.class);
+
   private static final boolean EXTRA_DEBUG = false;
-  private static final int OUTPUT_BATCH_SIZE = 32*1024;
+//  private static final int OUTPUT_BATCH_SIZE = 32*1024;
+  private static final int OUTPUT_BATCH_SIZE = 1024;
 
   private IterOutcome lastOutcome = null;
   private boolean first = true;

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Preconditions;
+
 import org.apache.commons.math3.util.Pair;
 import org.apache.drill.QueryTestUtil;
 import org.apache.drill.SingleRowListener;
@@ -48,6 +49,9 @@ import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.memory.TopLevelAllocator;
 import org.apache.drill.exec.physical.impl.ScreenCreator;
 import org.apache.drill.exec.physical.impl.SingleSenderCreator.SingleSenderRootExec;
+import org.apache.drill.exec.physical.impl.aggregate.HashAggBatch;
+import org.apache.drill.exec.physical.impl.aggregate.StreamingAggBatch;
+import org.apache.drill.exec.physical.impl.common.HashTableTemplate;
 import org.apache.drill.exec.physical.impl.mergereceiver.MergingRecordBatch;
 import org.apache.drill.exec.physical.impl.partitionsender.PartitionSenderRootExec;
 import org.apache.drill.exec.physical.impl.partitionsender.PartitionerDecorator;
@@ -103,6 +107,30 @@ public class TestDrillbitResilience extends DrillTest {
    * counting sys.drillbits.
    */
   private static final String TEST_QUERY = "select * from sys.memory";
+
+  private static final String TEST_TPCDS_AGG_QUERY =
+      "select sr_returned_date_sk , sr_return_time_sk , sr_item_sk , sr_customer_sk , sr_cdemo_sk , "
+    + " sr_hdemo_sk , sr_addr_sk , sr_store_sk , sr_reason_sk , sr_ticket_number , sr_return_quantity , sr_return_amt , "
+    + " sr_return_tax , sr_return_amt_inc_tax ,   sr_fee   , sr_return_ship_cost , sr_refunded_cash , sr_reversed_charge , "
+    + " sr_store_credit , sr_net_loss "
+    + " from dfs.`/Users/asinha/data/tpcds/store_returns` "
+    + " group by sr_returned_date_sk , sr_return_time_sk , sr_item_sk , sr_customer_sk , sr_cdemo_sk , sr_hdemo_sk , "
+    + " sr_addr_sk , sr_store_sk , sr_reason_sk , sr_ticket_number , sr_return_quantity , sr_return_amt , sr_return_tax , "
+    + " sr_return_amt_inc_tax ,   sr_fee   , sr_return_ship_cost , sr_refunded_cash , sr_reversed_charge , sr_store_credit , sr_net_loss"
+    + " LIMIT 10";
+
+  private static final String TEST_TPCDS_PLAIN_AGG_QUERY =
+      "select count(distinct sr_returned_date_sk) , count(distinct sr_return_time_sk), "
+    + " avg(sr_return_quantity) , avg(sr_return_amt) "
+    + " from dfs.`/Users/asinha/data/tpcds/store_returns` "
+    + " LIMIT 1";
+
+  private static final String TEST_TPCH_AGG_QUERY =
+      "select l_orderkey , l_partkey , l_suppkey , l_linenumber , l_shipdate , l_commitdate , l_receiptdate , l_shipinstruct , l_shipmode, "
+      + "sum(l_extendedprice),  min(l_discount),  avg(l_tax), count(*) "
+      + "from cp.`tpch/lineitem.parquet` "
+      + "where l_returnflag = 'N' "
+      + "group by l_orderkey , l_partkey , l_suppkey , l_linenumber , l_shipdate , l_commitdate , l_receiptdate , l_shipinstruct , l_shipmode ";
 
   private static void startDrillbit(final String name, final RemoteServiceSet remoteServiceSet) {
     if (drillbits.containsKey(name)) {
@@ -682,10 +710,10 @@ public class TestDrillbitResilience extends DrillTest {
    * Given a set of controls, this method ensures TEST_QUERY fails with the given class and desc.
    */
   private static void assertFailsWithException(final String controls, final Class<? extends Throwable> exceptionClass,
-                                               final String exceptionDesc) {
+                                               final String exceptionDesc, final String query) {
     setControls(controls);
     final WaitUntilCompleteListener listener = new WaitUntilCompleteListener();
-    QueryTestUtil.testWithListener(drillClient, QueryType.SQL, TEST_QUERY, listener);
+    QueryTestUtil.testWithListener(drillClient, QueryType.SQL, query, listener);
     final Pair<QueryState, Exception> result = listener.waitForCompletion();
     final QueryState state = result.getFirst();
     assertTrue(String.format("Query state should be FAILED (and not %s).", state), state == QueryState.FAILED);
@@ -714,6 +742,11 @@ public class TestDrillbitResilience extends DrillTest {
     final Class<? extends Throwable> exceptionClass = IOException.class;
     final String controls = createSingleException(FragmentExecutor.class, exceptionDesc, exceptionClass);
     assertFailsWithException(controls, exceptionClass, exceptionDesc);
+  }
+
+  private static void assertFailsWithException(final String controls, final Class<? extends Throwable> exceptionClass,
+      final String exceptionDesc) {
+    assertFailsWithException(controls, exceptionClass, exceptionDesc, TEST_QUERY);
   }
 
   /**
@@ -791,4 +824,130 @@ public class TestDrillbitResilience extends DrillTest {
         createPauseInjection(SingleSenderRootExec.class, "data-tunnel-send-batch-wait-for-interrupt", 1);
     assertCancelled(control, TEST_QUERY, new ListenerThatCancelsQueryAfterFirstBatchOfData());
   }
+
+  private static void testHashAggHelper(final String desc, final String query) {
+    final String controls = createSingleException(HashAggBatch.class, desc, IllegalArgumentException.class);
+    assertFailsWithException(controls, IllegalArgumentException.class, desc, query);
+  }
+
+  private static void testStreamAggHelper(final String desc, final String query) {
+    final String controls = createSingleException(StreamingAggBatch.class, desc, IllegalArgumentException.class);
+    assertFailsWithException(controls, IllegalArgumentException.class, desc, query);
+  }
+
+  private static void testHashTableHelper(final String desc, final String query) {
+    final String controls = createSingleException(HashTableTemplate.class, desc, IllegalArgumentException.class);
+    assertFailsWithException(controls, IllegalArgumentException.class, desc, query);
+  }
+
+  @Test
+  public void hashagg_return_outcome() {
+    final long before = countAllocatedMemory();
+
+    testHashAggHelper(HashAggBatch.TEST_HASHAGG_RETURN_OUTCOME, TEST_TPCH_AGG_QUERY);
+
+    testHashTableHelper(HashTableTemplate.TEST_HASHTABLE_BEFORE_RESIZE, TEST_TPCDS_AGG_QUERY);
+    testHashTableHelper(HashTableTemplate.TEST_HASHTABLE_AFTER_RESIZE, TEST_TPCDS_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void hashagg_before_resize() {
+    final long before = countAllocatedMemory();
+
+    setSessionOption(HASHAGG.getOptionName(), "true");
+    testHashTableHelper(HashTableTemplate.TEST_HASHTABLE_BEFORE_RESIZE, TEST_TPCDS_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void hashagg_after_resize() {
+    final long before = countAllocatedMemory();
+
+    // testHashTableHelper(HashTableTemplate.TEST_HASHTABLE_AFTER_RESIZE, TEST_TPCDS_AGG_QUERY);
+    testHashTableHelper(HashTableTemplate.TEST_HASHTABLE_PUT_ENTRY, TEST_TPCDS_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void hashagg_all_flush() {
+    final long before = countAllocatedMemory();
+
+    testHashAggHelper(HashAggBatch.TEST_HASHAGG_ALL_FLUSHED, TEST_TPCH_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void streamagg_return_outcome() {
+    final long before = countAllocatedMemory();
+
+    try {
+      setSessionOption(HASHAGG.getOptionName(), "false");
+      testStreamAggHelper(StreamingAggBatch.TEST_STREAMAGG_RETURN_OUTCOME, TEST_TPCDS_AGG_QUERY);
+      // testStreamAggHelper(StreamingAggBatch.TEST_STREAMAGG_RETURN_OUTCOME, TEST_TPCDS_PLAIN_AGG_QUERY);
+    } finally {
+      setSessionOption(HASHAGG.getOptionName(), HASHAGG.getDefault().bool_val.toString());
+    }
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void streamagg_first_batch() {
+    final long before = countAllocatedMemory();
+
+    try {
+      setSessionOption(HASHAGG.getOptionName(), "false");
+      // testStreamAggHelper(StreamingAggBatch.TEST_STREAMAGG_FIRST_BATCH, TEST_TPCDS_AGG_QUERY);
+      testStreamAggHelper(StreamingAggBatch.TEST_STREAMAGG_FIRST_BATCH, TEST_TPCDS_PLAIN_AGG_QUERY);
+    } finally {
+      setSessionOption(HASHAGG.getOptionName(), HASHAGG.getDefault().bool_val.toString());
+    }
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void streamagg_output_prev() {
+    final long before = countAllocatedMemory();
+
+    try {
+      setSessionOption(HASHAGG.getOptionName(), "false");
+      testStreamAggHelper(StreamingAggBatch.TEST_STREAMAGG_OUTPUT_PREV, TEST_TPCH_AGG_QUERY);
+      // testStreamAggHelper(StreamingAggBatch.TEST_STREAMAGG_OUTPUT_PREV, TEST_TPCDS_PLAIN_AGG_QUERY);
+    } finally {
+      setSessionOption(HASHAGG.getOptionName(), HASHAGG.getDefault().bool_val.toString());
+    }
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+
+  private long countAllocatedMemory() {
+    // wait to make sure all fragments finished cleaning up
+    try {
+      Thread.sleep(2000);
+    } catch (InterruptedException e) {
+      // just ignore
+    }
+
+    long allocated = 0;
+    for (String name : drillbits.keySet()) {
+      allocated += drillbits.get(name).getContext().getAllocator().getAllocatedMemory();
+    }
+
+    return allocated;
+  }
+
 }

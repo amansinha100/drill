@@ -30,11 +30,13 @@ import org.apache.drill.exec.compile.sig.RuntimeOverridden;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.ops.FragmentContext;
+import org.apache.drill.exec.physical.impl.aggregate.HashAggBatch;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.testing.ExecutionControlsInjector;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.BigIntVector;
 import org.apache.drill.exec.vector.FixedWidthVector;
@@ -45,6 +47,11 @@ import org.apache.drill.exec.vector.VariableWidthVector;
 public abstract class HashTableTemplate implements HashTable {
 
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashTable.class);
+  private final static ExecutionControlsInjector injector = ExecutionControlsInjector.getInjector(HashTableTemplate.class);
+  public static final String TEST_HASHTABLE_BEFORE_RESIZE = "test-hashtable-before-resize";
+  public static final String TEST_HASHTABLE_AFTER_RESIZE = "test-hashtable-after-resize";
+  public static final String TEST_HASHTABLE_PUT_ENTRY = "test-hashtable-put-entry";
+
   private static final boolean EXTRA_DEBUG = false;
 
   private static final int EMPTY_SLOT = -1;
@@ -608,6 +615,8 @@ public abstract class HashTableTemplate implements HashTable {
 
       insertEntry(incomingRowIdx, currentIdx, hash, lastEntryBatch, lastEntryIdxWithinBatch);
       htIdxHolder.value = currentIdx;
+
+      injector.injectUnchecked(context.getExecutionControls(), TEST_HASHTABLE_PUT_ENTRY);
       return PutStatus.KEY_ADDED;
     }
 
@@ -694,6 +703,7 @@ public abstract class HashTableTemplate implements HashTable {
     if (numEntries < threshold) {
       return;
     }
+    injector.injectUnchecked(context.getExecutionControls(), TEST_HASHTABLE_BEFORE_RESIZE);
 
     long t0 = System.currentTimeMillis();
 
@@ -742,6 +752,8 @@ public abstract class HashTableTemplate implements HashTable {
     }
     resizingTime += System.currentTimeMillis() - t0;
     numResizing++;
+
+    injector.injectUnchecked(context.getExecutionControls(), TEST_HASHTABLE_AFTER_RESIZE);
   }
 
   public boolean outputKeys(int batchIdx, VectorContainer outContainer, int outStartIndex, int numRecords) {
