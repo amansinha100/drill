@@ -49,14 +49,17 @@ import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
+import org.apache.drill.exec.testing.ExecutionControlsInjector;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.work.fragment.FragmentExecutor;
 
 import com.sun.codemodel.JExpr;
 import com.sun.codemodel.JVar;
 
 public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggBatch.class);
+  private final static ExecutionControlsInjector injector = ExecutionControlsInjector.getInjector(HashAggBatch.class);
 
   private HashAggregator aggregator;
   private final RecordBatch incoming;
@@ -119,10 +122,12 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   public IterOutcome innerNext() {
 
     if (aggregator.allFlushed()) {
+      injector.injectUnchecked(context.getExecutionControls(), "hashagg-all-flushed");
       return IterOutcome.NONE;
     }
 
     if (aggregator.buildComplete() && !aggregator.allFlushed()) {
+      injector.injectUnchecked(context.getExecutionControls(), "hashagg-output-partial");
       // aggregation is complete and not all records have been output yet
       return aggregator.outputCurrentBatch();
     }
@@ -133,11 +138,13 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     logger.debug("Aggregator response {}, records {}", out, aggregator.getOutputCount());
     switch (out) {
     case CLEANUP_AND_RETURN:
+      injector.injectUnchecked(context.getExecutionControls(), "hashagg-cleanup");
       container.zeroVectors();
       aggregator.cleanup();
       state = BatchState.DONE;
       // fall through
     case RETURN_OUTCOME:
+      injector.injectUnchecked(context.getExecutionControls(), "hashagg-return-outcome");
       return aggregator.getOutcome();
     case UPDATE_AGGREGATOR:
       context.fail(UserException.unsupportedError()

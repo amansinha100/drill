@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Preconditions;
+
 import org.apache.commons.math3.util.Pair;
 import org.apache.drill.QueryTestUtil;
 import org.apache.drill.SingleRowListener;
@@ -47,6 +48,7 @@ import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.memory.TopLevelAllocator;
 import org.apache.drill.exec.physical.impl.ScreenCreator;
+import org.apache.drill.exec.physical.impl.aggregate.HashAggBatch;
 import org.apache.drill.exec.physical.impl.mergereceiver.MergingRecordBatch;
 import org.apache.drill.exec.physical.impl.partitionsender.PartitionSenderRootExec;
 import org.apache.drill.exec.physical.impl.partitionsender.PartitionerDecorator;
@@ -100,6 +102,17 @@ public class TestDrillbitResilience {
    * counting sys.drillbits.
    */
   private static final String TEST_QUERY = "select * from sys.memory";
+
+  private static final String TEST_AGG_QUERY =
+            "select sr_returned_date_sk , sr_return_time_sk , sr_item_sk , sr_customer_sk , sr_cdemo_sk , "
+          + " sr_hdemo_sk , sr_addr_sk , sr_store_sk , sr_reason_sk , sr_ticket_number , sr_return_quantity , sr_return_amt , "
+          + " sr_return_tax , sr_return_amt_inc_tax ,   sr_fee   , sr_return_ship_cost , sr_refunded_cash , sr_reversed_charge , "
+          + " sr_store_credit , sr_net_loss "
+          + " from dfs.`/Users/asinha/data/tpcds/store_returns` "
+          + " group by sr_returned_date_sk , sr_return_time_sk , sr_item_sk , sr_customer_sk , sr_cdemo_sk , sr_hdemo_sk , "
+          + " sr_addr_sk , sr_store_sk , sr_reason_sk , sr_ticket_number , sr_return_quantity , sr_return_amt , sr_return_tax , "
+          + " sr_return_amt_inc_tax ,   sr_fee   , sr_return_ship_cost , sr_refunded_cash , sr_reversed_charge , sr_store_credit , sr_net_loss"
+          + " LIMIT 10";
 
   private static void startDrillbit(final String name, final RemoteServiceSet remoteServiceSet) {
     if (drillbits.containsKey(name)) {
@@ -678,10 +691,10 @@ public class TestDrillbitResilience {
    * Given a set of controls, this method ensures TEST_QUERY fails with the given class and desc.
    */
   private static void assertFailsWithException(final String controls, final Class<? extends Throwable> exceptionClass,
-                                               final String exceptionDesc) {
+                                               final String exceptionDesc, final String query) {
     setControls(controls);
     final WaitUntilCompleteListener listener = new WaitUntilCompleteListener();
-    QueryTestUtil.testWithListener(drillClient, QueryType.SQL, TEST_QUERY, listener);
+    QueryTestUtil.testWithListener(drillClient, QueryType.SQL, query, listener);
     final Pair<QueryState, Exception> result = listener.waitForCompletion();
     final QueryState state = result.getFirst();
     assertTrue(String.format("Query state should be FAILED (and not %s).", state), state == QueryState.FAILED);
@@ -710,6 +723,11 @@ public class TestDrillbitResilience {
     final Class<? extends Throwable> exceptionClass = IOException.class;
     final String controls = createSingleException(FragmentExecutor.class, exceptionDesc, exceptionClass);
     assertFailsWithException(controls, exceptionClass, exceptionDesc);
+  }
+
+  private static void assertFailsWithException(final String controls, final Class<? extends Throwable> exceptionClass,
+      final String exceptionDesc) {
+    assertFailsWithException(controls, exceptionClass, exceptionDesc, TEST_QUERY);
   }
 
   /**
@@ -780,4 +798,67 @@ public class TestDrillbitResilience {
           Long.toString(PARTITION_SENDER_SET_THREADS.getDefault().num_val));
     }
   }
+
+  private static void testHashAggHelper(final String desc, final String query) {
+    final String controls = createSingleException(HashAggBatch.class, desc, IllegalArgumentException.class);
+    assertFailsWithException(controls, IllegalArgumentException.class, desc, query);
+  }
+
+  @Test
+  public void hashagg_cleanup() {
+    final long before = countAllocatedMemory();
+
+    testHashAggHelper("hashagg-cleanup", TEST_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void hashagg_return_outcome() {
+    final long before = countAllocatedMemory();
+
+    testHashAggHelper("hashagg-return-outcome", TEST_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void hashagg_all_flush() {
+    final long before = countAllocatedMemory();
+
+    testHashAggHelper("hashagg-all-flushed", TEST_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+  @Test
+  public void hashagg_output_partial() {
+    final long before = countAllocatedMemory();
+
+    testHashAggHelper("hashagg-output-partial", TEST_AGG_QUERY);
+
+    final long after = countAllocatedMemory();
+    assertEquals(String.format("We are leaking %d bytes", after - before), before, after);
+  }
+
+
+  private long countAllocatedMemory() {
+    // wait to make sure all fragments finished cleaning up
+    try {
+      Thread.sleep(2000);
+    } catch (InterruptedException e) {
+      // just ignore
+    }
+
+    long allocated = 0;
+    for (String name : drillbits.keySet()) {
+      allocated += drillbits.get(name).getContext().getAllocator().getAllocatedMemory();
+    }
+
+    return allocated;
+  }
+
 }
