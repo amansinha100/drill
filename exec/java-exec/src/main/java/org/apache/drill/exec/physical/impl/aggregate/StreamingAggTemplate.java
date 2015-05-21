@@ -88,7 +88,7 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
         // consume empty batches until we get one with data.
         if (incoming.getRecordCount() == 0) {
           outer: while (true) {
-            IterOutcome out = outgoing.next(0, incoming);
+            IterOutcome out = outgoing.next(0, incoming, -1);
             switch (out) {
             case OK_NEW_SCHEMA:
             case OK:
@@ -169,7 +169,7 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
         try {
           while (true) {
 
-            IterOutcome out = outgoing.next(0, incoming);
+            IterOutcome out = outgoing.next(0, incoming, -1);
             if (EXTRA_DEBUG) {
               logger.debug("Received IterOutcome of {}", out);
             }

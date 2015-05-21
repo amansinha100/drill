@@ -88,21 +88,21 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
     return popConfig;
   }
 
-  public final IterOutcome next(final RecordBatch b) {
+  public final IterOutcome next(final RecordBatch b, final long rowLimit) {
     if(!context.shouldContinue()) {
       return IterOutcome.STOP;
     }
-    return next(0, b);
+    return next(0, b, rowLimit);
   }
 
-  public final IterOutcome next(final int inputIndex, final RecordBatch b){
+  public final IterOutcome next(final int inputIndex, final RecordBatch b, final long rowLimit){
     IterOutcome next = null;
     stats.stopProcessing();
     try{
       if (!context.shouldContinue()) {
         return IterOutcome.STOP;
       }
-      next = b.next();
+      next = b.next(rowLimit);
     }finally{
       stats.startProcessing();
     }
@@ -119,7 +119,7 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
     return next;
   }
 
-  public final IterOutcome next() {
+  public final IterOutcome next(final long rowLimit) {
     try {
       stats.startProcessing();
       switch (state) {
@@ -143,7 +143,7 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
           return IterOutcome.NONE;
         }
         default:
-          return innerNext();
+          return innerNext(rowLimit);
       }
     } catch (final SchemaChangeException e) {
       throw new DrillRuntimeException(e);
@@ -152,7 +152,7 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
     }
   }
 
-  public abstract IterOutcome innerNext();
+  public abstract IterOutcome innerNext(long rowLimit);
 
   @Override
   public BatchSchema getSchema() {

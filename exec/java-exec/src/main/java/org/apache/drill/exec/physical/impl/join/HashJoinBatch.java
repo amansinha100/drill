@@ -48,6 +48,7 @@ import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.record.AbstractRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
+import org.apache.drill.exec.record.RecordBatch.IterOutcome;
 import org.apache.drill.exec.record.ExpandableHyperContainer;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
@@ -169,8 +170,8 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
 
   @Override
   protected void buildSchema() throws SchemaChangeException {
-    leftUpstream = next(left);
-    rightUpstream = next(right);
+    leftUpstream = next(left, -1);
+    rightUpstream = next(right, -1);
 
     if (leftUpstream == IterOutcome.STOP || rightUpstream == IterOutcome.STOP) {
       state = BatchState.STOP;
@@ -209,7 +210,7 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     try {
       /* If we are here for the first time, execute the build phase of the
        * hash join and setup the run time generated class for the probe side
@@ -225,13 +226,17 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
         updateStats(this.hashTable);
       }
 
+//      if (oContext.isRowLimitReached()) {
+//        return IterOutcome.STOP;
+//      }
+
       // Store the number of records projected
       if (!hashTable.isEmpty() || joinType != JoinRelType.INNER) {
 
         // Allocate the memory for the vectors in the output container
         allocateVectors();
 
-        outputRecords = hashJoinProbe.probeAndProject();
+        outputRecords = hashJoinProbe.probeAndProject(rowLimit);
 
         /* We are here because of one the following
          * 1. Completed processing of all the records and we are done
@@ -257,12 +262,12 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
             wrapper.getValueVector().clear();
           }
           left.kill(true);
-          leftUpstream = next(HashJoinHelper.LEFT_INPUT, left);
+          leftUpstream = next(HashJoinHelper.LEFT_INPUT, left, -1);
           while (leftUpstream == IterOutcome.OK_NEW_SCHEMA || leftUpstream == IterOutcome.OK) {
             for (VectorWrapper<?> wrapper : left) {
               wrapper.getValueVector().clear();
             }
-            leftUpstream = next(HashJoinHelper.LEFT_INPUT, left);
+            leftUpstream = next(HashJoinHelper.LEFT_INPUT, left, -1);
           }
         }
       }
@@ -330,7 +335,7 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
       for (VectorWrapper w : right) {
         w.clear();
       }
-      rightUpstream = next(right);
+      rightUpstream = next(right, -1);
     }
 
     boolean moreData = true;
@@ -408,7 +413,7 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
         break;
       }
       // Get the next record batch
-      rightUpstream = next(HashJoinHelper.RIGHT_INPUT, right);
+      rightUpstream = next(HashJoinHelper.RIGHT_INPUT, right, -1);
     }
   }
 

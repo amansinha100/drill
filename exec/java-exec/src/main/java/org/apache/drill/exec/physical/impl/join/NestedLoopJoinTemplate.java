@@ -166,7 +166,7 @@ public abstract class NestedLoopJoinTemplate implements NestedLoopJoin {
       vw.getValueVector().clear();
     }
     nextRightBatchToProcess = nextRightRecordToProcess = nextLeftRecordToProcess = 0;
-    RecordBatch.IterOutcome leftOutcome = outgoing.next(NestedLoopJoinBatch.LEFT_INPUT, left);
+    RecordBatch.IterOutcome leftOutcome = outgoing.next(NestedLoopJoinBatch.LEFT_INPUT, left, -1);
     switch (leftOutcome) {
       case OK_NEW_SCHEMA:
         throw new DrillRuntimeException("Nested loop join does not handle schema change. Schema change" +

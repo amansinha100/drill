@@ -110,7 +110,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
    *
    */
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     logger.trace("innerNext(), noMoreBatches = {}", noMoreBatches);
 
     // Short circuit if record batch has already sent all data and is done
@@ -120,7 +120,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
 
     // keep saving incoming batches until the first unprocessed batch can be processed, or upstream == NONE
     while (!noMoreBatches && !framer.canDoWork()) {
-      IterOutcome upstream = next(incoming);
+      IterOutcome upstream = next(incoming, -1);
       logger.trace("next(incoming) returned {}", upstream);
 
       switch (upstream) {
@@ -179,7 +179,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   @Override
   protected void buildSchema() throws SchemaChangeException {
     logger.trace("buildSchema()");
-    IterOutcome outcome = next(incoming);
+    IterOutcome outcome = next(incoming, -1);
     switch (outcome) {
       case NONE:
         state = BatchState.DONE;

@@ -105,10 +105,11 @@ public interface RecordBatch extends VectorAccessible {
    * Update the data in each Field reading interface for the next range of records. Once a RecordBatch returns an
    * IterOutcome.NONE, the consumer should no longer next(). Behavior at this point is undetermined and likely to throw
    * an exception.
+   * @param rowLimit TODO
    *
    * @return An IterOutcome describing the result of the iteration.
    */
-  public IterOutcome next();
+  public IterOutcome next(long rowLimit);
 
   /**
    * Get a writable version of this batch. Takes over owernship of existing buffers.

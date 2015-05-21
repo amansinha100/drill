@@ -155,7 +155,7 @@ public class ScanBatch implements CloseableRecordBatch {
   }
 
   @Override
-  public IterOutcome next() {
+  public IterOutcome next(long rowLimit) {
     if (done) {
       return IterOutcome.NONE;
     }

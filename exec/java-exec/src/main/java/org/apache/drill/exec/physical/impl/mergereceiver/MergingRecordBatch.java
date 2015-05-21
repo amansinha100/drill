@@ -163,7 +163,7 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if (fragProviders.length == 0) {
       return IterOutcome.NONE;
     }

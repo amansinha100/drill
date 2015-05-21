@@ -186,7 +186,7 @@ public class ExternalSortBatch extends AbstractRecordBatch<ExternalSort> {
 
   @Override
   public void buildSchema() throws SchemaChangeException {
-    IterOutcome outcome = next(incoming);
+    IterOutcome outcome = next(incoming, -1);
     switch (outcome) {
       case OK:
       case OK_NEW_SCHEMA:
@@ -214,7 +214,7 @@ public class ExternalSortBatch extends AbstractRecordBatch<ExternalSort> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if (schema != null) {
       if (spillCount == 0) {
         return (getSelectionVector4().next()) ? IterOutcome.OK : IterOutcome.NONE;
@@ -245,7 +245,7 @@ public class ExternalSortBatch extends AbstractRecordBatch<ExternalSort> {
         if (first) {
           upstream = IterOutcome.OK_NEW_SCHEMA;
         } else {
-          upstream = next(incoming);
+          upstream = next(incoming, -1);
         }
         if (upstream == IterOutcome.OK && sorter == null) {
           upstream = IterOutcome.OK_NEW_SCHEMA;

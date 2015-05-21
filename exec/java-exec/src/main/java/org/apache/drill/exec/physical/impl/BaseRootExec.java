@@ -80,7 +80,7 @@ public abstract class BaseRootExec implements RootExec {
     stats.stopProcessing();
     IterOutcome next;
     try {
-      next = b.next();
+      next = b.next(-1);
     } finally {
       stats.startProcessing();
     }

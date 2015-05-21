@@ -41,20 +41,21 @@ public abstract class AbstractSingleRecordBatch<T extends PhysicalOperator> exte
     incoming.kill(sendUpstream);
   }
 
+
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     // Short circuit if record batch has already sent all data and is done
     if (state == BatchState.DONE) {
       return IterOutcome.NONE;
     }
 
-    IterOutcome upstream = next(incoming);
+    IterOutcome upstream = next(incoming, rowLimit);
     if (state != BatchState.FIRST && upstream == IterOutcome.OK && incoming.getRecordCount() == 0) {
       do {
         for (VectorWrapper w : incoming) {
           w.clear();
         }
-      } while ((upstream = next(incoming)) == IterOutcome.OK && incoming.getRecordCount() == 0);
+      } while ((upstream = next(incoming, rowLimit)) == IterOutcome.OK && incoming.getRecordCount() == 0);
     }
     if ((state == BatchState.FIRST) && upstream == IterOutcome.OK) {
       upstream = IterOutcome.OK_NEW_SCHEMA;

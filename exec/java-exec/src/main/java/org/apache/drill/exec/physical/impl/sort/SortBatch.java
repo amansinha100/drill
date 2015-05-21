@@ -90,7 +90,7 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if (schema != null) {
       if (getSelectionVector4().next()) {
         return IterOutcome.OK;
@@ -101,7 +101,7 @@ public class SortBatch extends AbstractRecordBatch<Sort> {
 
     try{
       outer: while (true) {
-        IterOutcome upstream = incoming.next();
+        IterOutcome upstream = incoming.next(-1);
         switch (upstream) {
         case NONE:
           break outer;

@@ -174,7 +174,7 @@ public class ExpressionInterpreterTest  extends PopUnitTestBase {
 
     ScanBatch batch = createMockScanBatch(bit1, scanPOP, planFragment);
 
-    batch.next();
+    batch.next(-1);
 
     ValueVector vv = evalExprWithInterpreter(expressionStr, batch, bit1);
 

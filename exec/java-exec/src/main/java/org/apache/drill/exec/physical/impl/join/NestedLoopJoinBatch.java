@@ -137,7 +137,7 @@ public class NestedLoopJoinBatch extends AbstractRecordBatch<NestedLoopJoinPOP> 
    * @return IterOutcome state of the nested loop join batch
    */
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
 
     // Accumulate batches on the right in a hyper container
     if (state == BatchState.FIRST) {
@@ -151,7 +151,7 @@ public class NestedLoopJoinBatch extends AbstractRecordBatch<NestedLoopJoinPOP> 
 
       boolean drainRight = true;
       while (drainRight) {
-        rightUpstream = next(RIGHT_INPUT, right);
+        rightUpstream = next(RIGHT_INPUT, right, -1);
         switch (rightUpstream) {
           case OK_NEW_SCHEMA:
             if (!right.getSchema().equals(rightSchema)) {
@@ -205,7 +205,7 @@ public class NestedLoopJoinBatch extends AbstractRecordBatch<NestedLoopJoinPOP> 
       for (VectorWrapper<?> wrapper : right) {
         wrapper.getValueVector().clear();
       }
-      rightUpstream = next(HashJoinHelper.RIGHT_INPUT, right);
+      rightUpstream = next(HashJoinHelper.RIGHT_INPUT, right, -1);
     }
   }
 
@@ -294,8 +294,8 @@ public class NestedLoopJoinBatch extends AbstractRecordBatch<NestedLoopJoinPOP> 
   protected void buildSchema() throws SchemaChangeException {
 
     try {
-      leftUpstream = next(LEFT_INPUT, left);
-      rightUpstream = next(RIGHT_INPUT, right);
+      leftUpstream = next(LEFT_INPUT, left, -1);
+      rightUpstream = next(RIGHT_INPUT, right, -1);
 
       if (leftUpstream == IterOutcome.STOP || rightUpstream == IterOutcome.STOP) {
         state = BatchState.STOP;
@@ -315,7 +315,7 @@ public class NestedLoopJoinBatch extends AbstractRecordBatch<NestedLoopJoinPOP> 
 
         // if we have a schema batch, skip it
         if (left.getRecordCount() == 0) {
-          leftUpstream = next(LEFT_INPUT, left);
+          leftUpstream = next(LEFT_INPUT, left, -1);
         }
       }
 

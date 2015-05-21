@@ -122,7 +122,7 @@ public class TopNBatch extends AbstractRecordBatch<TopN> {
   @Override
   public void buildSchema() throws SchemaChangeException {
     VectorContainer c = new VectorContainer(oContext);
-    IterOutcome outcome = next(incoming);
+    IterOutcome outcome = next(incoming, -1);
     switch (outcome) {
       case OK:
       case OK_NEW_SCHEMA:
@@ -159,7 +159,7 @@ public class TopNBatch extends AbstractRecordBatch<TopN> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if (state == BatchState.DONE) {
       return IterOutcome.NONE;
     }
@@ -183,7 +183,7 @@ public class TopNBatch extends AbstractRecordBatch<TopN> {
           upstream = IterOutcome.OK_NEW_SCHEMA;
           first = false;
         } else {
-          upstream = next(incoming);
+          upstream = next(incoming, -1);
         }
         if (upstream == IterOutcome.OK && schema == null) {
           upstream = IterOutcome.OK_NEW_SCHEMA;
@@ -423,7 +423,7 @@ public class TopNBatch extends AbstractRecordBatch<TopN> {
     }
 
     @Override
-    public IterOutcome next() {
+    public IterOutcome next(long rowLimit) {
       throw new UnsupportedOperationException();
     }
 

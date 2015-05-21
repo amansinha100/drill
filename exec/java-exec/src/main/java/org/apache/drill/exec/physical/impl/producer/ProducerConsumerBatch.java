@@ -57,7 +57,7 @@ public class ProducerConsumerBatch extends AbstractRecordBatch {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if (!running) {
       producer.start();
       running = true;
@@ -129,7 +129,7 @@ public class ProducerConsumerBatch extends AbstractRecordBatch {
         }
         outer:
         while (true) {
-          final IterOutcome upstream = incoming.next();
+          final IterOutcome upstream = incoming.next(-1);
           switch (upstream) {
             case NONE:
               stop = true;

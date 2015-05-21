@@ -98,7 +98,7 @@ public class SimpleRootExec implements RootExec, Iterable<ValueVector> {
 
   @Override
   public boolean next() {
-    switch (incoming.next()) {
+    switch (incoming.next(-1)) {
     case NONE:
     case STOP:
       return false;

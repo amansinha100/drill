@@ -166,7 +166,7 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     // we do this in the here instead of the constructor because don't necessary want to start consuming on construction.
     status.ensureInitial();
 

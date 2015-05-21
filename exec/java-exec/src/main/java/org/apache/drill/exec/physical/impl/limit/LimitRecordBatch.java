@@ -88,11 +88,13 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if(!first && !noEndLimit && recordsLeft <= 0) {
       incoming.kill(true);
 
-      IterOutcome upStream = next(incoming);
+      // context.setRowLimitReachedForOperators(this.oContext);
+
+      IterOutcome upStream = next(incoming, 0);
       if (upStream == IterOutcome.OUT_OF_MEMORY) {
         return upStream;
       }
@@ -103,7 +105,7 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
         for (VectorWrapper<?> wrapper : incoming) {
           wrapper.getValueVector().clear();
         }
-        upStream = next(incoming);
+        upStream = next(incoming, -1);
         if (upStream == IterOutcome.OUT_OF_MEMORY) {
           return upStream;
         }
@@ -112,7 +114,8 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
       return IterOutcome.NONE;
     }
 
-    return super.innerNext();
+    // return super.innerNext();
+    return super.innerNext(this.recordsToSkip + this.recordsLeft);
   }
 
   @Override

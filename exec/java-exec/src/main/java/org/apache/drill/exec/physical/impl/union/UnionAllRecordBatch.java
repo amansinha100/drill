@@ -100,7 +100,7 @@ public class UnionAllRecordBatch extends AbstractRecordBatch<UnionAll> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     try {
       IterOutcome upstream = unionAllInput.nextBatch();
       logger.debug("Upstream of Union-All: ", upstream.toString());
@@ -522,12 +522,12 @@ public class UnionAllRecordBatch extends AbstractRecordBatch<UnionAll> {
         }
 
         if(upstream == IterOutcome.NOT_YET) {
-          upstream = unionAllRecordBatch.next(recordBatch);
+          upstream = unionAllRecordBatch.next(recordBatch, -1);
 
           return upstream;
         } else {
           do {
-            upstream = unionAllRecordBatch.next(recordBatch);
+            upstream = unionAllRecordBatch.next(recordBatch, -1);
           } while (upstream == IterOutcome.OK && recordBatch.getRecordCount() == 0);
 
           return upstream;

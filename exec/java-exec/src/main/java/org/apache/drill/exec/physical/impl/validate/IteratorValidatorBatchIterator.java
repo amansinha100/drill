@@ -111,11 +111,11 @@ public class IteratorValidatorBatchIterator implements CloseableRecordBatch {
   }
 
   @Override
-  public IterOutcome next() {
+  public IterOutcome next(long rowLimit) {
     if (state == IterOutcome.NONE ) {
       throw new IllegalStateException("The incoming iterator has previously moved to a state of NONE. You should not be attempting to call next() again.");
     }
-    state = incoming.next();
+    state = incoming.next(rowLimit);
     if (first) {
       first = !first;
     }

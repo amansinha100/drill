@@ -311,7 +311,7 @@ public abstract class HashAggTemplate implements HashAggregator {
             for (VectorWrapper<?> v : incoming) {
               v.getValueVector().clear();
             }
-            IterOutcome out = outgoing.next(0, incoming);
+            IterOutcome out = outgoing.next(0, incoming, -1);
             if (EXTRA_DEBUG_1) {
               logger.debug("Received IterOutcome of {}", out);
             }

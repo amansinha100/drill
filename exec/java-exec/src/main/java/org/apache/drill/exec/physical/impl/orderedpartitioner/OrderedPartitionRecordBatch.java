@@ -181,7 +181,7 @@ public class OrderedPartitionRecordBatch extends AbstractRecordBatch<OrderedPart
       recordsSampled += incoming.getRecordCount();
 
       outer: while (recordsSampled < recordsToSample) {
-        upstream = next(incoming);
+        upstream = next(incoming, -1);
         switch (upstream) {
         case NONE:
         case NOT_YET:
@@ -462,7 +462,7 @@ public class OrderedPartitionRecordBatch extends AbstractRecordBatch<OrderedPart
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     container.zeroVectors();
 
     // if we got IterOutcome.NONE while getting partition vectors, and there are no batches on the queue, then we are
@@ -492,7 +492,7 @@ public class OrderedPartitionRecordBatch extends AbstractRecordBatch<OrderedPart
 
     // Reaching this point, either this is the first iteration, or there are no batches left on the queue and there are
     // more incoming
-    IterOutcome upstream = next(incoming);
+    IterOutcome upstream = next(incoming, -1);
 
     if (this.first && upstream == IterOutcome.OK) {
       throw new RuntimeException("Invalid state: First batch should have OK_NEW_SCHEMA");

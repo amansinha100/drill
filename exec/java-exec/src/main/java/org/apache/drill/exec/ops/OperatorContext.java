@@ -44,6 +44,10 @@ public abstract class OperatorContext {
 
   public abstract DrillFileSystem newFileSystem(Configuration conf) throws IOException;
 
+  public abstract void setRowLimitReached(boolean status);
+
+  public abstract boolean isRowLimitReached();
+
   public static int getChildCount(PhysicalOperator popConfig) {
     Iterator<PhysicalOperator> iter = popConfig.iterator();
     int i = 0;

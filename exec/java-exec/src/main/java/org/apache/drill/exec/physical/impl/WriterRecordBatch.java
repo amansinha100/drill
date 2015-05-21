@@ -77,7 +77,7 @@ public class WriterRecordBatch extends AbstractRecordBatch<Writer> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if(processed) {
 //      cleanup();
       // if the upstream record batch is already processed and next() is called by
@@ -89,7 +89,7 @@ public class WriterRecordBatch extends AbstractRecordBatch<Writer> {
     IterOutcome upstream;
     try{
       do {
-        upstream = next(incoming);
+        upstream = next(incoming, -1);
 
         switch(upstream) {
           case OUT_OF_MEMORY:

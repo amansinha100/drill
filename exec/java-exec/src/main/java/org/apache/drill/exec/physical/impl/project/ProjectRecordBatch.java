@@ -121,12 +121,12 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
     if (hasRemainder) {
       handleRemainder();
       return IterOutcome.OK;
     }
-    return super.innerNext();
+    return super.innerNext(rowLimit);
   }
 
   @Override
@@ -142,7 +142,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       if (complexWriters != null) {
         IterOutcome next = null;
         while (incomingRecordCount == 0) {
-          next = next(incoming);
+          next = next(incoming, -1);
           if (next == IterOutcome.OUT_OF_MEMORY) {
             outOfMemory = true;
             return next;

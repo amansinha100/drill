@@ -43,6 +43,7 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
   private LongObjectOpenHashMap<DrillBuf> managedBuffers = new LongObjectOpenHashMap<>();
   private final boolean applyFragmentLimit;
   private DrillFileSystem fs;
+  private boolean rowLimitReached = false;
 
   public OperatorContextImpl(PhysicalOperator popConfig, FragmentContext context, boolean applyFragmentLimit) throws OutOfMemoryException {
     this.applyFragmentLimit=applyFragmentLimit;
@@ -128,6 +129,14 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
 
   public OperatorStats getStats() {
     return stats;
+  }
+
+  public void setRowLimitReached(boolean status) {
+    rowLimitReached = status;
+  }
+
+  public boolean isRowLimitReached() {
+    return rowLimitReached;
   }
 
   @Override

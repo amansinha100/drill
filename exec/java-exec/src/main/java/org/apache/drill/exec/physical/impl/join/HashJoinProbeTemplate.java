@@ -48,6 +48,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   private HashJoinBatch outgoingJoinBatch = null;
 
   private static final int TARGET_RECORDS_PER_BATCH = 4000;
+  private long rowLimit = -1;
 
   /* Helper class
    * Maintains linked list of build side records with the same key
@@ -98,7 +99,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   }
 
   public void executeProjectRightPhase() {
-    while (outputRecords < TARGET_RECORDS_PER_BATCH && recordsProcessed < recordsToProcess) {
+    while (outputRecords < (rowLimit < 0 ? TARGET_RECORDS_PER_BATCH : Math.min(rowLimit, TARGET_RECORDS_PER_BATCH)) && recordsProcessed < recordsToProcess) {
       projectBuildRecord(unmatchedBuildIndexes.get(recordsProcessed), outputRecords);
       recordsProcessed++;
       outputRecords++;
@@ -106,7 +107,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   }
 
   public void executeProbePhase() throws SchemaChangeException {
-    while (outputRecords < TARGET_RECORDS_PER_BATCH && probeState != ProbeState.DONE && probeState != ProbeState.PROJECT_RIGHT) {
+    while (outputRecords < (rowLimit < 0 ? TARGET_RECORDS_PER_BATCH : Math.min(rowLimit, TARGET_RECORDS_PER_BATCH)) && probeState != ProbeState.DONE && probeState != ProbeState.PROJECT_RIGHT) {
 
       // Check if we have processed all records in this batch we need to invoke next
       if (recordsProcessed == recordsToProcess) {
@@ -116,7 +117,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
           wrapper.getValueVector().clear();
         }
 
-        IterOutcome leftUpstream = outgoingJoinBatch.next(HashJoinHelper.LEFT_INPUT, probeBatch);
+        IterOutcome leftUpstream = outgoingJoinBatch.next(HashJoinHelper.LEFT_INPUT, probeBatch, -1);
 
         switch (leftUpstream) {
           case NONE:
@@ -215,8 +216,9 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
     }
   }
 
-  public int probeAndProject() throws SchemaChangeException, ClassTransformationException, IOException {
+  public int probeAndProject(long rowLimit) throws SchemaChangeException, ClassTransformationException, IOException {
 
+    this.rowLimit = rowLimit;
     outputRecords = 0;
 
     if (probeState == ProbeState.PROBE_PROJECT) {

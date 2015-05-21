@@ -124,11 +124,11 @@ public final class JoinStatus {
   }
 
   private final IterOutcome nextLeft() {
-    return outputBatch.next(LEFT_INPUT, left);
+    return outputBatch.next(LEFT_INPUT, left, -1);
   }
 
   private final IterOutcome nextRight() {
-    return outputBatch.next(RIGHT_INPUT, right);
+    return outputBatch.next(RIGHT_INPUT, right, -1);
   }
 
   public final void ensureInitial() {

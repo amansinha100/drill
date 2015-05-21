@@ -93,7 +93,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
   @Override
   public void buildSchema() throws SchemaChangeException {
-    IterOutcome outcome = next(incoming);
+    IterOutcome outcome = next(incoming, -1);
     switch (outcome) {
       case NONE:
         state = BatchState.DONE;
@@ -116,7 +116,7 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
 
     if (aggregator.allFlushed()) {
       return IterOutcome.NONE;

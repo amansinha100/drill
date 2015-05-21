@@ -96,7 +96,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
 
   @Override
   public void buildSchema() throws SchemaChangeException {
-    IterOutcome outcome = next(incoming);
+    IterOutcome outcome = next(incoming, -1);
     switch (outcome) {
       case NONE:
         state = BatchState.DONE;
@@ -119,7 +119,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
   }
 
   @Override
-  public IterOutcome innerNext() {
+  public IterOutcome innerNext(long rowLimit) {
 
     // if a special batch has been sent, we have no data in the incoming so exit early
     if (specialBatchSent) {
@@ -133,7 +133,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
         first = false;
         outcome = IterOutcome.OK_NEW_SCHEMA;
       } else {
-        outcome = next(incoming);
+        outcome = next(incoming, -1);
       }
       logger.debug("Next outcome of {}", outcome);
       switch (outcome) {
