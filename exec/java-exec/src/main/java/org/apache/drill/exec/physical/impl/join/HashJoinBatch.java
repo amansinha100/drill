@@ -226,10 +226,6 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
         updateStats(this.hashTable);
       }
 
-//      if (oContext.isRowLimitReached()) {
-//        return IterOutcome.STOP;
-//      }
-
       // Store the number of records projected
       if (!hashTable.isEmpty() || joinType != JoinRelType.INNER) {
 

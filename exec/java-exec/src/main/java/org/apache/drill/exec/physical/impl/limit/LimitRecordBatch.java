@@ -92,8 +92,6 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
     if(!first && !noEndLimit && recordsLeft <= 0) {
       incoming.kill(true);
 
-      // context.setRowLimitReachedForOperators(this.oContext);
-
       IterOutcome upStream = next(incoming, 0);
       if (upStream == IterOutcome.OUT_OF_MEMORY) {
         return upStream;

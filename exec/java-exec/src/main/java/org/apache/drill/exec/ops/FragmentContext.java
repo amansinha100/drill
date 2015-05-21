@@ -436,18 +436,6 @@ public class FragmentContext implements AutoCloseable, UdfUtilities {
     sendingAccountor.waitForSendComplete();
   }
 
-  public void setRowLimitReachedForOperators(OperatorContext startingContext) {
-    boolean found = false;
-    for (OperatorContextImpl o : contexts) {
-      if (!found) {
-        o.setRowLimitReached(true);
-      }
-      if (o == startingContext) {
-        found = true;
-      }
-    }
-  }
-
   public interface ExecutorState {
     /**
      * Whether execution should continue.

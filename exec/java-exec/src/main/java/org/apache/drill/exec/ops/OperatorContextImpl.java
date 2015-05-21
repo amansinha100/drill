@@ -131,15 +131,6 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
     return stats;
   }
 
-  public void setRowLimitReached(boolean status) {
-    rowLimitReached = status;
-  }
-
-  public boolean isRowLimitReached() {
-    return rowLimitReached;
-  }
-
-  @Override
   public DrillFileSystem newFileSystem(Configuration conf) throws IOException {
     Preconditions.checkState(fs == null, "Tried to create a second FileSystem. Can only be called once per OperatorContext");
     fs = new DrillFileSystem(conf, getStats());
