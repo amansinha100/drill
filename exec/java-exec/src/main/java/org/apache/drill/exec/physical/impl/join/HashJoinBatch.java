@@ -210,6 +210,9 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
 
   @Override
   public IterOutcome innerNext() {
+    if (state == BatchState.STOP) {
+      return IterOutcome.STOP;
+    }
     try {
       /* If we are here for the first time, execute the build phase of the
        * hash join and setup the run time generated class for the probe side
@@ -533,6 +536,7 @@ public class HashJoinBatch extends AbstractRecordBatch<HashJoinPOP> {
   public void killIncoming(boolean sendUpstream) {
     this.left.kill(sendUpstream);
     this.right.kill(sendUpstream);
+    state = BatchState.STOP;
   }
 
   @Override
