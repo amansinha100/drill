@@ -18,15 +18,26 @@
 package org.apache.drill.exec.physical.impl.window;
 
 import org.apache.drill.BaseTestQuery;
+import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.common.util.FileUtils;
 import org.apache.drill.common.util.TestTools;
 import org.apache.drill.exec.ExecConstants;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
 import java.net.URL;
+import java.util.Properties;
 
 public class TestWindowFrame extends BaseTestQuery {
+
+  @BeforeClass
+  public static void setupMSortBatchSize() {
+    final Properties props = cloneDefaultTestConfigProperties();
+    props.put(ExecConstants.EXTERNAL_SORT_MSORT_MAX_BATCHSIZE, Integer.toString(20));
+
+    updateTestCluster(1, DrillConfig.create(props));
+  }
 
   private void runTest(String data, String results, String window) throws Exception {
     runSQL(String.format("alter session set `%s`= true", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
