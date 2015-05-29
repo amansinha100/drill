@@ -70,7 +70,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   private boolean noMoreBatches;
   private BatchSchema schema;
 
-  public static enum WindowFunction {
+  public enum WindowFunction {
     ROW_NUMBER(false),
     RANK(false),
     DENSE_RANK(false),
