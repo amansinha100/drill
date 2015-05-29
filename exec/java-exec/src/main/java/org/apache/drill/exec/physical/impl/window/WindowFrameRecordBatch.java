@@ -193,10 +193,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
       framer.doWork();
     } catch (DrillException e) {
       context.fail(e);
-      if (framer != null) {
-        framer.cleanup();
-        framer = null;
-      }
+      cleanup();
       return IterOutcome.STOP;
     }
 
@@ -395,12 +392,23 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     }
   }
 
-  @Override
-  public void close() {
+  private void cleanup() {
     if (framer != null) {
       framer.cleanup();
       framer = null;
     }
+
+    if (batches != null) {
+      for (final RecordBatchData bd : batches) {
+        bd.clear();
+      }
+      batches = null;
+    }
+  }
+
+  @Override
+  public void close() {
+    cleanup();
     super.close();
   }
 
