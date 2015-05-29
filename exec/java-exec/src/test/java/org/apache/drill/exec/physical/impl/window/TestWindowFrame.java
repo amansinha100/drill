@@ -18,19 +18,32 @@
 package org.apache.drill.exec.physical.impl.window;
 
 import org.apache.drill.BaseTestQuery;
+import org.apache.drill.common.util.FileUtils;
+import org.apache.drill.common.util.TestTools;
 import org.apache.drill.exec.ExecConstants;
 import org.junit.Test;
+
+import java.io.File;
+import java.net.URL;
 
 public class TestWindowFrame extends BaseTestQuery {
 
   private void runTest(String data, String results, String window) throws Exception {
-    testNoResult("alter session set `%s`= true", ExecConstants.ENABLE_WINDOW_FUNCTIONS);
-    testBuilder()
-      .sqlQuery("select count(*) over pos_win `count`, sum(salary) over pos_win `sum` from cp.`window/%s.json` window pos_win as (%s)", data, window)
-      .ordered()
-      .csvBaselineFile("window/" + results + ".tsv")
-      .baselineColumns("count", "sum")
-      .build().run();
+    runSQL(String.format("alter session set `%s`= true", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
+
+    final String WORKING_PATH = TestTools.getWorkingPath();
+    final String TEST_RES_PATH = WORKING_PATH + "/src/test/resources";
+
+    try {
+      testBuilder()
+        .sqlQuery("select count(*) over pos_win `count`, sum(salary) over pos_win `sum` from dfs_test.`%s/window/%s` window pos_win as (%s)", TEST_RES_PATH, data, window)
+        .ordered()
+        .csvBaselineFile("window/" + results + ".tsv")
+        .baselineColumns("count", "sum")
+        .build().run();
+    } finally {
+      runSQL(String.format("alter session set `%s`= false", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
+    }
   }
 
   /**
@@ -38,7 +51,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB1P1() throws Exception {
-    runTest("b1.p1.data", "b1.p1", "partition by position_id order by position_id");
+    runTest("b1.p1", "b1.p1", "partition by position_id");
   }
 
   /**
@@ -46,7 +59,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB1P1OrderBy() throws Exception {
-    runTest("b1.p1.data", "b1.p1.subs", "partition by position_id order by sub");
+    runTest("b1.p1", "b1.p1.subs", "partition by position_id order by sub");
   }
 
   /**
@@ -54,7 +67,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB1P2() throws Exception {
-    runTest("b1.p2.data", "b1.p2", "partition by position_id order by position_id");
+    runTest("b1.p2", "b1.p2", "partition by position_id");
   }
 
   /**
@@ -63,7 +76,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB1P2OrderBy() throws Exception {
-    runTest("b1.p2.data", "b1.p2.subs", "partition by position_id order by sub");
+    runTest("b1.p2", "b1.p2.subs", "partition by position_id order by sub");
   }
 
   /**
@@ -71,12 +84,12 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB2P2() throws Exception {
-    runTest("b2.p2.data", "b2.p2", "partition by position_id order by position_id");
+    runTest("b2.p2", "b2.p2", "partition by position_id");
   }
 
   @Test
   public void testB2P2OrderBy() throws Exception {
-    runTest("b2.p2.data", "b2.p2.subs", "partition by position_id order by sub");
+    runTest("b2.p2", "b2.p2.subs", "partition by position_id order by sub");
   }
 
   /**
@@ -84,7 +97,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB2P4() throws Exception {
-    runTest("b2.p4.data", "b2.p4", "partition by position_id order by position_id");
+    runTest("b2.p4", "b2.p4", "partition by position_id");
   }
 
   /**
@@ -93,7 +106,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB2P4OrderBy() throws Exception {
-    runTest("b2.p4.data", "b2.p4.subs", "partition by position_id order by sub");
+    runTest("b2.p4", "b2.p4.subs", "partition by position_id order by sub");
   }
 
   /**
@@ -101,7 +114,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB3P2() throws Exception {
-    runTest("b3.p2.data", "b3.p2", "partition by position_id order by position_id");
+    runTest("b3.p2", "b3.p2", "partition by position_id");
   }
 
   /**
@@ -110,7 +123,7 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testB3P2OrderBy() throws Exception {
-    runTest("b3.p2.data", "b3.p2.subs", "partition by position_id order by sub");
+    runTest("b3.p2", "b3.p2.subs", "partition by position_id order by sub");
   }
 
   /**
@@ -119,7 +132,12 @@ public class TestWindowFrame extends BaseTestQuery {
    */
   @Test
   public void testb4P4() throws Exception {
-    runTest("b4.p4.data", "b4.p4", "partition by position_id order by position_id");
+    runTest("b4.p4", "b4.p4", "partition by position_id");
+  }
+
+  @Test
+  public void testb4P4OrderBy() throws Exception {
+    runTest("b4.p4", "b4.p4.subs", "partition by position_id order by sub");
   }
 
 }
