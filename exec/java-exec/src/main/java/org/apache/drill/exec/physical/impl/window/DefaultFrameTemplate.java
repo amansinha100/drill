@@ -44,14 +44,6 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * current partition being processed. Can span over multiple batches, so we may need to keep it between calls to doWork()
    */
   private Interval partition;
-  /**
-   * current window frame being processed. Can span over multiple batches, so we may need to keep it between calls
-   * to doWork()
-   * <p>
-   * We only support the default frame for now so it always starts from the first row of the current partition to
-   * the last peer row of the current processed row.
-   */
-//  private Interval frame;
 
   @Override
   public void setup(List<RecordBatchData> batches, VectorAccessible container, List<WindowVector> winvecs) throws SchemaChangeException {
@@ -60,7 +52,6 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
     outputCount = 0;
     partition = null;
-//    frame = null;
 
     logger.debug("winvecs.size = {}", winvecs.size());
     this.winvecs = winvecs;
@@ -103,17 +94,14 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
       } else {
         // compute the size of the new partition
         final int length = computePartitionSize(currentRow);
-        partition = new Interval(currentRow, length, length);
+        partition = new Interval(length);
         resetValues(); // reset aggregations
       }
 
       currentRow = processPartition(currentRow);
-      if (partition.remainingPartition == 0) {
+      if (partition.isDone()) {
         partition = null;
       }
-//      if (frame.remaining == 0) {
-//        frame = null;
-//      }
     }
 
     // because we are using the default frame, and we keep the aggregated value until we start a new frame
@@ -133,28 +121,15 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @throws DrillException if it can't write into the container
    */
   private int processPartition(int currentRow) throws DrillException {
-    // compute how many rows remain unprocessed in the current partition
-//    int remaining = partition.length - currentRow + partition.start;
-
     logger.trace("process partition {}, frame: {}, currentRow: {}, outputCount: {}",
-      partition/*, frame*/, currentRow, outputCount);
-
-    long row_number = partition.length - partition.remainingPartition + 1;
-
-    // rank and dense_Rank won't be computed correctly unless we save pending frame between batches
-    long rank = -1;
-    long dense_rank = -1;
-    double cume_dist = -1; //TODO this need to be part of the frame structure
+      partition, currentRow, outputCount);
 
     // when computing the frame for the current row, keep track of how many peer rows need to be processed
     // because all peer rows share the same frame, we only need to compute and aggregate the frame once
-    for (; currentRow < outputCount && partition.remainingPartition > 0; currentRow++, partition.remainingPartition--, row_number++) {
-      if (partition.remainingPeers == 0) {
-        partition.remainingPeers = countPeers(currentRow);
+    for (; currentRow < outputCount && !partition.isDone(); currentRow++) {
+      if (partition.isFrameDone()) {
+        partition.newFrame(countPeers(currentRow));
         aggregatePeers(currentRow);
-        rank = row_number;
-        cume_dist = (double)(rank + partition.remainingPeers) / partition.length;
-        dense_rank++;
       }
 
       outputRecordValues(currentRow);
@@ -166,25 +141,25 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
           //TODO move the computation inside WindowVector and pass the min amount of information needed
           switch (wv.func) {
             case ROW_NUMBER:
-              ((BigIntVector) wv.vector).getMutator().set(currentRow, row_number);
+              ((BigIntVector) wv.vector).getMutator().set(currentRow, partition.rowNumber);
               break;
             case RANK:
-              ((BigIntVector) wv.vector).getMutator().set(currentRow, rank);
+              ((BigIntVector) wv.vector).getMutator().set(currentRow, partition.rank);
               break;
             case DENSE_RANK:
-              ((BigIntVector) wv.vector).getMutator().set(currentRow, dense_rank + 1);
+              ((BigIntVector) wv.vector).getMutator().set(currentRow, partition.denseRank);
               break;
             case PERCENT_RANK:
-              ((Float8Vector) wv.vector).getMutator().set(currentRow, (double) (rank - 1) / (partition.length - 1));
+              ((Float8Vector) wv.vector).getMutator().set(currentRow, partition.percentRank);
               break;
             case CUME_DIST:
-              ((Float8Vector) wv.vector).getMutator().set(currentRow, cume_dist);
+              ((Float8Vector) wv.vector).getMutator().set(currentRow, partition.cumeDist);
               break;
           }
         }
       }
 
-      partition.remainingPeers--;
+      partition.rowAggregated();
     }
 
     return currentRow;
@@ -235,7 +210,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
     // for every remaining row in the partition, count it if it's a peer row
     int peers = 0;
-    for (int curRow = row, i = 0; i < partition.remainingPartition; i++, curRow++, peers++) {
+    for (int curRow = row, i = 0; i < partition.remaining; i++, curRow++, peers++) {
       if (curRow == current.getRecordCount()) {
         current = iterator.next().getContainer();
         curRow = 0;
@@ -256,8 +231,8 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @throws SchemaChangeException
    */
   private void aggregatePeers(final int currentRow) throws SchemaChangeException {
-    logger.trace("aggregating {} rows starting from {}", partition.remainingPeers, currentRow);
-    assert partition.remainingPeers > 0 : "frame is empty!";
+    logger.trace("aggregating {} rows starting from {}", partition.peers, currentRow);
+    assert !partition.isFrameDone() : "frame is empty!";
 
     // a single frame can include rows from multiple batches
     // start processing first batch and, if necessary, move to next batches
@@ -265,7 +240,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     VectorAccessible current = iterator.next().getContainer();
     setupIncoming(current);
 
-    for (int i = 0, row = currentRow; i < partition.remainingPeers; i++, row++) {
+    for (int i = 0, row = currentRow; i < partition.peers; i++, row++) {
       if (row >= current.getRecordCount()) {
         // we reached the end of the current batch, move to the next one
         current = iterator.next().getContainer();
@@ -380,22 +355,48 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * Used internally to keep track of partitions and frames
    */
   private static class Interval {
-    public final int start;
     public final int length;
-    public int remainingPartition; // rows not aggregated yet
-    public int remainingPeers; // rows not aggregated in current frame
+    public int remaining; // rows not yet aggregated in partition
+    public int peers; // peer rows not yet aggregated in current frame
 
+    public int rowNumber;
+    public int rank;
+    public int denseRank;
+    public double percentRank;
+    public double cumeDist;
 
-    public Interval(int start, int length, int remaining) {
-      this.start = start;
+    public Interval(int length) {
       this.length = length;
-      this.remainingPartition = remaining;
+      remaining = length;
+      rowNumber = 1;
+    }
+
+    public void rowAggregated() {
+      remaining--;
+      peers--;
+
+      rowNumber++;
+    }
+
+    public void newFrame(int peers) {
+      this.peers = peers;
+      rank = rowNumber; // rank = row number of 1st peer
+      denseRank++;
+      percentRank = length > 1 ? (double) (rank - 1) / (length - 1) : 0;
+      cumeDist = (double)(rank + peers - 1) / length;
+    }
+
+    public boolean isDone() {
+      return remaining == 0;
+    }
+
+    public boolean isFrameDone() {
+      return peers == 0;
     }
 
     @Override
     public String toString() {
-      return String.format("{start: %d, length: %d, remaining partition: %d, remaining peers: %d}", start, length,
-        remainingPartition, remainingPeers);
+      return String.format("{length: %d, remaining partition: %d, remaining peers: %d}", length, remaining, peers);
     }
   }
 }
