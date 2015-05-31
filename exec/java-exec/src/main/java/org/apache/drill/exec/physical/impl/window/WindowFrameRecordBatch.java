@@ -36,7 +36,6 @@ import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.ClassGenerator;
 import org.apache.drill.exec.expr.CodeGenerator;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
-import org.apache.drill.exec.expr.ValueVectorReadExpression;
 import org.apache.drill.exec.expr.ValueVectorWriteExpression;
 import org.apache.drill.exec.expr.fn.FunctionGenerationHelper;
 import org.apache.drill.exec.memory.OutOfMemoryException;
@@ -241,6 +240,9 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   }
 
   private WindowFramer createFramer(VectorAccessible batch) throws SchemaChangeException, IOException, ClassTransformationException {
+    final List<LogicalExpression> aggExprs = Lists.newArrayList();
+    final List<WindowVector> winvecs = Lists.newArrayList();
+
     logger.trace("creating framer");
 
     container.clear();
@@ -252,30 +254,12 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
 
     ErrorCollector collector = new ErrorCollectorImpl();
 
-    // setup code generation to copy all incoming vectors to the container
-    // we can't just transfer them because after we pass the container downstream, some values will be needed when
-    // processing the next batches
-    int j = 0;
-    LogicalExpression[] windowExprs = new LogicalExpression[batch.getSchema().getFieldCount()];
+    // all existing vectors will be transferred to the outgoing container in framer.doWork()
     for (VectorWrapper wrapper : batch) {
-      // read value from saved batch
-      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(
-        new ValueVectorReadExpression(new TypedFieldId(wrapper.getField().getType(), wrapper.isHyper(), j)),
-        batch, collector, context.getFunctionRegistry());
-
-      ValueVector vv = container.addOrGet(wrapper.getField());
-      vv.allocateNew();
-
-      // write value into container
-      TypedFieldId id = container.getValueVectorId(vv.getField().getPath());
-      windowExprs[j] = new ValueVectorWriteExpression(id, expr, true);
-      j++;
+      container.addOrGet(wrapper.getField());
     }
 
     // add aggregation vectors to the container, and materialize corresponding expressions
-    List<LogicalExpression> aggExprs = Lists.newArrayList();
-    List<WindowVector> winvecs = Lists.newArrayList();
-
     for (int i = 0; i < popConfig.getAggregations().length; i++) {
       // evaluate expression over saved batch
       NamedExpression ne = popConfig.getAggregations()[i];
@@ -323,14 +307,10 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     }
 
     // generate framer code
-
     final ClassGenerator<WindowFramer> cg = CodeGenerator.getRoot(WindowFramer.TEMPLATE_DEFINITION, context.getFunctionRegistry());
-    // setup for isSamePartition()
-    setupIsFunction(cg, keyExprs, isaB1, isaB2);
-    // setup for isPeer()
-    setupIsFunction(cg, orderExprs, isaP1, isaP2);
+    setupIsFunction(cg, keyExprs, isaB1, isaB2); // setup for isSamePartition()
+    setupIsFunction(cg, orderExprs, isaP1, isaP2); // setup for isPeer()
     setupAddRecords(cg, aggExprs);
-    setupOutputWindowValues(cg, windowExprs);
 
     cg.getBlock("resetValues")._return(JExpr.TRUE);
 
@@ -368,27 +348,17 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
-  private static final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupIncoming", "addRecord", null, null);
-  private static final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupOutgoing", "outputRecordValues", "resetValues", "cleanup");
+  private static final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupIncoming", "aggregateRecord", null, null);
+  private static final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupOutgoing", "outputAggregatedValues", "resetValues", "cleanup");
   private final MappingSet eval = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
 
   /**
-   * setup for addRecords() and outputRecordValues()
+   * setup for addRecords() and outputAggregatedValues()
    */
   private void setupAddRecords(ClassGenerator<WindowFramer> cg, List<LogicalExpression> valueExprs) {
     cg.setMappingSet(eval);
     for (LogicalExpression ex : valueExprs) {
       cg.addExpr(ex);
-    }
-  }
-
-  private final static GeneratorMapping OUTPUT_WINDOW_VALUES = GeneratorMapping.create("setupCopy", "outputWindowValues", null, null);
-  private final MappingSet windowValues = new MappingSet("index", "index", OUTPUT_WINDOW_VALUES, OUTPUT_WINDOW_VALUES);
-
-  private void setupOutputWindowValues(ClassGenerator<WindowFramer> cg, LogicalExpression[] valueExprs) {
-    cg.setMappingSet(windowValues);
-    for (LogicalExpression valueExpr : valueExprs) {
-      cg.addExpr(valueExpr);
     }
   }
 

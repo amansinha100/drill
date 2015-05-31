@@ -22,13 +22,14 @@ import org.apache.drill.exec.compile.TemplateClassDefinition;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.record.VectorAccessible;
+import org.apache.drill.exec.record.VectorContainer;
 
 import java.util.List;
 
 public interface WindowFramer {
   TemplateClassDefinition<WindowFramer> TEMPLATE_DEFINITION = new TemplateClassDefinition<>(WindowFramer.class, DefaultFrameTemplate.class);
 
-  void setup(List<RecordBatchData> batches, VectorAccessible container, List<WindowFrameRecordBatch.WindowVector> winvecs) throws SchemaChangeException;
+  void setup(List<RecordBatchData> batches, VectorContainer container, List<WindowFrameRecordBatch.WindowVector> winvecs) throws SchemaChangeException;
 
   /**
    * process the inner batch and write the aggregated values in the container

@@ -21,10 +21,13 @@ import org.apache.drill.common.exceptions.DrillException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.physical.impl.window.WindowFrameRecordBatch.WindowVector;
+import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorAccessible;
+import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.BigIntVector;
 import org.apache.drill.exec.vector.Float8Vector;
+import org.apache.drill.exec.vector.ValueVector;
 
 import javax.inject.Named;
 import java.util.Iterator;
@@ -34,7 +37,7 @@ import java.util.List;
 public abstract class DefaultFrameTemplate implements WindowFramer {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DefaultFrameTemplate.class);
 
-  private VectorAccessible container;
+  private VectorContainer container;
   private List<RecordBatchData> batches;
   private int outputCount; // number of rows in currently/last processed batch
 
@@ -46,7 +49,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   private Partition partition;
 
   @Override
-  public void setup(List<RecordBatchData> batches, VectorAccessible container, List<WindowVector> winvecs) throws SchemaChangeException {
+  public void setup(List<RecordBatchData> batches, VectorContainer container, List<WindowVector> winvecs) throws SchemaChangeException {
     this.container = container;
     this.batches = batches;
 
@@ -76,14 +79,6 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     // we need to store the record count explicitly, in case we release current batch at the end of this call
     outputCount = current.getRecordCount();
 
-    //TODO transfer existing vectors at the end and only allocate "aggregated" vectors
-    // allocate vectors
-    for (VectorWrapper<?> w : container){
-      w.getValueVector().allocateNew();
-    }
-
-    setupCopy(current, container);
-
     int currentRow = 0;
 
     while (currentRow < outputCount) {
@@ -104,14 +99,21 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
       }
     }
 
-    // because we are using the default frame, and we keep the aggregated value until we start a new frame
-    // we can safely free the current batch
-    batches.remove(0).clear();
+    // transfer "non aggregated" vectors
+    for (VectorWrapper<?> vw : current) {
+      ValueVector v = container.addOrGet(vw.getField());
+      TransferPair tp = vw.getValueVector().makeTransferPair(v);
+      tp.transfer();
+    }
 
     //TODO we only need to do this for the "aggregated" vectors
     for (VectorWrapper<?> v : container) {
       v.getValueVector().getMutator().setValueCount(outputCount);
     }
+
+    // because we are using the default frame, and we keep the aggregated value until we start a new frame
+    // we can safely free the current batch
+    batches.remove(0).clear();
 
     logger.trace("WindowFramer.doWork() END");
   }
@@ -132,8 +134,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
         aggregatePeers(currentRow);
       }
 
-      outputRecordValues(currentRow);
-      outputWindowValues(currentRow);
+      outputAggregatedValues(currentRow);
 
       //TODO investigate how we could generate this computation unit to avoid for/switch
       {
@@ -141,19 +142,19 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
           //TODO move the computation inside WindowVector and pass the min amount of information needed
           switch (wv.func) {
             case ROW_NUMBER:
-              ((BigIntVector) wv.vector).getMutator().set(currentRow, partition.rowNumber);
+              ((BigIntVector) wv.vector).getMutator().setSafe(currentRow, partition.rowNumber);
               break;
             case RANK:
-              ((BigIntVector) wv.vector).getMutator().set(currentRow, partition.rank);
+              ((BigIntVector) wv.vector).getMutator().setSafe(currentRow, partition.rank);
               break;
             case DENSE_RANK:
-              ((BigIntVector) wv.vector).getMutator().set(currentRow, partition.denseRank);
+              ((BigIntVector) wv.vector).getMutator().setSafe(currentRow, partition.denseRank);
               break;
             case PERCENT_RANK:
-              ((Float8Vector) wv.vector).getMutator().set(currentRow, partition.percentRank);
+              ((Float8Vector) wv.vector).getMutator().setSafe(currentRow, partition.percentRank);
               break;
             case CUME_DIST:
-              ((Float8Vector) wv.vector).getMutator().set(currentRow, partition.cumeDist);
+              ((Float8Vector) wv.vector).getMutator().setSafe(currentRow, partition.cumeDist);
               break;
           }
         }
@@ -250,7 +251,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
         row = 0;
       }
 
-      addRecord(row);
+      aggregateRecord(row);
     }
 
   }
@@ -294,37 +295,26 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   }
 
   /**
-   * setup incoming container for addRecord()
+   * setup incoming container for aggregateRecord()
    */
   public abstract void setupIncoming(@Named("incoming") VectorAccessible incoming) throws SchemaChangeException;
 
   /**
-   * setup outgoing container for outputRecordValues
+   * setup outgoing container for outputAggregatedValues
    */
   public abstract void setupOutgoing(@Named("outgoing") VectorAccessible outgoing) throws SchemaChangeException;
-
-  /**
-   * setup for outputWindowValues
-   */
-  public abstract void setupCopy(@Named("incoming") VectorAccessible incoming, @Named("outgoing") VectorAccessible outgoing) throws SchemaChangeException;
 
   /**
    * aggregates a row from the incoming container
    * @param index of row to aggregate
    */
-  public abstract void addRecord(@Named("index") int index);
+  public abstract void aggregateRecord(@Named("index") int index);
 
   /**
    * writes aggregated values to row of outgoing container
    * @param outIndex index of row
    */
-  public abstract void outputRecordValues(@Named("outIndex") int outIndex);
-
-  /**
-   * copies all value vectors from incoming to container, for a specific row
-   * @param index of row to be copied
-   */
-  public abstract void outputWindowValues(@Named("index") int index);
+  public abstract void outputAggregatedValues(@Named("outIndex") int outIndex);
 
   /**
    * reset all window functions
@@ -340,7 +330,8 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @param b2 batch for second row
    * @return true if the rows are in the same partition
    */
-  public abstract boolean isSamePartition(@Named("b1Index") int b1Index, @Named("b1") VectorAccessible b1, @Named("b2Index") int b2Index, @Named("b2") VectorAccessible b2);
+  public abstract boolean isSamePartition(@Named("b1Index") int b1Index, @Named("b1") VectorAccessible b1,
+                                          @Named("b2Index") int b2Index, @Named("b2") VectorAccessible b2);
 
   /**
    * compares two rows from different batches (can be the same), if they have the same value for the order by
@@ -351,5 +342,6 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @param b2 batch for second row
    * @return true if the rows are in the same partition
    */
-  public abstract boolean isPeer(@Named("b1Index") int b1Index, @Named("b1") VectorAccessible b1, @Named("b2Index") int b2Index, @Named("b2") VectorAccessible b2);
+  public abstract boolean isPeer(@Named("b1Index") int b1Index, @Named("b1") VectorAccessible b1,
+                                 @Named("b2Index") int b2Index, @Named("b2") VectorAccessible b2);
 }
