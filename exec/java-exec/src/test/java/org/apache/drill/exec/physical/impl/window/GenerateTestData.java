@@ -17,6 +17,8 @@
  */
 package org.apache.drill.exec.physical.impl.window;
 
+import org.apache.drill.common.util.TestTools;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
@@ -50,6 +52,10 @@ public class GenerateTestData {
     public boolean isPartOf(int rowNumber) {
       int prevLength = previous != null ? previous.cumulLength() : 0;
       return rowNumber >= prevLength && rowNumber < cumulLength();
+    }
+
+    public int getSubIndex(final int sub) {
+      return Arrays.binarySearch(subs, sub);
     }
 
     public int getSubSize(int sub) {
@@ -120,38 +126,87 @@ public class GenerateTestData {
 
   }
 
-  public static void main(String[] args) throws FileNotFoundException {
-    int fileId = 0;
-    final String path = "/Users/hakim/MapR/data/windowData/b3.p2";
+  private static Partition[] dataB1P1() {
+    // partition rows 20, subs [1, 2, 3, 4, 5, 6]
+    return new Partition[] {
+      new Partition(20, new int[]{1, 2, 3, 4, 5, 6})
+    };
+  }
+
+  private static Partition[] dataB1P2() {
+    // partition rows 10, subs [1, 2, 3, 4]
+    // partition rows 10, subs [4, 5, 6]
+    return new Partition[] {
+      new Partition(10, new int[]{1, 2, 3, 4}),
+      new Partition(10, new int[]{4, 5, 6}),
+    };
+  }
+
+  private static Partition[] dataB2P2() {
+    // partition rows 20, subs [3, 5, 9]
+    // partition rows 20, subs [9, 10]
+    return new Partition[] {
+      new Partition(20, new int[]{3, 5, 9}),
+      new Partition(20, new int[]{9, 10}),
+    };
+  }
+
+  private static Partition[] dataB2P4() {
+    // partition rows 5, subs [1, 2, 3]
+    // partition rows 10, subs [3, 4, 5]
+    // partition rows 15, subs [5, 6, 7]
+    // partition rows 10, subs [7, 8]
+    return new Partition[] {
+      new Partition(5, new int[]{1, 2, 3}),
+      new Partition(10, new int[]{3, 4, 5}),
+      new Partition(15, new int[]{5, 6, 7}),
+      new Partition(10, new int[]{7, 8}),
+    };
+  }
+
+  private static Partition[] dataB3P2() {
+    // partition rows 5, subs [1, 2, 3]
+    // partition rows 55, subs [4, 5, 7, 8, 9, 10, 11, 12]
+    return new Partition[] {
+      new Partition(5, new int[]{1, 2, 3}),
+      new Partition(55, new int[]{4, 5, 7, 8, 9, 10, 11, 12}),
+    };
+  }
+
+  private static Partition[] dataB4P4() {
+    // partition rows 10, subs [1, 2, 3]
+    // partition rows 30, subs [3, 4, 5, 6, 7, 8]
+    // partition rows 20, subs [8, 9, 10]
+    // partition rows 20, subs [10, 11]
+    return new Partition[] {
+      new Partition(10, new int[]{1, 2, 3}),
+      new Partition(30, new int[]{3, 4, 5, 6, 7, 8}),
+      new Partition(20, new int[]{8, 9, 10}),
+      new Partition(20, new int[]{10, 11}),
+    };
+  }
+
+  private static void generateData(final String tableName, final Partition[] partitions) throws FileNotFoundException {
+    final String WORKING_PATH = TestTools.getWorkingPath();
+    final String TEST_RES_PATH = WORKING_PATH + "/src/test/resources";
+    //TODO command line arguments contain file name
+    final String path = TEST_RES_PATH+"/window/" + tableName;
 
     final File pathFolder = new File(path);
     if (!pathFolder.exists()) {
-      pathFolder.mkdir();
+      if (!pathFolder.mkdirs()) {
+        System.err.printf("Couldn't create folder %s, exiting%n", path);
+      }
     }
 
-    PrintStream resultStream = new PrintStream(path+".tsv");
-    PrintStream resultOrderStream = new PrintStream(path+".subs.tsv");
+    // expected results for query without order by clause
+    final PrintStream resultStream = new PrintStream(path + ".tsv");
+    // expected results for query with order by clause
+    final PrintStream resultOrderStream = new PrintStream(path + ".subs.tsv");
+
+    // data file(s)
+    int fileId = 0;
     PrintStream dataStream = new PrintStream(path + "/" + fileId + ".data.json");
-
-// partition 0, sub 0: count = 100, sum 1000            100
-// partition 0, sub 1: count = 300, sum 3200            300
-// partition 0, sub 2: count = 600, sum 6800            600
-// partition 0, sub 3: count = 1000, sum 12000         1000
-// partition 0, sub 4: count = 1904, sum 24656      p0 1904
-// partition 1, sub 4: count = 500, sum 7000           2404
-// partition 1, sub 5: count = 1100, sum 16000         3004
-// partition 1, sub 6: count = 1800, sum 27200         3704
-// partition 1, sub 9: count = 2800, sum 46200         4704 <<
-// partition 1, sub 10: count = 3900, sum 68200        5804
-// partition 1, sub 14: count = 5400, sum 104200       7304
-// partition 1, sub 19: count = 7400, sum 162200       9304 <<
-// partition 1, sub 20: count = 10384, sum 251720  p1 12288 <<
-
-    //TODO write the partitions for b3.p2
-    Partition[] partitions = {
-      new Partition(5, new int[]{1, 2, 3}), // [1, 3, 5
-      new Partition(55, new int[]{4, 5, 7, 8, 9, 10, 11, 12}), // 9, 14, 7:20][7:1 , 9, 18, 10:20][10:8, 19, 12:20]
-    };
 
     for (Partition p : partitions) {
       dataStream.printf("// partition rows %d, subs %s%n", p.length, Arrays.toString(p.subs));
@@ -159,16 +214,17 @@ public class GenerateTestData {
 
     // set previous partitions
     for (int i = 1; i < partitions.length; i++) {
-      partitions[i].previous = partitions[i-1];
+      partitions[i].previous = partitions[i - 1];
     }
 
-    int total = partitions[partitions.length-1].cumulLength(); // total number of rows
+    // total number of rows
+    int total = partitions[partitions.length - 1].cumulLength();
 
+    // create data rows in randome order
     List<Integer> emp_ids = new ArrayList<>(total);
     for (int i = 0; i < total; i++) {
       emp_ids.add(i);
     }
-
     Collections.shuffle(emp_ids);
 
     int emp_idx = 0;
@@ -195,13 +251,36 @@ public class GenerateTestData {
 
     for (int p = 0, idx = 0; p < partitions.length; p++) {
       for (int i = 0; i < partitions[p].length; i++, idx++) {
-        int sub = partitions[p].getSubId(idx);
-        resultOrderStream.printf("%d\t%d%n", partitions[p].subRunningCount(sub), partitions[p].subRunningSum(sub));
-        resultStream.printf("%d\t%d%n", partitions[p].length, partitions[p].totalSalary());
+        final Partition partition = partitions[p]; //TODO change for p loop to for over partitions
+
+        final int sub = partition.getSubId(idx);
+        final int rowNumber = i + 1;
+        final int rank = 1 + partition.subRunningCount(sub) - partition.getSubSize(sub);
+        final int denseRank = partition.getSubIndex(sub) + 1;
+        final double cumeDist = (double) partition.subRunningCount(sub) / partition.length;
+        final double percentRank = partition.length == 1 ? 0 : (double)(rank - 1)/(partition.length - 1);
+
+        // each line has: count(*)  sum(salary)  row_number()  rank()  dense_rank()  cume_dist()  percent_rank()
+        resultOrderStream.printf("%d\t%d\t%d\t%d\t%d\t%s\t%s%n",
+          partition.subRunningCount(sub), partition.subRunningSum(sub),
+          rowNumber, rank, denseRank, Double.toString(cumeDist), Double.toString(percentRank));
+
+        // each line has: count(*)  sum(salary)
+        resultStream.printf("%d\t%d%n", partition.length, partition.totalSalary());
       }
     }
 
     resultStream.close();
     resultOrderStream.close();
   }
+
+  public static void main(String[] args) throws FileNotFoundException {
+    generateData("b1.p1", dataB1P1());
+    generateData("b1.p2", dataB1P2());
+    generateData("b2.p2", dataB2P2());
+    generateData("b2.p4", dataB2P4());
+    generateData("b3.p2", dataB3P2());
+    generateData("b4.p4", dataB4P4());
+  }
+
 }
