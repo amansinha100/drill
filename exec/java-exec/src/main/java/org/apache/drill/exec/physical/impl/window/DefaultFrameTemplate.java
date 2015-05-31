@@ -43,7 +43,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   /**
    * current partition being processed. Can span over multiple batches, so we may need to keep it between calls to doWork()
    */
-  private Interval partition;
+  private Partition partition;
 
   @Override
   public void setup(List<RecordBatchData> batches, VectorAccessible container, List<WindowVector> winvecs) throws SchemaChangeException {
@@ -76,6 +76,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     // we need to store the record count explicitly, in case we release current batch at the end of this call
     outputCount = current.getRecordCount();
 
+    //TODO transfer existing vectors at the end and only allocate "aggregated" vectors
     // allocate vectors
     for (VectorWrapper<?> w : container){
       w.getValueVector().allocateNew();
@@ -88,13 +89,12 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     while (currentRow < outputCount) {
       if (partition != null) {
         assert currentRow == 0 : "pending windows are only expected at the start of the batch";
-
         // we have a pending window we need to handle from a previous call to doWork()
         logger.trace("we have a pending partition {}", partition);
       } else {
         // compute the size of the new partition
         final int length = computePartitionSize(currentRow);
-        partition = new Interval(length);
+        partition = new Partition(length);
         resetValues(); // reset aggregations
       }
 
@@ -108,6 +108,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     // we can safely free the current batch
     batches.remove(0).clear();
 
+    //TODO we only need to do this for the "aggregated" vectors
     for (VectorWrapper<?> v : container) {
       v.getValueVector().getMutator().setValueCount(outputCount);
     }
@@ -121,8 +122,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @throws DrillException if it can't write into the container
    */
   private int processPartition(int currentRow) throws DrillException {
-    logger.trace("process partition {}, frame: {}, currentRow: {}, outputCount: {}",
-      partition, currentRow, outputCount);
+    logger.trace("process partition {}, currentRow: {}, outputCount: {}", partition, currentRow, outputCount);
 
     // when computing the frame for the current row, keep track of how many peer rows need to be processed
     // because all peer rows share the same frame, we only need to compute and aggregate the frame once
@@ -168,25 +168,25 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   /**
    * @return number of rows that are part of the partition starting at row start of first batch
    */
-  private int computePartitionSize(int start) {
+  private int computePartitionSize(final int start) {
     logger.trace("compute partition size starting from {} on {} batches", start, batches.size());
 
     // current partition always starts from first batch
-    final VectorAccessible first = batches.get(0).getContainer();
+    final VectorAccessible first = getCurrent();
 
     int length = 0;
 
     // count all rows that are in the same partition of start
-    outer:
+    // keep increasing length until we find first row of next partition or we reach the very
+    // last batch
     for (RecordBatchData batch : batches) {
       final VectorAccessible cont = batch.getContainer();
+      final int recordCount = cont.getRecordCount();
 
       // check first container from start row, and subsequent containers from first row
-      for (int row = (cont == first ? start : 0); row < cont.getRecordCount(); row++) {
-        if (isSamePartition(start, first, row, cont)) {
-          length++;
-        } else {
-          break outer;
+      for (int row = (cont == first) ? start : 0; row < recordCount; row++, length++) {
+        if (!isSamePartition(start, first, row, cont)) {
+          return length;
         }
       }
     }
@@ -196,33 +196,35 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
   /**
    * find the limits of the window frame for a row
-   * @param row idx of row in the given batch
+   * @param start first row of frame we want to count
    * @return frame interval
    */
-  private int countPeers(int row) {
+  private int countPeers(final int start) {
 
     // using default frame for now RANGE BETWEEN UNBOUND PRECEDING AND CURRENT ROW
     // frame contains all rows from start of partition to last peer of row
 
-    Iterator<RecordBatchData> iterator = batches.iterator();
-    VectorAccessible batch = iterator.next().getContainer();
-    VectorAccessible current = batch;
+    // current frame always starts from first batch
+    final VectorAccessible first = getCurrent();
 
-    // for every remaining row in the partition, count it if it's a peer row
-    int peers = 0;
-    for (int curRow = row, i = 0; i < partition.remaining; i++, curRow++, peers++) {
-      if (curRow == current.getRecordCount()) {
-        current = iterator.next().getContainer();
-        curRow = 0;
-      }
+    int length = 0;
 
-      if (!isPeer(row, batch, curRow, current)) {
-        break;
+    // count all rows that are in the same frame of starting row
+    // keep increasing length until we find first non peer row we reach the very
+    // last batch
+    for (RecordBatchData batch : batches) {
+      final VectorAccessible cont = batch.getContainer();
+      final int recordCount = cont.getRecordCount();
+
+      // for every remaining row in the partition, count it if it's a peer row
+      for (int row = (cont == first) ? start : 0; row < recordCount && length < partition.remaining; row++, length++) {
+        if (!isPeer(start, first, row, cont)) {
+          return length;
+        }
       }
     }
 
-    // do not count row as a peer
-    return peers;
+    return length;
   }
 
   /**
@@ -350,53 +352,4 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @return true if the rows are in the same partition
    */
   public abstract boolean isPeer(@Named("b1Index") int b1Index, @Named("b1") VectorAccessible b1, @Named("b2Index") int b2Index, @Named("b2") VectorAccessible b2);
-
-  /**
-   * Used internally to keep track of partitions and frames
-   */
-  private static class Interval {
-    public final int length;
-    public int remaining; // rows not yet aggregated in partition
-    public int peers; // peer rows not yet aggregated in current frame
-
-    public int rowNumber;
-    public int rank;
-    public int denseRank;
-    public double percentRank;
-    public double cumeDist;
-
-    public Interval(int length) {
-      this.length = length;
-      remaining = length;
-      rowNumber = 1;
-    }
-
-    public void rowAggregated() {
-      remaining--;
-      peers--;
-
-      rowNumber++;
-    }
-
-    public void newFrame(int peers) {
-      this.peers = peers;
-      rank = rowNumber; // rank = row number of 1st peer
-      denseRank++;
-      percentRank = length > 1 ? (double) (rank - 1) / (length - 1) : 0;
-      cumeDist = (double)(rank + peers - 1) / length;
-    }
-
-    public boolean isDone() {
-      return remaining == 0;
-    }
-
-    public boolean isFrameDone() {
-      return peers == 0;
-    }
-
-    @Override
-    public String toString() {
-      return String.format("{length: %d, remaining partition: %d, remaining peers: %d}", length, remaining, peers);
-    }
-  }
 }
