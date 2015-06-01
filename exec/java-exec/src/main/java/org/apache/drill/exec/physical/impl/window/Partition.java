@@ -25,31 +25,31 @@ public class Partition {
   public int remaining; // rows not yet aggregated in partition
   public int peers; // peer rows not yet aggregated in current frame
 
-  public int rowNumber;
+  public int row_number;
   public int rank;
-  public int denseRank;
-  public double percentRank;
-  public double cumeDist;
+  public int dense_rank;
+  public double percent_rank;
+  public double cume_dist;
 
   public Partition(int length) {
     this.length = length;
     remaining = length;
-    rowNumber = 1;
+    row_number = 1;
   }
 
   public void rowAggregated() {
     remaining--;
     peers--;
 
-    rowNumber++;
+    row_number++;
   }
 
   public void newFrame(int peers) {
     this.peers = peers;
-    rank = rowNumber; // rank = row number of 1st peer
-    denseRank++;
-    percentRank = length > 1 ? (double) (rank - 1) / (length - 1) : 0;
-    cumeDist = (double)(rank + peers - 1) / length;
+    rank = row_number; // rank = row number of 1st peer
+    dense_rank++;
+    percent_rank = length > 1 ? (double) (rank - 1) / (length - 1) : 0;
+    cume_dist = (double)(rank + peers - 1) / length;
   }
 
   public boolean isDone() {

@@ -20,13 +20,10 @@ package org.apache.drill.exec.physical.impl.window;
 import org.apache.drill.common.exceptions.DrillException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
-import org.apache.drill.exec.physical.impl.window.WindowFrameRecordBatch.WindowVector;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorAccessible;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
-import org.apache.drill.exec.vector.BigIntVector;
-import org.apache.drill.exec.vector.Float8Vector;
 import org.apache.drill.exec.vector.ValueVector;
 
 import javax.inject.Named;
@@ -41,23 +38,18 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   private List<RecordBatchData> batches;
   private int outputCount; // number of rows in currently/last processed batch
 
-  private List<WindowVector> winvecs;
-
   /**
    * current partition being processed. Can span over multiple batches, so we may need to keep it between calls to doWork()
    */
   private Partition partition;
 
   @Override
-  public void setup(List<RecordBatchData> batches, VectorContainer container, List<WindowVector> winvecs) throws SchemaChangeException {
+  public void setup(List<RecordBatchData> batches, VectorContainer container) throws SchemaChangeException {
     this.container = container;
     this.batches = batches;
 
     outputCount = 0;
     partition = null;
-
-    logger.debug("winvecs.size = {}", winvecs.size());
-    this.winvecs = winvecs;
 
     setupOutgoing(container);
   }
@@ -128,50 +120,28 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
   /**
    * process all rows (computes and writes aggregation values) of current batch that are part of current partition.
+   * @param currentRow first unprocessed row
    * @return index of next unprocessed row
    * @throws DrillException if it can't write into the container
    */
-  private int processPartition(int currentRow) throws DrillException {
+  private int processPartition(final int currentRow) throws DrillException {
     logger.trace("process partition {}, currentRow: {}, outputCount: {}", partition, currentRow, outputCount);
 
-    // when computing the frame for the current row, keep track of how many peer rows need to be processed
-    // because all peer rows share the same frame, we only need to compute and aggregate the frame once
-    for (; currentRow < outputCount && !partition.isDone(); currentRow++) {
+    int row = currentRow;
+    while (row < outputCount && !partition.isDone()) {
       if (partition.isFrameDone()) {
-        partition.newFrame(countPeers(currentRow));
-        aggregatePeers(currentRow);
+        // because all peer rows share the same frame, we only need to compute and aggregate the frame once
+        partition.newFrame(countPeers(row));
+        aggregatePeers(row);
       }
 
-      outputAggregatedValues(currentRow);
-
-      //TODO investigate how we could generate this computation unit to avoid for/switch
-      {
-        for (WindowVector wv : winvecs) {
-          //TODO move the computation inside WindowVector and pass the min amount of information needed
-          switch (wv.func) {
-            case ROW_NUMBER:
-              ((BigIntVector) wv.vector).getMutator().setSafe(currentRow, partition.rowNumber);
-              break;
-            case RANK:
-              ((BigIntVector) wv.vector).getMutator().setSafe(currentRow, partition.rank);
-              break;
-            case DENSE_RANK:
-              ((BigIntVector) wv.vector).getMutator().setSafe(currentRow, partition.denseRank);
-              break;
-            case PERCENT_RANK:
-              ((Float8Vector) wv.vector).getMutator().setSafe(currentRow, partition.percentRank);
-              break;
-            case CUME_DIST:
-              ((Float8Vector) wv.vector).getMutator().setSafe(currentRow, partition.cumeDist);
-              break;
-          }
-        }
-      }
+      outputAggregatedValues(row, partition);
 
       partition.rowAggregated();
+      row++;
     }
 
-    return currentRow;
+    return row;
   }
 
   /**
@@ -299,7 +269,6 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
   @Override
   public void cleanup() {
-    winvecs = null;
   }
 
   /**
@@ -322,7 +291,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * writes aggregated values to row of outgoing container
    * @param outIndex index of row
    */
-  public abstract void outputAggregatedValues(@Named("outIndex") int outIndex);
+  public abstract void outputAggregatedValues(@Named("outIndex") int outIndex, @Named("partition") Partition partition);
 
   /**
    * reset all window functions
