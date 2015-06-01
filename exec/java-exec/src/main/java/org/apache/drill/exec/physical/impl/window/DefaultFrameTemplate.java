@@ -62,6 +62,12 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     setupOutgoing(container);
   }
 
+  private void allocateOutgoing() {
+    for (VectorWrapper<?> w : container) {
+      w.getValueVector().allocateNew();
+    }
+  }
+
   /**
    * processes all rows of current batch:
    * <ul>
@@ -73,6 +79,8 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   public void doWork() throws DrillException {
     logger.trace("WindowFramer.doWork() START, num batches {}, current batch has {} rows",
       batches.size(), batches.get(0).getRecordCount());
+
+    allocateOutgoing();
 
     final VectorAccessible current = batches.get(0).getContainer();
 
