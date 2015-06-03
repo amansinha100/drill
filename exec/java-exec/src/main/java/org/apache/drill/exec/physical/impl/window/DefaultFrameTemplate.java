@@ -19,7 +19,6 @@ package org.apache.drill.exec.physical.impl.window;
 
 import org.apache.drill.common.exceptions.DrillException;
 import org.apache.drill.exec.exception.SchemaChangeException;
-import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorAccessible;
 import org.apache.drill.exec.record.VectorContainer;
@@ -35,23 +34,22 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DefaultFrameTemplate.class);
 
   private VectorContainer container;
-  private List<RecordBatchData> batches;
+  private List<WindowDataBatch> batches;
   private int outputCount; // number of rows in currently/last processed batch
 
+//  private boolean first = true;
   /**
    * current partition being processed. Can span over multiple batches, so we may need to keep it between calls to doWork()
    */
   private Partition partition;
 
   @Override
-  public void setup(List<RecordBatchData> batches, VectorContainer container) throws SchemaChangeException {
+  public void setup(List<WindowDataBatch> batches, final VectorContainer container) throws SchemaChangeException {
     this.container = container;
     this.batches = batches;
 
     outputCount = 0;
     partition = null;
-
-    setupOutgoing(container);
   }
 
   private void allocateOutgoing() {
@@ -74,7 +72,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
     allocateOutgoing();
 
-    final VectorAccessible current = batches.get(0).getContainer();
+    final WindowDataBatch current = batches.get(0);
 
     // we need to store the record count explicitly, in case we release current batch at the end of this call
     outputCount = current.getRecordCount();
@@ -90,12 +88,13 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
         // compute the size of the new partition
         final int length = computePartitionSize(currentRow);
         partition = new Partition(length);
-        resetValues(); // reset aggregations
+        setupWrite(current, container);
       }
 
       currentRow = processPartition(currentRow);
       if (partition.isDone()) {
         partition = null;
+        resetValues();
       }
     }
 
@@ -158,13 +157,12 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     // count all rows that are in the same partition of start
     // keep increasing length until we find first row of next partition or we reach the very
     // last batch
-    for (RecordBatchData batch : batches) {
-      final VectorAccessible cont = batch.getContainer();
-      final int recordCount = cont.getRecordCount();
+    for (WindowDataBatch batch : batches) {
+      final int recordCount = batch.getRecordCount();
 
       // check first container from start row, and subsequent containers from first row
-      for (int row = (cont == first) ? start : 0; row < recordCount; row++, length++) {
-        if (!isSamePartition(start, first, row, cont)) {
+      for (int row = (batch == first) ? start : 0; row < recordCount; row++, length++) {
+        if (!isSamePartition(start, first, row, batch)) {
           return length;
         }
       }
@@ -191,13 +189,12 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     // count all rows that are in the same frame of starting row
     // keep increasing length until we find first non peer row we reach the very
     // last batch
-    for (RecordBatchData batch : batches) {
-      final VectorAccessible cont = batch.getContainer();
-      final int recordCount = cont.getRecordCount();
+    for (WindowDataBatch batch : batches) {
+      final int recordCount = batch.getRecordCount();
 
       // for every remaining row in the partition, count it if it's a peer row
-      for (int row = (cont == first) ? start : 0; row < recordCount && length < partition.remaining; row++, length++) {
-        if (!isPeer(start, first, row, cont)) {
+      for (int row = (batch == first) ? start : 0; row < recordCount && length < partition.remaining; row++, length++) {
+        if (!isPeer(start, first, row, batch)) {
           return length;
         }
       }
@@ -217,34 +214,33 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
     // a single frame can include rows from multiple batches
     // start processing first batch and, if necessary, move to next batches
-    Iterator<RecordBatchData> iterator = batches.iterator();
-    VectorAccessible current = iterator.next().getContainer();
-    setupIncoming(current);
+    Iterator<WindowDataBatch> iterator = batches.iterator();
+    WindowDataBatch current = iterator.next();
+    setupRead(current, container);
 
     for (int i = 0, row = currentRow; i < partition.peers; i++, row++) {
       if (row >= current.getRecordCount()) {
         // we reached the end of the current batch, move to the next one
-        current = iterator.next().getContainer();
-        setupIncoming(current);
+        current = iterator.next();
+        setupRead(current, container);
         row = 0;
       }
 
       aggregateRecord(row);
     }
-
   }
 
   @Override
   public boolean canDoWork() {
     // check if we can process a saved batch
-    if (batches.isEmpty()) {
+    if (batches.size() < 2) {
       logger.trace("we don't have enough batches to proceed, fetch next batch");
       return false;
     }
 
     final VectorAccessible current = getCurrent();
     final int currentSize = current.getRecordCount();
-    final VectorAccessible last = batches.get(batches.size() - 1).getContainer();
+    final VectorAccessible last = batches.get(batches.size() - 1);
     final int lastSize = last.getRecordCount();
 
     if (!isSamePartition(currentSize - 1, current, lastSize - 1, last)
@@ -257,9 +253,11 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     }
   }
 
-  @Override
-  public VectorAccessible getCurrent() {
-    return batches.get(0).getContainer();
+  /**
+   * @return saved batch that will be processed in doWork()
+   */
+  private VectorAccessible getCurrent() {
+    return batches.get(0);
   }
 
   @Override
@@ -274,12 +272,12 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   /**
    * setup incoming container for aggregateRecord()
    */
-  public abstract void setupIncoming(@Named("incoming") VectorAccessible incoming) throws SchemaChangeException;
+  public abstract void setupRead(@Named("incoming") VectorAccessible incoming, @Named("outgoing") VectorAccessible outgoing) throws SchemaChangeException;
 
   /**
-   * setup outgoing container for outputAggregatedValues
+   * setup outgoing container for outputAggregatedValues. This will also reset the aggregations in most cases.
    */
-  public abstract void setupOutgoing(@Named("outgoing") VectorAccessible outgoing) throws SchemaChangeException;
+  public abstract void setupWrite(@Named("incoming") WindowDataBatch incoming, @Named("outgoing") VectorAccessible outgoing) throws SchemaChangeException;
 
   /**
    * aggregates a row from the incoming container

@@ -46,7 +46,6 @@ import org.apache.drill.exec.expr.fn.FunctionGenerationHelper;
 import org.apache.drill.exec.memory.OutOfMemoryException;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.WindowPOP;
-import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.record.AbstractRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
@@ -68,7 +67,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(WindowFrameRecordBatch.class);
 
   private final RecordBatch incoming;
-  private List<RecordBatchData> batches;
+  private List<WindowDataBatch> batches;
   private WindowFramer framer;
 
   private boolean noMoreBatches;
@@ -128,7 +127,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
    *
    * <p><pre>
    * when innerNext() is called:
-   *   call next(incoming), we receive and save b0 in a list of RecordDataBatch
+   *   call next(incoming), we receive and save b0 in a list of WindowDataBatch
    *     we can't process b0 yet because we don't know if p1 has more rows upstream
    *   call next(incoming), we receive and save b1
    *     we can't process b0 yet for the same reason previously stated
@@ -182,7 +181,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
             this.schema = incoming.getSchema();
           }
         case OK:
-          batches.add(new RecordBatchData(incoming));
+          batches.add(new WindowDataBatch(incoming, context));
           break;
         default:
           throw new UnsupportedOperationException();
@@ -346,8 +345,8 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     cg.getEvalBlock()._return(JExpr.TRUE);
   }
 
-  private static final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupIncoming", "aggregateRecord", null, null);
-  private static final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupOutgoing", "outputAggregatedValues", "resetValues", "cleanup");
+  private static final GeneratorMapping EVAL_INSIDE = GeneratorMapping.create("setupRead", "aggregateRecord", null, null);
+  private static final GeneratorMapping EVAL_OUTSIDE = GeneratorMapping.create("setupWrite", "outputAggregatedValues", "resetValues", "cleanup");
   private final MappingSet eval = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
 
   /**
@@ -379,7 +378,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     }
 
     if (batches != null) {
-      for (final RecordBatchData bd : batches) {
+      for (final WindowDataBatch bd : batches) {
         bd.clear();
       }
       batches = null;

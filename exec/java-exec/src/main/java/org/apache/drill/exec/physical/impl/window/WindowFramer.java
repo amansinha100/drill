@@ -20,8 +20,6 @@ package org.apache.drill.exec.physical.impl.window;
 import org.apache.drill.common.exceptions.DrillException;
 import org.apache.drill.exec.compile.TemplateClassDefinition;
 import org.apache.drill.exec.exception.SchemaChangeException;
-import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
-import org.apache.drill.exec.record.VectorAccessible;
 import org.apache.drill.exec.record.VectorContainer;
 
 import java.util.List;
@@ -29,7 +27,7 @@ import java.util.List;
 public interface WindowFramer {
   TemplateClassDefinition<WindowFramer> TEMPLATE_DEFINITION = new TemplateClassDefinition<>(WindowFramer.class, DefaultFrameTemplate.class);
 
-  void setup(List<RecordBatchData> batches, VectorContainer container) throws SchemaChangeException;
+  void setup(List<WindowDataBatch> batches, final VectorContainer container) throws SchemaChangeException;
 
   /**
    * process the inner batch and write the aggregated values in the container
@@ -52,9 +50,4 @@ public interface WindowFramer {
   int getOutputCount();
 
   void cleanup();
-
-  /**
-   * @return saved batch that will be processed in doWork()
-   */
-  VectorAccessible getCurrent();
 }

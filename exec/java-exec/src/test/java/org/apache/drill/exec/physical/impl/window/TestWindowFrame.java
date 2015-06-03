@@ -168,4 +168,15 @@ public class TestWindowFrame extends BaseTestQuery {
     runTest("b4.p4", true);
   }
 
+  @Test // DRILL-3218
+  public void testMaxVarChar() throws Exception {
+    runSQL(String.format("alter session set `%s`= true", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
+
+    try {
+      test("select max(cast(columns[2] as char(2))) over(partition by cast(columns[2] as char(2)) order by cast(columns[0] as int)) from dfs_test.`%s/window/allData.csv`", TEST_RES_PATH);
+    } finally {
+      runSQL(String.format("alter session set `%s`= false", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
+    }
+
+  }
 }
