@@ -73,6 +73,9 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   private boolean noMoreBatches;
   private BatchSchema schema;
 
+  /**
+   * Describes supported window functions and if they output FLOAT8 or BIGINT
+   */
   private enum WindowFunction {
     ROW_NUMBER(false),
     RANK(false),
@@ -90,6 +93,11 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
       return useDouble ? Types.required(TypeProtos.MinorType.FLOAT8) : Types.required(TypeProtos.MinorType.BIGINT);
     }
 
+    /**
+     * Extract the WindowFunction corresponding to the logical expression
+     * @param expr logical expression
+     * @return WindowFunction or null if the logical expression is not a window function
+     */
     public static WindowFunction fromExpression(final LogicalExpression expr) {
       if (!(expr instanceof FunctionCall)) {
         return null;
@@ -144,7 +152,11 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
    * when innerNext() is called:
    *  we return NONE
    * </pre></p>
-   *
+   * The previous scenario applies when we don't have an ORDER BY clause, otherwise a batch can be processed
+   * as soon as we reach the final peer row of the batch's last row (we find the end of the last frame of the batch).
+   * </p>
+   * Because we only support the default frame, we don't need to reset the aggregations until we reach the end of
+   * a partition. We can safely free a batch as soon as it has been processed.
    */
   @Override
   public IterOutcome innerNext() {
@@ -167,16 +179,13 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
         case OUT_OF_MEMORY:
         case NOT_YET:
         case STOP:
+          cleanup();
           return upstream;
         case OK_NEW_SCHEMA:
-          // when a partition of rows exceeds the current processed batch, it will be kept as "pending" and processed
-          // when innerNext() is called again. If the schema changes, the framer is "rebuilt" and the pending information
-          // will be lost which may lead to incorrect results.
-
-          // only change in the case that the schema truly changes.  Artificial schema changes are ignored.
+          // We don't support schema changes
           if (!incoming.getSchema().equals(schema)) {
             if (schema != null) {
-              throw new UnsupportedOperationException("Sort doesn't currently support sorts with changing schemas.");
+              throw new UnsupportedOperationException("OVER clause doesn't currently support changing schemas.");
             }
             this.schema = incoming.getSchema();
           }
@@ -184,7 +193,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
           batches.add(new WindowDataBatch(incoming, context));
           break;
         default:
-          throw new UnsupportedOperationException();
+          throw new UnsupportedOperationException("Unsupported upstrean state " + upstream);
       }
     }
 
@@ -194,7 +203,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
       return IterOutcome.NONE;
     }
 
-    // process a saved batch
+    // process first saved batch, then release it
     try {
       framer.doWork();
     } catch (DrillException e) {
@@ -235,21 +244,17 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   }
 
   private WindowFramer createFramer(VectorAccessible batch) throws SchemaChangeException, IOException, ClassTransformationException {
+    assert framer == null : "createFramer should only be called once";
+
+    logger.trace("creating framer");
+
     final List<LogicalExpression> aggExprs = Lists.newArrayList();
     final Map<WindowFunction, TypedFieldId> winExprs = Maps.newHashMap();
     final List<LogicalExpression> keyExprs = Lists.newArrayList();
     final List<LogicalExpression> orderExprs = Lists.newArrayList();
-
-    logger.trace("creating framer");
+    final ErrorCollector collector = new ErrorCollectorImpl();
 
     container.clear();
-
-    if (framer != null) {
-      framer.cleanup();
-      framer = null;
-    }
-
-    ErrorCollector collector = new ErrorCollectorImpl();
 
     // all existing vectors will be transferred to the outgoing container in framer.doWork()
     for (VectorWrapper wrapper : batch) {
@@ -258,7 +263,6 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
 
     // add aggregation vectors to the container, and materialize corresponding expressions
     for (final NamedExpression ne : popConfig.getAggregations()) {
-      // evaluate expression over saved batch
       final WindowFunction wf = WindowFunction.fromExpression(ne.getExpr());
 
       if (wf != null) {
@@ -268,14 +272,13 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
         vv.allocateNew();
         winExprs.put(wf, container.getValueVectorId(ne.getRef()));
       } else {
+        // evaluate expression over saved batch
         final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), batch, collector, context.getFunctionRegistry());
 
         // add corresponding ValueVector to container
         final MaterializedField outputField = MaterializedField.create(ne.getRef(), expr.getMajorType());
         ValueVector vv = container.addOrGet(outputField);
         vv.allocateNew();
-
-        // write value into container
         TypedFieldId id = container.getValueVectorId(ne.getRef());
         aggExprs.add(new ValueVectorWriteExpression(id, expr, true));
       }
@@ -350,7 +353,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
   private final MappingSet eval = new MappingSet("index", "outIndex", EVAL_INSIDE, EVAL_OUTSIDE, EVAL_INSIDE);
 
   /**
-   * setup for addRecords() and outputAggregatedValues()
+   * setup for aggregateRecord() and outputAggregatedValues()
    */
   private void setupOutputAggregatedValues(ClassGenerator<WindowFramer> cg, List<LogicalExpression> valueExprs) {
     cg.setMappingSet(eval);
@@ -359,9 +362,11 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     }
   }
 
+  /**
+   * generate code to write "computed" window function values into their respective value vectors
+   */
   private void setupAddWindowValue(final ClassGenerator<WindowFramer> cg, final Map<WindowFunction, TypedFieldId> functions) {
     cg.setMappingSet(eval);
-
     for (WindowFunction function : functions.keySet()) {
       final JVar vv = cg.declareVectorValueSetupAndMember(cg.getMappingSet().getOutgoing(), functions.get(function));
       final JExpression outIndex = cg.getMappingSet().getValueWriteIndex();

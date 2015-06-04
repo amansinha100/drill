@@ -37,9 +37,9 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   private List<WindowDataBatch> batches;
   private int outputCount; // number of rows in currently/last processed batch
 
-//  private boolean first = true;
   /**
-   * current partition being processed. Can span over multiple batches, so we may need to keep it between calls to doWork()
+   * current partition being processed.</p>
+   * Can span over multiple batches, so we may need to keep it between calls to doWork()
    */
   private Partition partition;
 
@@ -61,12 +61,15 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   /**
    * processes all rows of current batch:
    * <ul>
-   *   <li>compute window aggregations</li>
-   *   <li>copy remaining vectors from current batch to container</li>
+   *   <li>compute aggregations</li>
+   *   <li>compute window functions</li>
+   *   <li>transfer remaining vectors from current batch to container</li>
    * </ul>
    */
   @Override
   public void doWork() throws DrillException {
+    int currentRow = 0;
+
     logger.trace("WindowFramer.doWork() START, num batches {}, current batch has {} rows",
       batches.size(), batches.get(0).getRecordCount());
 
@@ -74,18 +77,16 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
 
     final WindowDataBatch current = batches.get(0);
 
-    // we need to store the record count explicitly, in case we release current batch at the end of this call
+    // we need to store the record count explicitly, because we release current batch at the end of this call
     outputCount = current.getRecordCount();
-
-    int currentRow = 0;
 
     while (currentRow < outputCount) {
       if (partition != null) {
         assert currentRow == 0 : "pending windows are only expected at the start of the batch";
+
         // we have a pending window we need to handle from a previous call to doWork()
         logger.trace("we have a pending partition {}", partition);
       } else {
-        // compute the size of the new partition
         final int length = computePartitionSize(currentRow);
         partition = new Partition(length);
         setupWrite(current, container);
@@ -105,7 +106,6 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
       tp.transfer();
     }
 
-    //TODO we only need to do this for the "aggregated" vectors
     for (VectorWrapper<?> v : container) {
       v.getValueVector().getMutator().setValueCount(outputCount);
     }
@@ -172,15 +172,11 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
   }
 
   /**
-   * find the limits of the window frame for a row
-   * @param start first row of frame we want to count
-   * @return frame interval
+   * Counts how many rows are peer with the first row of the current frame
+   * @param start first row of current frame
+   * @return number of peer rows
    */
   private int countPeers(final int start) {
-
-    // using default frame for now RANGE BETWEEN UNBOUND PRECEDING AND CURRENT ROW
-    // frame contains all rows from start of partition to last peer of row
-
     // current frame always starts from first batch
     final VectorAccessible first = getCurrent();
 
@@ -193,7 +189,8 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
       final int recordCount = batch.getRecordCount();
 
       // for every remaining row in the partition, count it if it's a peer row
-      for (int row = (batch == first) ? start : 0; row < recordCount && length < partition.remaining; row++, length++) {
+      final int remaining = partition.getRemaining();
+      for (int row = (batch == first) ? start : 0; row < recordCount && length < remaining; row++, length++) {
         if (!isPeer(start, first, row, batch)) {
           return length;
         }
@@ -209,7 +206,7 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
    * @throws SchemaChangeException
    */
   private void aggregatePeers(final int currentRow) throws SchemaChangeException {
-    logger.trace("aggregating {} rows starting from {}", partition.peers, currentRow);
+    logger.trace("aggregating {} rows starting from {}", partition.getPeers(), currentRow);
     assert !partition.isFrameDone() : "frame is empty!";
 
     // a single frame can include rows from multiple batches
@@ -218,7 +215,8 @@ public abstract class DefaultFrameTemplate implements WindowFramer {
     WindowDataBatch current = iterator.next();
     setupRead(current, container);
 
-    for (int i = 0, row = currentRow; i < partition.peers; i++, row++) {
+    final int peers = partition.getPeers();
+    for (int i = 0, row = currentRow; i < peers; i++, row++) {
       if (row >= current.getRecordCount()) {
         // we reached the end of the current batch, move to the next one
         current = iterator.next();

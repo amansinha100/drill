@@ -21,15 +21,30 @@ package org.apache.drill.exec.physical.impl.window;
  * Used internally to keep track of partitions and frames
  */
 public class Partition {
-  public final int length;
-  public int remaining; // rows not yet aggregated in partition
-  public int peers; // peer rows not yet aggregated in current frame
+  private final int length; // size of this partition
+  private int remaining;
+  private int peers;
 
+  // we keep these attributes public because the generated code needs to access them
   public int row_number;
   public int rank;
   public int dense_rank;
   public double percent_rank;
   public double cume_dist;
+
+  /**
+   * @return number of rows not yet aggregated in this partition
+   */
+  public int getRemaining() {
+    return remaining;
+  }
+
+  /**
+   * @return peer rows not yet aggregated in current frame
+   */
+  public int getPeers() {
+    return peers;
+  }
 
   public Partition(int length) {
     this.length = length;

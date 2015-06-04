@@ -44,6 +44,7 @@ public interface WindowFramer {
    * @return true if current batch can be processed, false otherwise
    */
   boolean canDoWork();
+
   /**
    * @return number rows processed in last batch
    */
