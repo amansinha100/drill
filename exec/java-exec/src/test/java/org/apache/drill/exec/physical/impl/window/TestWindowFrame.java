@@ -30,10 +30,6 @@ import java.util.Properties;
 public class TestWindowFrame extends BaseTestQuery {
 
   private static final String TEST_RES_PATH = TestTools.getWorkingPath() + "/src/test/resources";
-  private static final String QUERY_NO_ORDERBY =
-    "select count(*) over pos_win `count`, sum(salary) over pos_win `sum` from dfs_test.`%s/window/%s` window pos_win as (partition by position_id)";
-  private static final String QUERY_ORDERBY =
-    "select count(*) over pos_win `count`, sum(salary) over pos_win `sum`, row_number() over pos_win `row_number`, rank() over pos_win `rank`, dense_rank() over pos_win `dense_rank`, cume_dist() over pos_win `cume_dist`, percent_rank() over pos_win `percent_rank`  from dfs_test.`%s/window/%s` window pos_win as (partition by position_id order by sub)";
 
   @BeforeClass
   public static void setupMSortBatchSize() {
@@ -46,7 +42,7 @@ public class TestWindowFrame extends BaseTestQuery {
 
   private DrillTestWrapper buildWindowQuery(final String tableName) throws Exception {
     return testBuilder()
-      .sqlQuery(String.format(QUERY_NO_ORDERBY, TEST_RES_PATH, tableName))
+      .sqlQuery(String.format(getFile("window/q1.sql"), TEST_RES_PATH, tableName))
       .ordered()
       .csvBaselineFile("window/" + tableName + ".tsv")
       .baselineColumns("count", "sum")
@@ -55,7 +51,7 @@ public class TestWindowFrame extends BaseTestQuery {
 
   private DrillTestWrapper buildWindowWithOrderByQuery(final String tableName) throws Exception {
     return testBuilder()
-      .sqlQuery(String.format(QUERY_ORDERBY, TEST_RES_PATH, tableName))
+      .sqlQuery(String.format(getFile("window/q2.sql"), TEST_RES_PATH, tableName))
       .ordered()
       .csvBaselineFile("window/" + tableName + ".subs.tsv")
       .baselineColumns("count", "sum", "row_number", "rank", "dense_rank", "cume_dist", "percent_rank")
@@ -63,15 +59,9 @@ public class TestWindowFrame extends BaseTestQuery {
   }
 
   private void runTest(final String tableName, final boolean withOrderBy) throws Exception {
-    runSQL(String.format("alter session set `%s`= true", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
-
-    try {
-      DrillTestWrapper testWrapper = withOrderBy ?
-        buildWindowWithOrderByQuery(tableName) : buildWindowQuery(tableName);
-      testWrapper.run();
-    } finally {
-      runSQL(String.format("alter session set `%s`= false", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
-    }
+    DrillTestWrapper testWrapper = withOrderBy ?
+      buildWindowWithOrderByQuery(tableName) : buildWindowQuery(tableName);
+    testWrapper.run();
   }
 
   /**
@@ -170,13 +160,11 @@ public class TestWindowFrame extends BaseTestQuery {
 
   @Test // DRILL-3218
   public void testMaxVarChar() throws Exception {
-    runSQL(String.format("alter session set `%s`= true", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
+    test(getFile("window/q3218.sql"), TEST_RES_PATH);
+  }
 
-    try {
-      test("select max(cast(columns[2] as char(2))) over(partition by cast(columns[2] as char(2)) order by cast(columns[0] as int)) from dfs_test.`%s/window/allData.csv`", TEST_RES_PATH);
-    } finally {
-      runSQL(String.format("alter session set `%s`= false", ExecConstants.ENABLE_WINDOW_FUNCTIONS));
-    }
-
+  @Test // DRILL-3220
+  public void testCountConst() throws Exception {
+    test(getFile("window/q3220.sql"), TEST_RES_PATH);
   }
 }
