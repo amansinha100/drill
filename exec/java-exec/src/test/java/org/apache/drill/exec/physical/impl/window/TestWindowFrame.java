@@ -17,6 +17,8 @@
  ******************************************************************************/
 package org.apache.drill.exec.physical.impl.window;
 
+import java.util.Properties;
+
 import org.apache.drill.BaseTestQuery;
 import org.apache.drill.DrillTestWrapper;
 import org.apache.drill.common.config.DrillConfig;
@@ -24,8 +26,6 @@ import org.apache.drill.common.util.TestTools;
 import org.apache.drill.exec.ExecConstants;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.Properties;
 
 public class TestWindowFrame extends BaseTestQuery {
 
@@ -167,4 +167,15 @@ public class TestWindowFrame extends BaseTestQuery {
   public void testCountConst() throws Exception {
     test(getFile("window/q3220.sql"), TEST_RES_PATH);
   }
+
+  @Test // DRILL-1862
+  public void testEmptyPartitionBy() throws Exception {
+    test("SELECT employee_id, position_id, salary, SUM(salary) OVER(ORDER BY position_id) FROM cp.`employee.json` LIMIT 10");
+  }
+
+  @Test // DRILL-3172
+  public void testEmptyOverClause() throws Exception {
+    test("SELECT employee_id, position_id, salary, SUM(salary) OVER() FROM cp.`employee.json` LIMIT 10");
+  }
+
 }
