@@ -72,6 +72,7 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
 
   private boolean noMoreBatches;
   private BatchSchema schema;
+  private boolean allRowsInOnePartition = false;
 
   /**
    * Describes supported window functions and if they output FLOAT8 or BIGINT
@@ -116,6 +117,12 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
     super(popConfig, context);
     this.incoming = incoming;
     batches = Lists.newArrayList();
+    if (popConfig.getWithins() == null || popConfig.getWithins().length == 0) {
+      // If the partition-by is empty, we have to include all rows in one partition
+      // regardless of the order-by
+      allRowsInOnePartition = true;
+    }
+
   }
 
   /**
@@ -167,8 +174,13 @@ public class WindowFrameRecordBatch extends AbstractRecordBatch<WindowPOP> {
       return IterOutcome.NONE;
     }
 
-    // keep saving incoming batches until the first unprocessed batch can be processed, or upstream == NONE
-    while (!noMoreBatches && !framer.canDoWork()) {
+    // keep saving incoming batches until
+    // (a) upstream == NONE (noMoreBatches = true)  or
+    // (b) the first unprocessed batch can be processed (canDoWork() returns true) - however,
+    // if all rows are supposed to be included in a single partition then we have to keep saving
+    // the incoming batches until condition (a) is reached.
+    while (!noMoreBatches &&
+        (allRowsInOnePartition || !framer.canDoWork())) {
       IterOutcome upstream = next(incoming);
       logger.trace("next(incoming) returned {}", upstream);
 
