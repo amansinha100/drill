@@ -24,7 +24,7 @@ import java.util.BitSet;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 
-import org.apache.drill.exec.planner.logical.partition.FindPartitionConditions;
+import org.apache.drill.exec.planner.logical.common.FindPushableConditions;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
@@ -53,7 +53,7 @@ public class FilterSplitTest {
 
     BitSet bs = new BitSet();
     bs.set(1);
-    FindPartitionConditions c = new FindPartitionConditions(bs, builder);
+    FindPushableConditions c = new FindPushableConditions(bs, builder);
     c.analyze(n);
 
     RexNode partNode = c.getFinalCondition();
@@ -79,7 +79,7 @@ public class FilterSplitTest {
     BitSet bs = new BitSet();
     bs.set(1);
     bs.set(2);
-    FindPartitionConditions c = new FindPartitionConditions(bs, builder);
+    FindPushableConditions c = new FindPushableConditions(bs, builder);
     c.analyze(n);
 
     RexNode partNode = c.getFinalCondition();
@@ -102,7 +102,7 @@ public class FilterSplitTest {
     BitSet bs = new BitSet();
     bs.set(1);
     bs.set(2);
-    FindPartitionConditions c = new FindPartitionConditions(bs, builder);
+    FindPushableConditions c = new FindPushableConditions(bs, builder);
     c.analyze(n);
 
     RexNode partNode = c.getFinalCondition();
@@ -122,7 +122,7 @@ public class FilterSplitTest {
     BitSet bs = new BitSet();
     bs.set(1);
     bs.set(2);
-    FindPartitionConditions c = new FindPartitionConditions(bs, builder);
+    FindPushableConditions c = new FindPushableConditions(bs, builder);
     c.analyze(n);
 
     RexNode partNode = c.getFinalCondition();

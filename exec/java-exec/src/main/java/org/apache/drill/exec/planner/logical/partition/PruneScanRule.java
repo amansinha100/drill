@@ -64,6 +64,7 @@ import org.apache.calcite.rex.RexNode;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.planner.logical.common.FindPushableConditions;
 
 public abstract class PruneScanRule extends StoragePluginOptimizerRule {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(PruneScanRule.class);
@@ -170,7 +171,7 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
       return;
     }
 
-    FindPartitionConditions c = new FindPartitionConditions(columnBitset, filterRel.getCluster().getRexBuilder());
+    FindPushableConditions c = new FindPushableConditions(columnBitset, filterRel.getCluster().getRexBuilder());
     c.analyze(condition);
     RexNode pruneCondition = c.getFinalCondition();
 
@@ -180,7 +181,6 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
 
 
     // set up the partitions
-    final GroupScan groupScan = scanRel.getGroupScan();
     List<PartitionLocation> partitions = descriptor.getPartitions();
 
     if (partitions.size() > Character.MAX_VALUE) {

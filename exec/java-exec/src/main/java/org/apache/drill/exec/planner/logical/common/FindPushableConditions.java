@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.planner.logical.partition;
+package org.apache.drill.exec.planner.logical.common;
 
 import java.util.ArrayDeque;
 import java.util.BitSet;
@@ -42,22 +42,22 @@ import org.apache.calcite.util.Util;
 import com.google.common.collect.Lists;
 
 
-public class FindPartitionConditions extends RexVisitorImpl<Void> {
-  /** Whether an expression is a directory filter, and if so, whether
+public class FindPushableConditions extends RexVisitorImpl<Void> {
+  /** Whether an expression is a push-able filter, and if so, whether
    * it can be pushed into the scan.
    */
-  enum PushDirFilter {
+  enum PushableFilterStatus {
     NO_PUSH, PUSH
   }
 
   /**
    * During top-down traversal of the expression tree, keep track of the
-   * boolean operators such that if a directory filter is found, it will
+   * boolean operators such that if a push-able filter is found, it will
    * be added as a child of the current boolean operator.
    *
    * NOTE: this auxiliary class is necessary because RexNodes are immutable.
    * If they were mutable, we could have easily added/dropped inputs as we
-   * encountered directory filters.
+   * encountered push-able filters.
    */
   public class BooleanOpState {
     private SqlOperator booleanOp;
@@ -81,25 +81,25 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
     }
   }
 
-  private final BitSet dirs;
+  private final BitSet pushable_fields;
 
-  private final List<PushDirFilter> pushStatusStack =  Lists.newArrayList();
+  private final List<PushableFilterStatus> pushStatusStack =  Lists.newArrayList();
   private final Deque<SqlOperator> parentCallTypeStack = new ArrayDeque<SqlOperator>();
   private final Deque<BooleanOpState> opStack = new ArrayDeque<BooleanOpState>();
 
   private RexBuilder builder = null;
   private RexNode resultCondition = null;
 
-  public FindPartitionConditions(BitSet dirs) {
+  public FindPushableConditions(BitSet fields) {
     // go deep
     super(true);
-    this.dirs = dirs;
+    this.pushable_fields = fields;
   }
 
-  public FindPartitionConditions(BitSet dirs, RexBuilder builder) {
+  public FindPushableConditions(BitSet fields, RexBuilder builder) {
     // go deep
     super(true);
-    this.dirs = dirs;
+    this.pushable_fields = fields;
     this.builder = builder;
   }
 
@@ -111,9 +111,9 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
     // Deal with top of stack
     assert pushStatusStack.size() == 1;
     assert parentCallTypeStack.isEmpty();
-    PushDirFilter rootPushDirFilter = pushStatusStack.get(0);
-    if (rootPushDirFilter == PushDirFilter.PUSH) {
-      // The entire subtree was directory filter, so add it to the result.
+    PushableFilterStatus rootPushFilter = pushStatusStack.get(0);
+    if (rootPushFilter == PushableFilterStatus.PUSH) {
+      // The entire subtree was push-able filter, so add it to the result.
       addResult(exp);
     }
     pushStatusStack.clear();
@@ -124,12 +124,12 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
   }
 
   private Void pushVariable() {
-    pushStatusStack.add(PushDirFilter.NO_PUSH);
+    pushStatusStack.add(PushableFilterStatus.NO_PUSH);
     return null;
   }
 
   private void addResult(RexNode exp) {
-    // when we find a directory filter, add it to the current boolean operator's
+    // when we find a push-able filter, add it to the current boolean operator's
     // children (if one exists)
     if (!opStack.isEmpty()) {
       BooleanOpState op = opStack.peek();
@@ -141,10 +141,10 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
 
   /**
    * For an OR node that is marked as NO_PUSH, there could be 3 situations:
-   * 1. left child has a partition condition, right child does not.  In this case, we should not push any child of this OR
-   * 2. left child does not have partition condition, right child has one.  Again, we should not push any child of this OR
-   * 3. left and right child both have partition condition but both sides may have had other non-partition conditions. In
-   *    this case, we can push the partition conditions by building a new OR combining both children.
+   * 1. left child has a push-able condition, right child does not.  In this case, we should not push any child of this OR
+   * 2. left child does not have push-able condition, right child has one.  Again, we should not push any child of this OR
+   * 3. left and right child both have push-able condition but both sides may have had other non-push-able conditions. In
+   *    this case, we can push the push-able conditions by building a new OR combining both children.
    * In this method we clear the children of the OR for cases 1 and 2 and leave it alone for case 3
    */
   private void clearOrChildrenIfSingle() {
@@ -160,7 +160,7 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
   /**
    * If the top of the parentCallTypeStack is an AND or OR, get the corresponding
    * top item from the BooleanOpState stack and examine its children - these must
-   * be the directory filters we are interested in.  Create a new filter condition
+   * be the push-able filters we are interested in.  Create a new filter condition
    * using the boolean operation and the children. Add this new filter as a child
    * of the parent boolean operator - thus the filter condition gets built bottom-up.
    */
@@ -194,22 +194,22 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
 
 
   public Void visitInputRef(RexInputRef inputRef) {
-    if(dirs.get(inputRef.getIndex())){
-      pushStatusStack.add(PushDirFilter.PUSH);
+    if(pushable_fields.get(inputRef.getIndex())){
+      pushStatusStack.add(PushableFilterStatus.PUSH);
     }else{
-      pushStatusStack.add(PushDirFilter.NO_PUSH);
+      pushStatusStack.add(PushableFilterStatus.NO_PUSH);
     }
     return null;
   }
 
   public Void visitLiteral(RexLiteral literal) {
-    pushStatusStack.add(PushDirFilter.PUSH);
+    pushStatusStack.add(PushableFilterStatus.PUSH);
     return null;
   }
 
   public Void visitOver(RexOver over) {
     // assume NO_PUSH until proven otherwise
-    analyzeCall(over, PushDirFilter.NO_PUSH);
+    analyzeCall(over, PushableFilterStatus.NO_PUSH);
     return null;
   }
 
@@ -231,12 +231,12 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
     }
     if (!visited) {
       // assume PUSH until proven otherwise
-      analyzeCall(call, PushDirFilter.PUSH);
+      analyzeCall(call, PushableFilterStatus.PUSH);
     }
     return null;
   }
 
-  private void analyzeCall(RexCall call, PushDirFilter callPushDirFilter) {
+  private void analyzeCall(RexCall call, PushableFilterStatus callPushFilter) {
     parentCallTypeStack.push(call.getOperator());
     if (call.getKind() == SqlKind.AND || call.getKind() == SqlKind.OR) {
       opStack.push(new BooleanOpState(call.getOperator()));
@@ -247,37 +247,37 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
 
     // look for NO_PUSH operands
     int operandCount = call.getOperands().size();
-    List<PushDirFilter> operandStack = Util.last(pushStatusStack, operandCount);
-    for (PushDirFilter operandPushDirFilter : operandStack) {
-      if (operandPushDirFilter == PushDirFilter.NO_PUSH) {
-        callPushDirFilter = PushDirFilter.NO_PUSH;
+    List<PushableFilterStatus> operandStack = Util.last(pushStatusStack, operandCount);
+    for (PushableFilterStatus operandPushFilter : operandStack) {
+      if (operandPushFilter == PushableFilterStatus.NO_PUSH) {
+        callPushFilter = PushableFilterStatus.NO_PUSH;
       }
     }
 
     // Even if all operands are PUSH, the call itself may
     // be non-deterministic.
     if (!call.getOperator().isDeterministic()) {
-      callPushDirFilter = PushDirFilter.NO_PUSH;
+      callPushFilter = PushableFilterStatus.NO_PUSH;
     } else if (call.getOperator().isDynamicFunction()) {
       // For now, treat it same as non-deterministic.
-      callPushDirFilter = PushDirFilter.NO_PUSH;
+      callPushFilter = PushableFilterStatus.NO_PUSH;
     }
 
     // Row operator itself can't be reduced to a PUSH
-    if ((callPushDirFilter == PushDirFilter.PUSH)
+    if ((callPushFilter == PushableFilterStatus.PUSH)
         && (call.getOperator() instanceof SqlRowOperator)) {
-      callPushDirFilter = PushDirFilter.NO_PUSH;
+      callPushFilter = PushableFilterStatus.NO_PUSH;
     }
 
 
-    if (callPushDirFilter == PushDirFilter.NO_PUSH) {
+    if (callPushFilter == PushableFilterStatus.NO_PUSH) {
       if (call.getKind() == SqlKind.AND) {
-        // one or more children is not a push-able directory filter. If this is an AND, add
-        // all the ones that are push-able directory filters.
+        // one or more children is not a push-able push-able filter. If this is an AND, add
+        // all the ones that are push-able push-able filters.
         for (int iOperand = 0; iOperand < operandCount; ++iOperand) {
-          PushDirFilter pushDirFilter = operandStack.get(iOperand);
+          PushableFilterStatus pushFilter = operandStack.get(iOperand);
           RexNode n = call.getOperands().get(iOperand);
-          if (pushDirFilter == PushDirFilter.PUSH && !(n.getKind() == SqlKind.AND || n.getKind() == SqlKind.OR)) {
+          if (pushFilter == PushableFilterStatus.PUSH && !(n.getKind() == SqlKind.AND || n.getKind() == SqlKind.OR)) {
             addResult(n);
           }
         }
@@ -285,7 +285,7 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
         clearOrChildrenIfSingle();
       }
     }
-    else if (callPushDirFilter == PushDirFilter.PUSH && !(call.getKind() == SqlKind.AND || call.getKind() == SqlKind.OR)) {
+    else if (callPushFilter == PushableFilterStatus.PUSH && !(call.getKind() == SqlKind.AND || call.getKind() == SqlKind.OR)) {
       addResult(call);
     }
 
@@ -295,8 +295,8 @@ public class FindPartitionConditions extends RexVisitorImpl<Void> {
     // pop this parent call operator off the stack and build the intermediate filters as we go
     popAndBuildFilter();
 
-    // push PushDirFilter result for this call onto stack
-    pushStatusStack.add(callPushDirFilter);
+    // push PushFilter result for this call onto stack
+    pushStatusStack.add(callPushFilter);
   }
 
   public Void visitDynamicParam(RexDynamicParam dynamicParam) {

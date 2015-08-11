@@ -81,7 +81,7 @@ import java.util.List;
     RelDataType type = call.getType();
     if (kind == SqlKind.OR || kind == SqlKind.AND) {
       if (call.getOperands().size() > 2) {
-        List<RexNode> children = new ArrayList(call.getOperands());
+        List<RexNode> children = new ArrayList<RexNode>(call.getOperands());
         RexNode left = children.remove(0).accept(this);
         RexNode right = builder.makeCall(type, op, children).accept(this);
         return builder.makeCall(type, op, ImmutableList.of(left, right));
