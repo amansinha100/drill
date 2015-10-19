@@ -121,42 +121,34 @@ public class HiveRecordReader extends AbstractRecordReader {
 
   private void init() throws ExecutionSetupException {
     final JobConf job = new JobConf();
-    Properties properties;
 
     // Get the configured default val
     defaultPartitionValue = HiveUtilities.getDefaultPartitionValue(hiveConfigOverride);
 
     try {
-      properties = MetaStoreUtils.getTableMetadata(table);
+      Properties properties = MetaStoreUtils.getTableMetadata(table);
       final SerDe tableSerDe = createSerDe(job, table.getSd().getSerdeInfo().getSerializationLib(), properties);
       final StructObjectInspector tableOI = getStructOI(tableSerDe);
 
       if (partition != null) {
-        properties = MetaStoreUtils.getPartitionMetadata(partition, table);
-
-        // SerDe expects properties from Table, but above call doesn't add Table properties.
-        // Include Table properties in final list in order to not to break SerDes that depend on
-        // Table properties. For example AvroSerDe gets the schema from properties (passed as second argument)
-        for (Map.Entry<String, String> entry : table.getParameters().entrySet()) {
-          if (entry.getKey() != null && entry.getKey() != null) {
-            properties.put(entry.getKey(), entry.getValue());
-          }
-        }
+        properties = HiveUtilities.getPartitionMetadata(partition, table);
 
         partitionSerDe = createSerDe(job, partition.getSd().getSerdeInfo().getSerializationLib(), properties);
         partitionOI = getStructOI(partitionSerDe);
 
         finalOI = (StructObjectInspector)ObjectInspectorConverters.getConvertedOI(partitionOI, tableOI);
         partTblObjectInspectorConverter = ObjectInspectorConverters.getConverter(partitionOI, finalOI);
+        HiveUtilities.setInputFormatClass(job, partition.getSd());
       } else {
         // For non-partitioned tables, there is no need to create converter as there are no schema changes expected.
         partitionSerDe = tableSerDe;
         partitionOI = tableOI;
         partTblObjectInspectorConverter = null;
         finalOI = tableOI;
+        HiveUtilities.setInputFormatClass(job, table.getSd());
       }
 
-      addConfToJob(job, properties, hiveConfigOverride);
+      HiveUtilities.addConfToJob(job, properties, hiveConfigOverride);
 
       // Get list of partition column names
       final List<String> partitionNames = Lists.newArrayList();
@@ -220,40 +212,13 @@ public class HiveRecordReader extends AbstractRecordReader {
 
     if (!empty) {
       try {
-        InputFormat format = createInputFormat(job, table, partition);
-        reader = format.getRecordReader(inputSplit, job, Reporter.NULL);
+        reader = job.getInputFormat().getRecordReader(inputSplit, job, Reporter.NULL);
       } catch (Exception e) {
         throw new ExecutionSetupException("Failed to get o.a.hadoop.mapred.RecordReader from Hive InputFormat", e);
       }
       key = reader.createKey();
       value = reader.createValue();
     }
-  }
-
-  /**
-   * Utility method which adds given properties and hive config override to given JobConf object.
-   */
-  private static void addConfToJob(final JobConf job, final Properties properties,
-      final Map<String, String> hiveConfigOverride) {
-    for (Object obj : properties.keySet()) {
-      job.set((String) obj, (String) properties.get(obj));
-    }
-    for(Map.Entry<String, String> entry : hiveConfigOverride.entrySet()) {
-      job.set(entry.getKey(), entry.getValue());
-    }
-  }
-
-  /**
-   * Utility method which creates input format object.
-   */
-  private static InputFormat createInputFormat(final JobConf job, final Table table, final Partition partition)
-      throws Exception{
-    final String inputFormatName =
-        (partition == null) ? table.getSd().getInputFormat() : partition.getSd().getInputFormat();
-    InputFormat format = (InputFormat) Class.forName(inputFormatName).getConstructor().newInstance();
-    job.setInputFormat(format.getClass());
-
-    return format;
   }
 
   /**
