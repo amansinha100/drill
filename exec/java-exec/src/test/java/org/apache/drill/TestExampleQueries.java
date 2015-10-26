@@ -32,6 +32,26 @@ import org.junit.Test;
 public class TestExampleQueries extends BaseTestQuery {
 //  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestExampleQueries.class);
 
+  @Test
+  public void test1() throws Exception {
+    test("explain plan for select count(*) from dfs.tmp.table4 where c1 = 10");
+  }
+
+  @Test
+  public void test2() throws Exception {
+    test("explain plan for select count(*) from dfs.tmp.table3 where c3 = 'xx'");
+  }
+
+  @Test
+  public void test3() throws Exception {
+    test("explain plan for select count(*) from dfs.`/Users/asinha/data/ss_partition_metadata` where dir0 = 'ss1'");
+  }
+
+  @Test
+  public void test4() throws Exception {
+    test("explain plan for select min(c1) from dfs.`/Users/asinha/poc/comscore/data/test1`");
+  }
+
   @Test // see DRILL-2328
   public void testConcatOnNull() throws Exception {
     try {

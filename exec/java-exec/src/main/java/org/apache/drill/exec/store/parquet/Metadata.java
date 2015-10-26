@@ -23,12 +23,16 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator.Feature;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.module.afterburner.AfterburnerModule;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.expression.SchemaPath.De;
 import org.apache.drill.exec.store.TimedRunnable;
@@ -40,6 +44,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+
 import parquet.column.statistics.Statistics;
 import parquet.hadoop.ParquetFileReader;
 import parquet.hadoop.metadata.BlockMetaData;
@@ -53,6 +58,7 @@ import parquet.schema.Type;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -347,16 +353,36 @@ public class Metadata {
    */
   private ParquetTableMetadata_v1 readBlockMeta(String path) throws IOException {
     Path p = new Path(path);
+    Stopwatch watch = new Stopwatch();
+    watch.start();
     ObjectMapper mapper = new ObjectMapper();
     SimpleModule module = new SimpleModule();
     module.addDeserializer(SchemaPath.class, new De());
-    mapper.registerModule(module);
+    AfterburnerModule abmodule = new AfterburnerModule();
+    mapper.registerModule(abmodule);
+    DeserializationContext deser = mapper.getDeserializationContext();
+
+//    mapper.registerModule(module);
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     FSDataInputStream is = fs.open(p);
+//    ParquetTableMetadata_v1 parquetTableMetadata = new ParquetTableMetadata_v1();
     ParquetTableMetadata_v1 parquetTableMetadata = mapper.readValue(is, ParquetTableMetadata_v1.class);
-    if (tableModified(parquetTableMetadata, p)) {
-      parquetTableMetadata = createMetaFilesRecursively(Path.getPathWithoutSchemeAndAuthority(p.getParent()).toString());
+//    ParquetFileMetadata[] fileMeta = mapper.readValues(is, ParquetFileMetadata[].class);
+/*
+    try {
+      for (Iterator it = mapper.readValues(new JsonFactory().createParser(is), ParquetFileMetadata.class);
+            it.hasNext();) {
+        ParquetFileMetadata fileMeta = (ParquetFileMetadata)it.next();
+        parquetTableMetadata.addFileMeta(fileMeta);
+      }
+    } finally {
+      is.close();
     }
+*/
+    logger.info("Took {} ms to read metadata from cache file", watch.elapsed(TimeUnit.MILLISECONDS));
+//    if (tableModified(parquetTableMetadata, p)) {
+//      parquetTableMetadata = createMetaFilesRecursively(Path.getPathWithoutSchemeAndAuthority(p.getParent()).toString());
+//    }
     return parquetTableMetadata;
   }
 
@@ -405,6 +431,13 @@ public class Metadata {
     public ParquetTableMetadata_v1(List<ParquetFileMetadata> files, List<String> directories) {
       this.files = files;
       this.directories = directories;
+    }
+
+    public void addFileMeta(ParquetFileMetadata f) {
+      if (files == null) {
+        files = Lists.newArrayList();
+      }
+      files.add(f);
     }
   }
 
