@@ -442,8 +442,15 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     }
     case VARCHAR: {
       NullableVarCharVector varCharVector = (NullableVarCharVector) v;
-      Binary value = (Binary) partitionValueMap.get(f).get(column);
-      byte[] bytes = value.getBytes();
+      Object s = partitionValueMap.get(f).get(column);
+      byte[] bytes;
+      if (s instanceof String) { // if the metadata was read from a json cache file it maybe a string type
+        bytes = ((String) s).getBytes();
+      } else if (s instanceof Binary) {
+        bytes = ((Binary) s).getBytes();
+      } else {
+        throw new UnsupportedOperationException("Unsupported type: " + s);
+      }
       varCharVector.getMutator().setSafe(index, bytes, 0, bytes.length);
       return;
     }
