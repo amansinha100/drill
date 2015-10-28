@@ -199,9 +199,6 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
       return;
     }
 
-    // track how long we spend populating partition column vectors
-    miscTimer.start();
-
     // set up the partitions
     List<String> newFiles = Lists.newArrayList();
     long numTotal = 0; // total number of partitions
@@ -231,11 +228,14 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
           container.add(v);
         }
 
+        // track how long we spend populating partition column vectors
+        miscTimer.start();
+
         // populate partition vectors.
         descriptor.populatePartitionVectors(vectors, partitions, partitionColumnBitSet, fieldNameMap);
 
-        logger.info("Total elapsed time to populate partitioning column vectors: {} ms",
-            miscTimer.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("Elapsed time to populate partitioning column vectors: {} ms within batchIndex: {}",
+            miscTimer.elapsed(TimeUnit.MILLISECONDS), batchIndex);
         miscTimer.stop();
 
         // materialize the expression; only need to do this once
@@ -257,8 +257,8 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
 
         InterpreterEvaluator.evaluate(partitions.size(), optimizerContext, container, output, materializedExpr);
 
-        logger.info("Total elapsed time in interpreter evaluation: {} ms",
-            miscTimer.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("Elapsed time in interpreter evaluation: {} ms within batchIndex: {}",
+            miscTimer.elapsed(TimeUnit.MILLISECONDS), batchIndex);
         miscTimer.stop();
 
         int recordCount = 0;
