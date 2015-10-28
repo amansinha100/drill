@@ -46,6 +46,7 @@ import parquet.hadoop.ParquetFileReader;
 import parquet.hadoop.metadata.BlockMetaData;
 import parquet.hadoop.metadata.ColumnChunkMetaData;
 import parquet.hadoop.metadata.ParquetMetadata;
+import parquet.io.api.Binary;
 import parquet.schema.GroupType;
 import parquet.schema.MessageType;
 import parquet.schema.OriginalType;
@@ -54,8 +55,11 @@ import parquet.schema.Type;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class Metadata {
@@ -475,12 +479,13 @@ public class Metadata {
     public PrimitiveTypeName primitiveType;
     @JsonProperty
     public OriginalType originalType;
-
-    public Object max; // JsonProperty defined in the getter/setter
-    public Object min; // JsonProperty defined in the getter/setter
-
     @JsonProperty
     public Long nulls;
+
+    // these should only be accessed through getters and setters
+    private Object max;
+    private Object min;
+
 
     public ColumnMetadata() {
       super();
@@ -507,41 +512,48 @@ public class Metadata {
     }
 
     /**
-     * setter used during deserialization of the 'min' field of the metadata
-     * cache file.  The entry in the cache file can be of two forms: (a) primitive
+     * The entry in the cache file can be of two forms: (a) primitive
      * type such as integer or (b) a map with key: "bytes" and value: a string
      * representation of the parquet varbinary data.
      * The second case is read by Jackson deserializer as a LinkedHashMap.
      * We need to extract the value from the <key, value> pair and store it.
+     */
+    private Object setMinMax(Object field) {
+      if (field instanceof Map<?,?>) {
+        Set<?> keyset = ((Map<?,?>) field).keySet();
+        assert keyset.size() == 1 : "Min/Max field has invalid number of keys.";
+        Object key = keyset.iterator().next();
+        if (key.toString().equalsIgnoreCase("bytes")) {
+          Collection<?> values = ((Map<?,?>) field).values();
+          assert values.size() == 1 : "Min/Max field has invalid number of values.";
+          Object value = values.iterator().next();
+          if (value instanceof String) {
+            return ((String)value).getBytes();
+          } else if (value instanceof Binary) {
+            return ((Binary)value).getBytes();
+          }
+        }
+      }
+      return field;
+    }
+
+    /**
+     * setter used during deserialization of the 'min' field of the metadata cache file.
      * @param min
      */
     @JsonProperty(value = "min")
     public void setMin(Object min) {
-      if (min instanceof Map<?,?>) {
-        Object value = ((Map<?,?>)min).values().iterator().next();
-        this.min = value;
-      } else {
-        this.min = min;
-      }
-    }
+      this.min = setMinMax(min);
+     }
 
     /**
-     * setter used during deserialization of the 'max' field of the metadata
-     * cache file.  The entry in the cache file can be of two forms: (a) primitive
-     * type such as integer or (b) a map with key: "bytes" and value: a string
-     * representation of the parquet varbinary data.
-     * The second case is read by Jackson deserializer as a LinkedHashMap.
-     * We need to extract the value from the <key, value> pair and store it.
+     * setter used during deserialization of the 'max' field of the metadata cache file.
      * @param max
      */
     @JsonProperty(value = "max")
     public void setMax(Object max) {
-      if (max instanceof Map<?,?>) {
-        Object value = ((Map<?,?>)max).values().iterator().next();
-        this.max = value;
-      } else {
-        this.max = max;
-      }
+      this.max = setMinMax(max);
     }
+
   }
 }
