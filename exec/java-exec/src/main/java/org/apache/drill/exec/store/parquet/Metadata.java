@@ -503,12 +503,20 @@ public class Metadata {
 
     @JsonProperty(value = "min")
     public Object getMin() {
-      return min;
+      if (min instanceof Binary) {
+        return new String(((Binary) min).getBytes());
+      } else {
+        return min;
+      }
     }
 
     @JsonProperty(value = "max")
     public Object getMax() {
-      return max;
+      if (max instanceof Binary) {
+        return new String(((Binary) max).getBytes());
+      } else {
+        return max;
+      }
     }
 
     /**

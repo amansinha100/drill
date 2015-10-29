@@ -429,7 +429,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       } else if (s instanceof byte[]) {
         bytes = (byte[])s;
       } else {
-        throw new UnsupportedOperationException("Unable to create column data for type: " + s);
+        throw new UnsupportedOperationException("Unable to create column data for type: " + type);
       }
       varBinaryVector.getMutator().setSafe(index, bytes, 0, bytes.length);
       return;
@@ -462,14 +462,14 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       NullableVarCharVector varCharVector = (NullableVarCharVector) v;
       Object s = partitionValueMap.get(f).get(column);
       byte[] bytes;
-      if (s instanceof String) { // if the metadata was read from a json cache file it maybe a string type
+      if (s instanceof String) { // if the metadata was read from a JSON cache file it maybe a string type
         bytes = ((String) s).getBytes();
       } else if (s instanceof Binary) {
         bytes = ((Binary) s).getBytes();
       } else if (s instanceof byte[]) {
         bytes = (byte[])s;
       } else {
-        throw new UnsupportedOperationException("Unable to create column data for type: " + s);
+        throw new UnsupportedOperationException("Unable to create column data for type: " + type);
       }
       varCharVector.getMutator().setSafe(index, bytes, 0, bytes.length);
       return;
