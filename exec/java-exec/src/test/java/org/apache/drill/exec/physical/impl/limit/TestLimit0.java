@@ -92,6 +92,7 @@ public class TestLimit0 extends BaseTestQuery {
   }
 
   @Test
+  @Ignore("DateTime timezone error needs to be fixed.")
   public void simpleSelect() throws Exception {
     testBuilder()
         .sqlQuery(String.format("SELECT * FROM %s", viewName))
@@ -418,6 +419,80 @@ public class TestLimit0 extends BaseTestQuery {
         .go();
 
     checkThatQueryPlanIsOptimized(query);
+  }
+
+  @Test
+  public void sumsAndCounts1() throws Exception {
+    final String query = "SELECT " +
+        "COUNT(*) as cs, " +
+        "COUNT(1) as c1, " +
+        "COUNT(employee_id) as cc, " +
+        "SUM(1) as s1," +
+        "department_id " +
+        " FROM " + viewName + " GROUP BY department_id";
+
+    final Map<SchemaPath, TypeProtos.MajorType> types = Maps.newHashMap();
+    types.put(TestBuilder.parsePath("cs"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("c1"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("cc"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("s1"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("department_id"), Types.optional(TypeProtos.MinorType.BIGINT));
+
+    testBuilder()
+        .sqlQuery(query)
+        .ordered()
+        .baselineColumns("cs", "c1", "cc", "s1", "department_id")
+        .baselineTypes(types)
+        .baselineValues(1L, 1L, 1L, 1L, 1L)
+        .go();
+
+    testBuilder()
+        .sqlQuery(wrapLimit0(query))
+        .baselineColumns("cs", "c1", "cc", "s1", "department_id")
+        .baselineTypes(types)
+        .expectsEmptyResultSet()
+        .go();
+
+    checkThatQueryPlanIsOptimized(query);
+  }
+
+  @Test
+  public void sumsAndCounts2() throws Exception {
+    final String query = "SELECT " +
+        "SUM(1) as s1, " +
+        "COUNT(1) as c1, " +
+        "COUNT(*) as cs, " +
+        "COUNT(n_regionkey) as cc " +
+        "FROM cp.`tpch/nation.parquet` " +
+        "GROUP BY CAST(n_regionkey AS INT)";
+
+    final Map<SchemaPath, TypeProtos.MajorType> types = Maps.newHashMap();
+    types.put(TestBuilder.parsePath("s1"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("c1"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("cs"), Types.required(TypeProtos.MinorType.BIGINT));
+    types.put(TestBuilder.parsePath("cc"), Types.required(TypeProtos.MinorType.BIGINT));
+
+    testBuilder()
+        .sqlQuery(query)
+        .ordered()
+        .baselineColumns("s1", "c1", "cs", "cc")
+        .baselineTypes(types)
+        .baselineValues(5L, 5L, 5L, 5L)
+        .baselineValues(5L, 5L, 5L, 5L)
+        .baselineValues(5L, 5L, 5L, 5L)
+        .baselineValues(5L, 5L, 5L, 5L)
+        .baselineValues(5L, 5L, 5L, 5L)
+        .go();
+
+    testBuilder()
+        .sqlQuery(wrapLimit0(query))
+        .baselineColumns("s1", "c1", "cs", "cc")
+        .baselineTypes(types)
+        .expectsEmptyResultSet()
+        .go();
+
+    checkThatQueryPlanIsOptimized(query);
+
   }
 
   @Test // negative aggregation test case

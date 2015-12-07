@@ -87,6 +87,8 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    RelOptCost cost = null;
+    double factor = 1.0;
     for (AggregateCall aggCall : getAggCallList()) {
       String name = aggCall.getAggregation().getName();
       // For avg, stddev_pop, stddev_samp, var_pop and var_samp, the ReduceAggregatesRule is supposed
@@ -94,11 +96,17 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
       // enough such that the planner does not choose them and instead chooses the rewritten functions.
       if (name.equals("AVG") || name.equals("STDDEV_POP") || name.equals("STDDEV_SAMP")
           || name.equals("VAR_POP") || name.equals("VAR_SAMP")) {
-        return ((DrillCostBase.DrillCostFactory)planner.getCostFactory()).makeHugeCost();
+        cost = ((DrillCostBase.DrillCostFactory)planner.getCostFactory()).makeHugeCost();
+      }
+      if (name.equals("$SUM0")) {
+        factor = 0.9;
       }
     }
 
-    return computeLogicalAggCost(planner);
+    if (cost == null) {
+      cost = computeLogicalAggCost(planner);
+    }
+    return cost.multiplyBy(factor);
   }
 
   public static LogicalExpression toDrill(AggregateCall call, List<String> fn, DrillImplementor implementor) {
