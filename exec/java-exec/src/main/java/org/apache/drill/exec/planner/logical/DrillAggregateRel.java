@@ -99,7 +99,9 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
         cost = ((DrillCostBase.DrillCostFactory)planner.getCostFactory()).makeHugeCost();
       }
       if (name.equals("$SUM0")) {
-        factor = 0.9;
+        // Once DrillReduceAggregatesRule is applied, the resulting node contains $SUM0 functions.
+        // This enforces the planner to use this rel node, which has to be used for correctness.
+        factor = 0.0;
       }
     }
 
