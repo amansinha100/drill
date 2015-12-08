@@ -19,6 +19,7 @@
 package org.apache.drill.exec.memory;
 
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import io.netty.buffer.DrillBuf;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Properties;
 
 import org.apache.drill.common.config.DrillConfig;
+import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.util.FileUtils;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
@@ -41,10 +43,12 @@ import org.apache.drill.exec.planner.PhysicalPlanReader;
 import org.apache.drill.exec.proto.BitControl;
 import org.apache.drill.exec.proto.CoordinationProtos;
 import org.apache.drill.exec.proto.UserBitShared;
+import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.server.Drillbit;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.server.RemoteServiceSet;
 import org.apache.drill.exec.store.StoragePluginRegistry;
+import org.apache.drill.exec.vector.BitVector;
 import org.junit.Test;
 
 import com.google.common.base.Charsets;
@@ -61,6 +65,29 @@ public class TestAllocators {
   };
 
   private final static String planFile="/physical_allocator_test.json";
+
+  @Test
+  public void testClearBitVector() {
+    final Properties props = new Properties() {
+      {
+        put(ExecConstants.TOP_LEVEL_MAX_ALLOC, "1000000");
+        put(ExecConstants.ERROR_ON_MEMORY_LEAK, "true");
+      }
+    };
+    final DrillConfig config = DrillConfig.create(props);
+
+    final BufferAllocator allc = RootAllocatorFactory.newRoot(config);
+    final TypeProtos.MajorType.Builder builder = TypeProtos.MajorType.newBuilder();
+    builder.setMinorType(TypeProtos.MinorType.BIT);
+    builder.setMode(TypeProtos.DataMode.REQUIRED);
+
+    final BitVector bv = new BitVector(MaterializedField.create("Field", builder.build()), allc);
+    bv.getMutator().setValueCount(1);
+    assertEquals(bv.getAccessor().getValueCount(), 1);
+
+    bv.clear();
+    assertEquals(bv.getAccessor().getValueCount(), 0);
+  }
 
   @Test
   public void testTransfer() throws Exception {
