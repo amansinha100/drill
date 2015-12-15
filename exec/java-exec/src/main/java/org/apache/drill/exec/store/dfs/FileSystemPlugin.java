@@ -145,7 +145,7 @@ public class FileSystemPlugin extends AbstractStoragePlugin{
   }
 
   @Override
-  public Set<StoragePluginOptimizerRule> getOptimizerRules(OptimizerRulesContext optimizerRulesContext) {
+  public Set<StoragePluginOptimizerRule> getPhysicalOptimizerRules(OptimizerRulesContext optimizerRulesContext) {
     Builder<StoragePluginOptimizerRule> setBuilder = ImmutableSet.builder();
     for(FormatPlugin plugin : this.formatPluginsByName.values()){
       Set<StoragePluginOptimizerRule> rules = plugin.getOptimizerRules();
