@@ -227,9 +227,7 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     try {
       final DrillRel convertedRelNode;
 
-      final boolean limitZero = context.getPlannerSettings().isLimitZeroOptEnabled() && containsLimit0;
-
-      convertedRelNode = (DrillRel) doLogicalPlanning(relNode, limitZero);
+      convertedRelNode = (DrillRel) doLogicalPlanning(relNode, containsLimit0);
 
       if (convertedRelNode instanceof DrillStoreRel) {
         throw new UnsupportedOperationException();
