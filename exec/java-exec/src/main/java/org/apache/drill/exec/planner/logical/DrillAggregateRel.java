@@ -34,6 +34,7 @@ import org.apache.drill.common.logical.data.GroupingAggregate;
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.exec.planner.common.DrillAggregateRelBase;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
+import org.apache.drill.exec.planner.physical.PrelUtil;
 import org.apache.drill.exec.planner.torel.ConversionContext;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Aggregate;
@@ -89,6 +90,8 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
     RelOptCost cost = null;
     double factor = 1.0;
+    boolean hasLimit0 = PrelUtil.getPlannerSettings(planner).hasLimit0();
+
     for (AggregateCall aggCall : getAggCallList()) {
       String name = aggCall.getAggregation().getName();
       // For avg, stddev_pop, stddev_samp, var_pop and var_samp, the ReduceAggregatesRule is supposed
@@ -98,7 +101,7 @@ public class DrillAggregateRel extends DrillAggregateRelBase implements DrillRel
           || name.equals("VAR_POP") || name.equals("VAR_SAMP")) {
         cost = ((DrillCostBase.DrillCostFactory)planner.getCostFactory()).makeHugeCost();
       }
-      if (name.equals("$SUM0")) {
+      if (hasLimit0 && name.equals("$SUM0")) {
         // Once DrillReduceAggregatesRule is applied, the resulting node contains $SUM0 functions.
         // This enforces the planner to use this rel node, which has to be used for correctness.
         factor = 0.0;
