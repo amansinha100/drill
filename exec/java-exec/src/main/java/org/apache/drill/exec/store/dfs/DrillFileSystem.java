@@ -760,6 +760,18 @@ public class DrillFileSystem extends FileSystem implements OpenFileTracker {
     }
   }
 
+  public List<FileStatus> list(boolean recursive, boolean dirsOnly, Path... paths) throws IOException {
+    if (recursive) {
+      List<FileStatus> statuses = Lists.newArrayList();
+      for (Path p : paths) {
+        addRecursiveStatus(underlyingFs.getFileStatus(p), dirsOnly, statuses);
+      }
+      return statuses;
+
+    } else {
+      return Lists.newArrayList(underlyingFs.listStatus(paths));
+    }
+  }
 
   private void addRecursiveStatus(FileStatus parent, List<FileStatus> listToFill) throws IOException {
     if (parent.isDir()) {
@@ -773,6 +785,22 @@ public class DrillFileSystem extends FileSystem implements OpenFileTracker {
         }
       }
     } else {
+      listToFill.add(parent);
+    }
+  }
+
+  private void addRecursiveStatus(FileStatus parent, boolean dirsOnly, List<FileStatus> listToFill) throws IOException {
+    if (parent.isDir()) {
+      Path pattern = new Path(parent.getPath(), "*");
+      FileStatus[] sub = underlyingFs.globStatus(pattern, new DrillPathFilter());
+      for(FileStatus s : sub){
+        if (s.isDir()) {
+          addRecursiveStatus(s, dirsOnly, listToFill);
+        } else if (!dirsOnly) {
+          listToFill.add(s);
+        }
+      }
+    } else if (!dirsOnly) {
       listToFill.add(parent);
     }
   }

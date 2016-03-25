@@ -52,19 +52,21 @@ public class TestParquetMetadataCache extends PlanTestBase {
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName));
     checkForMetadataFile(tableName);
     String query = String.format("select dir0, dir1, o_custkey, o_orderdate from dfs_test.`%s/%s` " +
-            " where dir0=1994 and dir1='Q1'",
+            " where dir0=1994 and dir1 in ('Q1', 'Q2')",
         getDfsTestTmpSchemaLocation(), tableName);
-    int expectedRowCount = 10;
-    int expectedNumFiles = 1;
+    int expectedRowCount = 20;
+    int expectedNumFiles = 2;
 
     int actualRowCount = testSql(query);
     assertEquals(expectedRowCount, actualRowCount);
     String numFilesPattern = "numFiles=" + expectedNumFiles;
     String usedMetaPattern = "usedMetadataFile=true";
-    PlanTestBase.testPlanMatchingPatterns(query, new String[]{numFilesPattern, usedMetaPattern}, new String[] {"Filter"});
+    String cacheFileRootPattern = "cacheFileRoot=null"; // 2 or more sub-partitions
+    PlanTestBase.testPlanMatchingPatterns(query, new String[]{numFilesPattern, usedMetaPattern, cacheFileRootPattern},
+        new String[] {"Filter"});
   }
 
-  @Test // DRILL-3917
+  @Test // DRILL-3917, DRILL-4530
   public void testPartitionPruningWithMetadataCache_2() throws Exception {
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName));
     checkForMetadataFile(tableName);
@@ -78,7 +80,9 @@ public class TestParquetMetadataCache extends PlanTestBase {
     assertEquals(expectedRowCount, actualRowCount);
     String numFilesPattern = "numFiles=" + expectedNumFiles;
     String usedMetaPattern = "usedMetadataFile=true";
-    PlanTestBase.testPlanMatchingPatterns(query, new String[]{numFilesPattern, usedMetaPattern}, new String[] {"Filter"});
+    String cacheFileRootPattern = String.format("%s/%s/1994", getDfsTestTmpSchemaLocation(), tableName);
+    PlanTestBase.testPlanMatchingPatterns(query, new String[]{numFilesPattern, usedMetaPattern, cacheFileRootPattern},
+        new String[] {"Filter"});
   }
 
   @Test // DRILL-3937 (partitioning column is varchar)
@@ -98,8 +102,9 @@ public class TestParquetMetadataCache extends PlanTestBase {
     assertEquals(expectedRowCount, actualRowCount);
     String numFilesPattern = "numFiles=" + expectedNumFiles;
     String usedMetaPattern = "usedMetadataFile=true";
-
-    testPlanMatchingPatterns(query, new String[]{numFilesPattern, usedMetaPattern}, new String[] {});
+    String cacheFileRootPattern = "cacheFileRoot=null"; // only 1 parquet file is in selection
+    testPlanMatchingPatterns(query, new String[]{numFilesPattern, usedMetaPattern, cacheFileRootPattern},
+        new String[] {});
   }
 
   @Test // DRILL-3937 (partitioning column is binary using convert_to)

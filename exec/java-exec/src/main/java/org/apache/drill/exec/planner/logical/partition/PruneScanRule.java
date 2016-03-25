@@ -48,6 +48,7 @@ import org.apache.drill.exec.physical.base.GroupScan;
 import org.apache.drill.exec.planner.FileSystemPartitionDescriptor;
 import org.apache.drill.exec.planner.PartitionDescriptor;
 import org.apache.drill.exec.planner.PartitionLocation;
+import org.apache.drill.exec.planner.SinglePartitionInfo;
 import org.apache.drill.exec.planner.logical.DrillOptiq;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 import org.apache.drill.exec.planner.logical.DrillScanRel;
@@ -59,6 +60,7 @@ import org.apache.drill.exec.planner.physical.PrelUtil;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.store.StoragePluginOptimizerRule;
+import org.apache.drill.exec.store.dfs.FileSelection;
 import org.apache.drill.exec.store.dfs.FormatSelection;
 import org.apache.drill.exec.store.parquet.ParquetGroupScan;
 import org.apache.drill.exec.vector.NullableBitVector;
@@ -79,6 +81,7 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(PruneScanRule.class);
 
   final OptimizerRulesContext optimizerContext;
+  boolean wasAllPartitionsPruned = false; // whether all partitions were previously eliminated
 
   public PruneScanRule(RelOptRuleOperand operand, String id, OptimizerRulesContext optimizerContext) {
     super(operand, id);
@@ -143,6 +146,11 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
   }
 
   protected void doOnMatch(RelOptRuleCall call, Filter filterRel, Project projectRel, TableScan scanRel) {
+    if (wasAllPartitionsPruned) {
+      // if previously we had already pruned out all the partitions, we should exit early
+      return;
+    }
+
     final String pruningClassName = getClass().getName();
     logger.info("Beginning partition pruning, pruning class: {}", pruningClassName);
     Stopwatch totalPruningTime = Stopwatch.createStarted();
@@ -166,6 +174,7 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
     List<String> fieldNames = scanRel.getRowType().getFieldNames();
     BitSet columnBitset = new BitSet();
     BitSet partitionColumnBitSet = new BitSet();
+    Map<Integer, Integer> partitionMap = Maps.newHashMap();
 
     int relColIndex = 0;
     for (String field : fieldNames) {
@@ -174,6 +183,8 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
         fieldNameMap.put(partitionIndex, field);
         partitionColumnBitSet.set(partitionIndex);
         columnBitset.set(relColIndex);
+        // mapping between the relColIndex and partitionIndex
+        partitionMap.put(relColIndex, partitionIndex);
       }
       relColIndex++;
     }
@@ -193,6 +204,7 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
     FindPartitionConditions c = new FindPartitionConditions(columnBitset, filterRel.getCluster().getRexBuilder());
     c.analyze(condition);
     RexNode pruneCondition = c.getFinalCondition();
+    BitSet referencedDirsBitSet = c.getReferencedDirs();
 
     logger.info("Total elapsed time to build and analyze filter tree: {} ms",
         miscTimer.elapsed(TimeUnit.MILLISECONDS));
@@ -210,6 +222,9 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
     int batchIndex = 0;
     PartitionLocation firstLocation = null;
     LogicalExpression materializedExpr = null;
+    boolean checkForSingle = descriptor.supportsSinglePartOptimization();
+    boolean isSinglePartition = true;
+    SinglePartitionInfo spInfo = checkForSingle ? new SinglePartitionInfo(referencedDirsBitSet.length()) : null;
 
     // Outer loop: iterate over a list of batches of PartitionLocations
     for (List<PartitionLocation> partitions : descriptor) {
@@ -269,13 +284,40 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
         int recordCount = 0;
         int qualifiedCount = 0;
 
-        // Inner loop: within each batch iterate over the PartitionLocations
-        for(PartitionLocation part: partitions){
-          if(!output.getAccessor().isNull(recordCount) && output.getAccessor().get(recordCount) == 1){
-            newPartitions.add(part);
-            qualifiedCount++;
+        if (checkForSingle &&
+            partitions.get(0).isCompositePartition() /* apply single partition check only for composite partitions */) {
+          // Inner loop: within each batch iterate over the PartitionLocations
+          for (PartitionLocation part : partitions) {
+            assert part.isCompositePartition();
+            if(!output.getAccessor().isNull(recordCount) && output.getAccessor().get(recordCount) == 1) {
+              newPartitions.add(part);
+              if (isSinglePartition) { // only need to do this if we are already single partition
+                for (int referencedDirsIndex : BitSets.toIter(referencedDirsBitSet)) {
+                  int partitionColumnIndex = partitionMap.get(referencedDirsIndex);
+                  ValueVector vv = vectors[partitionColumnIndex];
+                  if (vv.getAccessor().getValueCount() > 0 &&
+                      vv.getAccessor().getObject(recordCount) != null) {
+                    String value = vv.getAccessor().getObject(recordCount).toString();
+                    isSinglePartition = spInfo.addPartitionValue(value, partitionColumnIndex);
+                    if (!isSinglePartition) {
+                      break;
+                    }
+                  }
+                }
+              }
+              qualifiedCount++;
+            }
+            recordCount++;
           }
-          recordCount++;
+        } else {
+          // Inner loop: within each batch iterate over the PartitionLocations
+          for(PartitionLocation part: partitions){
+            if(!output.getAccessor().isNull(recordCount) && output.getAccessor().get(recordCount) == 1) {
+              newPartitions.add(part);
+              qualifiedCount++;
+            }
+            recordCount++;
+          }
         }
         logger.debug("Within batch {}: total records: {}, qualified records: {}", batchIndex, recordCount, qualifiedCount);
         batchIndex++;
@@ -306,6 +348,8 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
         // In such case, we should not drop filter.
         newPartitions.add(firstLocation.getPartitionLocationRecursive().get(0));
         canDropFilter = false;
+        wasAllPartitionsPruned = true;
+        logger.info("All {} partitions were pruned; added back a single partition to allow creating a schema", numTotal);
       }
 
       logger.info("Pruned {} partitions down to {}", numTotal, newPartitions.size());
@@ -320,7 +364,12 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
       condition = condition.accept(reverseVisitor);
       pruneCondition = pruneCondition.accept(reverseVisitor);
 
-      RelNode inputRel = descriptor.createTableScan(newPartitions);
+      String cacheFileRoot = null; // if metadata cache file could potentially be used, then assign a proper cacheFileRoot
+      if (checkForSingle && /* spInfo.hasSinglePartition() */ isSinglePartition) {
+        cacheFileRoot = descriptor.getBaseTableLocation() + spInfo.getPath();
+      }
+
+      RelNode inputRel = descriptor.createTableScan(newPartitions, cacheFileRoot);
 
       if (projectRel != null) {
         inputRel = projectRel.copy(projectRel.getTraitSet(), Collections.singletonList(inputRel));
