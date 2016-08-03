@@ -151,6 +151,7 @@ public class Metadata {
    */
   private Pair<ParquetTableMetadata_v2, ParquetTableMetadataDirs>
   createMetaFilesRecursively(final String path) throws IOException {
+    Stopwatch timer = Stopwatch.createStarted();
     List<ParquetFileMetadata_v2> metaDataList = Lists.newArrayList();
     List<String> directoryList = Lists.newArrayList();
     ConcurrentHashMap<ColumnTypeMetadata_v2.Key, ColumnTypeMetadata_v2> columnTypeInfoSet =
@@ -199,9 +200,13 @@ public class Metadata {
     if (directoryList.size() > 0 && childFiles.size() == 0) {
       ParquetTableMetadataDirs parquetTableMetadataDirs = new ParquetTableMetadataDirs(directoryList);
       writeFile(parquetTableMetadataDirs, new Path(p, METADATA_DIRECTORIES_FILENAME));
+      logger.info("Creating metadata files recursively took {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+      timer.stop();
       return Pair.of(parquetTableMetadata, parquetTableMetadataDirs);
     }
     List<String> emptyDirList = Lists.newArrayList();
+    logger.info("Creating metadata files recursively took {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+    timer.stop();
     return Pair.of(parquetTableMetadata, new ParquetTableMetadataDirs(emptyDirList));
   }
 
