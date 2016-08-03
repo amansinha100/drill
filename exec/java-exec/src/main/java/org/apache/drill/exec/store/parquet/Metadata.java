@@ -523,33 +523,47 @@ public class Metadata {
    */
   private boolean tableModified(ParquetTableMetadataBase tableMetadata, Path metaFilePath)
       throws IOException {
+    Stopwatch timer = Stopwatch.createStarted();
     long metaFileModifyTime = fs.getFileStatus(metaFilePath).getModificationTime();
     FileStatus directoryStatus = fs.getFileStatus(metaFilePath.getParent());
     if (directoryStatus.getModificationTime() > metaFileModifyTime) {
+      logger.info("Took {} ms to check modification time of directories", timer.elapsed(TimeUnit.MILLISECONDS));
+      timer.stop();
       return true;
     }
     for (String directory : tableMetadata.getDirectories()) {
       directoryStatus = fs.getFileStatus(new Path(directory));
       if (directoryStatus.getModificationTime() > metaFileModifyTime) {
+        logger.info("Took {} ms to check modification time of directories", timer.elapsed(TimeUnit.MILLISECONDS));
+        timer.stop();
         return true;
       }
     }
+    logger.info("Took {} ms to check modification time of directories", timer.elapsed(TimeUnit.MILLISECONDS));
+    timer.stop();
     return false;
   }
 
   private boolean tableModified(ParquetTableMetadataDirs tableMetadataDirs, Path metaFilePath)
       throws IOException {
+    Stopwatch timer = Stopwatch.createStarted();
     long metaFileModifyTime = fs.getFileStatus(metaFilePath).getModificationTime();
     FileStatus directoryStatus = fs.getFileStatus(metaFilePath.getParent());
     if (directoryStatus.getModificationTime() > metaFileModifyTime) {
+      logger.info("Took {} ms to check modification time of directories", timer.elapsed(TimeUnit.MILLISECONDS));
+      timer.stop();
       return true;
     }
     for (String directory : tableMetadataDirs.getDirectories()) {
       directoryStatus = fs.getFileStatus(new Path(directory));
       if (directoryStatus.getModificationTime() > metaFileModifyTime) {
+        logger.info("Took {} ms to check modification time of directories", timer.elapsed(TimeUnit.MILLISECONDS));
+        timer.stop();
         return true;
       }
     }
+    logger.info("Took {} ms to check modification time of directories", timer.elapsed(TimeUnit.MILLISECONDS));
+    timer.stop();
     return false;
   }
 
