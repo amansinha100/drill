@@ -20,6 +20,7 @@ package org.apache.drill.exec.store.dfs;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -30,7 +31,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
+import com.google.common.collect.Maps;
 
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.hadoop.fs.FileStatus;
@@ -55,6 +56,8 @@ public class FileSelection {
    * root path for the metadata cache file (if any)
    */
   public final String cacheFileRoot;
+
+  private MetadataContext metaContext = null;
 
   private enum StatusType {
     NOT_CHECKED,         // initial state
@@ -106,6 +109,7 @@ public class FileSelection {
     this.selectionRoot = selection.selectionRoot;
     this.dirStatus = selection.dirStatus;
     this.cacheFileRoot = selection.cacheFileRoot;
+    this.metaContext = selection.metaContext;
     this.hadWildcard = selection.hadWildcard;
     this.wasAllPartitionsPruned = selection.wasAllPartitionsPruned;
   }
@@ -402,6 +406,14 @@ public class FileSelection {
 
   public String getCacheFileRoot() {
     return cacheFileRoot;
+  }
+
+  public void setMetaContext(MetadataContext context) {
+    metaContext = context;
+  }
+
+  public MetadataContext getMetaContext() {
+    return metaContext;
   }
 
   @Override
