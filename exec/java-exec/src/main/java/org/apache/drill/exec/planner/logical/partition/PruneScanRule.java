@@ -410,10 +410,13 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
       final Object selection = getDrillTable(scanRel).getSelection();
       MetadataContext metaContext = null;
       if (selection instanceof FormatSelection) {
-           metaContext = ((FormatSelection)selection).getSelection().getMetaContext();
+        metaContext = ((FormatSelection)selection).getSelection().getMetaContext();
+        if (metaContext != null) {
+          metaContext.setCacheFileRoot(cacheFileRoot);
+        }
       }
       RelNode inputRel = descriptor.supportsMetadataCachePruning() ?
-          descriptor.createTableScan(newPartitions, cacheFileRoot, wasAllPartitionsPruned, metaContext) :
+          descriptor.createTableScan(newPartitions, metaContext, wasAllPartitionsPruned) :
             descriptor.createTableScan(newPartitions, wasAllPartitionsPruned);
 
       if (projectRel != null) {

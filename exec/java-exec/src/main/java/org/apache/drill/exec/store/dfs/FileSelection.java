@@ -52,10 +52,6 @@ public class FileSelection {
    * root path for the selections
    */
   public final String selectionRoot;
-  /**
-   * root path for the metadata cache file (if any)
-   */
-  public final String cacheFileRoot;
 
   private MetadataContext metaContext = null;
 
@@ -85,17 +81,17 @@ public class FileSelection {
   }
 
   public FileSelection(final List<FileStatus> statuses, final List<String> files, final String selectionRoot,
-      final String cacheFileRoot, final boolean wasAllPartitionsPruned) {
-    this(statuses, files, selectionRoot, cacheFileRoot, wasAllPartitionsPruned, StatusType.NOT_CHECKED);
+      final MetadataContext metaContext, final boolean wasAllPartitionsPruned) {
+    this(statuses, files, selectionRoot, metaContext, wasAllPartitionsPruned, StatusType.NOT_CHECKED);
   }
 
   public FileSelection(final List<FileStatus> statuses, final List<String> files, final String selectionRoot,
-      final String cacheFileRoot, final boolean wasAllPartitionsPruned, final StatusType dirStatus) {
+      final MetadataContext metaContext, final boolean wasAllPartitionsPruned, final StatusType dirStatus) {
     this.statuses = statuses;
     this.files = files;
     this.selectionRoot = Preconditions.checkNotNull(selectionRoot);
     this.dirStatus = dirStatus;
-    this.cacheFileRoot = cacheFileRoot;
+    this.metaContext = metaContext;
     this.wasAllPartitionsPruned = wasAllPartitionsPruned;
   }
 
@@ -108,7 +104,6 @@ public class FileSelection {
     this.files = selection.files;
     this.selectionRoot = selection.selectionRoot;
     this.dirStatus = selection.dirStatus;
-    this.cacheFileRoot = selection.cacheFileRoot;
     this.metaContext = selection.metaContext;
     this.hadWildcard = selection.hadWildcard;
     this.wasAllPartitionsPruned = selection.wasAllPartitionsPruned;
@@ -296,14 +291,14 @@ public class FileSelection {
    * @param statuses  list of file statuses
    * @param files  list of files
    * @param root  root path for selections
-   * @param cacheFileRoot root path for metadata cache (null for no metadata cache)
+   * @param metaContext context for the metadata
    * @return  null if creation of {@link FileSelection} fails with an {@link IllegalArgumentException}
    *          otherwise a new selection.
    *
    * @see FileSelection#FileSelection(List, List, String)
    */
   public static FileSelection create(final List<FileStatus> statuses, final List<String> files, final String root,
-      final String cacheFileRoot, final boolean wasAllPartitionsPruned) {
+      final MetadataContext metaContext, final boolean wasAllPartitionsPruned) {
     final boolean bothNonEmptySelection = (statuses != null && statuses.size() > 0) && (files != null && files.size() > 0);
     final boolean bothEmptySelection = (statuses == null || statuses.size() == 0) && (files == null || files.size() == 0);
 
@@ -323,7 +318,7 @@ public class FileSelection {
       final Path path = new Path(uri.getScheme(), uri.getAuthority(), rootPath.toUri().getPath());
       selectionRoot = path.toString();
     }
-    return new FileSelection(statuses, files, selectionRoot, cacheFileRoot, wasAllPartitionsPruned);
+    return new FileSelection(statuses, files, selectionRoot, metaContext, wasAllPartitionsPruned);
   }
 
   public static FileSelection create(final List<FileStatus> statuses, final List<String> files, final String root) {
@@ -331,7 +326,7 @@ public class FileSelection {
   }
 
   public static FileSelection createFromDirectories(final List<String> dirPaths, final FileSelection selection,
-      final String cacheFileRoot) {
+      final MetadataContext metaContext) {
     Stopwatch timer = Stopwatch.createStarted();
     final String root = selection.getSelectionRoot();
     if (Strings.isNullOrEmpty(root)) {
@@ -357,7 +352,7 @@ public class FileSelection {
     // final URI uri = dirPaths.get(0).toUri();
     final URI uri = selection.getFileStatuses().get(0).getPath().toUri();
     final Path path = new Path(uri.getScheme(), uri.getAuthority(), rootPath.toUri().getPath());
-    FileSelection fileSel = new FileSelection(null, dirs, path.toString(), cacheFileRoot, false);
+    FileSelection fileSel = new FileSelection(null, dirs, path.toString(), metaContext, false);
     fileSel.setHadWildcard(selection.hadWildcard());
     logger.info("FileSelection.createFromDirectories() took {} ms ", timer.elapsed(TimeUnit.MILLISECONDS));
     return fileSel;
@@ -402,10 +397,6 @@ public class FileSelection {
 
   public boolean hadWildcard() {
     return this.hadWildcard;
-  }
-
-  public String getCacheFileRoot() {
-    return cacheFileRoot;
   }
 
   public void setMetaContext(MetadataContext context) {

@@ -487,7 +487,7 @@ public class Metadata {
     boolean newMetadata = false;
 
     if (metaContext != null) {
-      alreadyCheckedModification = metaContext.getStatus(parentDir.toString());
+      alreadyCheckedModification = metaContext.getDirStatus(parentDir.toString());
     }
 
     if (dirsOnly) {
@@ -534,7 +534,7 @@ public class Metadata {
     Stopwatch timer = Stopwatch.createStarted();
 
     if (metaContext != null) {
-      metaContext.setStatus(parentDir.toString());
+      metaContext.setDirStatus(parentDir.toString());
     }
     long metaFileModifyTime = fs.getFileStatus(metaFilePath).getModificationTime();
     FileStatus directoryStatus = fs.getFileStatus(parentDir);
@@ -549,7 +549,7 @@ public class Metadata {
     for (String directory : directories) {
       numDirs++;
       if (metaContext != null) {
-        metaContext.setStatus(directory);
+        metaContext.setDirStatus(directory);
       }
       directoryStatus = fs.getFileStatus(new Path(directory));
       if (directoryStatus.getModificationTime() > metaFileModifyTime) {

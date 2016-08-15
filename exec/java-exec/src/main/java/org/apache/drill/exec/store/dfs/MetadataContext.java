@@ -21,7 +21,17 @@ import java.util.Map;
 
 import com.google.common.collect.Maps;
 
+/**
+ * A context class that facilitates passing around information between
+ * multiple invocations of the Metadata APIs.
+ *
+ */
 public class MetadataContext {
+
+  /**
+   * root path for the metadata cache file (if any)
+   */
+  public String cacheFileRoot = null;
 
   /** Map of directory path to the status of whether modification time was already checked.
    *  Note: the #directories is typically a small percentage of the #files, so the memory footprint
@@ -32,15 +42,15 @@ public class MetadataContext {
   public MetadataContext() {
   }
 
-  public void setStatus(String dir) {
+  public void setDirStatus(String dir) {
     dirModifCheckMap.put(dir,  true);
   }
 
-  public void clearStatus(String dir) {
+  public void clearDirStatus(String dir) {
     dirModifCheckMap.put(dir,  false);
   }
 
-  public boolean getStatus(String dir) {
+  public boolean getDirStatus(String dir) {
     if (dirModifCheckMap.containsKey(dir)) {
       return dirModifCheckMap.get(dir);
     }
@@ -49,6 +59,14 @@ public class MetadataContext {
 
   public void clear() {
     dirModifCheckMap.clear();
+  }
+
+  public void setCacheFileRoot(String s) {
+    cacheFileRoot = s;
+  }
+
+  public String getCacheFileRoot() {
+    return cacheFileRoot;
   }
 
 }

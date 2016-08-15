@@ -86,17 +86,16 @@ public interface PartitionDescriptor extends Iterable<List<PartitionLocation>> {
       boolean wasAllPartitionsPruned) throws Exception;
 
   /**
-   * Create a new TableScan rel node, given the lists of new partitions or new files to scan and a path
-   * to a metadata cache file
+   * Create a new TableScan rel node, given the lists of new partitions or new files to scan and a metadata
+   * context containing location of a metadata cache file
    * @param newPartitions
-   * @param cacheFileRoot
-   * @param wasAllPartitionsPruned
    * @param metaContext
+   * @param wasAllPartitionsPruned
    * @return
    * @throws Exception
    */
-  public TableScan createTableScan(List<PartitionLocation> newPartitions, String cacheFileRoot,
-      boolean wasAllPartitionsPruned, MetadataContext metaContext) throws Exception;
+  public TableScan createTableScan(List<PartitionLocation> newPartitions, MetadataContext metaContext,
+      boolean wasAllPartitionsPruned) throws Exception;
 
   public boolean supportsMetadataCachePruning();
 

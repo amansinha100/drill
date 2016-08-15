@@ -166,7 +166,8 @@ public class ParquetFormatPlugin implements FormatPlugin{
   @Override
   public ParquetGroupScan getGroupScan(String userName, FileSelection selection, List<SchemaPath> columns)
       throws IOException {
-    return new ParquetGroupScan(userName, selection, this, selection.selectionRoot, selection.cacheFileRoot, columns);
+    return new ParquetGroupScan(userName, selection, this, selection.selectionRoot,
+        selection.getMetaContext(), columns);
   }
 
   @Override
@@ -216,11 +217,13 @@ public class ParquetFormatPlugin implements FormatPlugin{
         // that isDirReadable() does a similar check with the metadata 'cache' file.
         if (fs.exists(dirMetaPath)) {
           MetadataContext metaContext = new MetadataContext();
+          // cacheFileRoot initially points to selectionRoot
+          metaContext.setCacheFileRoot(selection.getSelectionRoot());
 
           ParquetTableMetadataDirs mDirs = Metadata.readMetadataDirs(fs, dirMetaPath.toString(), metaContext);
           if (mDirs.getDirectories().size() > 0) {
             FileSelection dirSelection = FileSelection.createFromDirectories(mDirs.getDirectories(), selection,
-                selection.getSelectionRoot() /* cacheFileRoot initially points to selectionRoot */);
+                metaContext);
             dirSelection.setExpandedPartial();
             dirSelection.setMetaContext(metaContext);
             return new DynamicDrillTable(fsPlugin, storageEngineName, userName,
