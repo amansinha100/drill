@@ -173,8 +173,13 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     final FileSelection fileSelection = expandIfNecessary(selection);
 
     this.entries = Lists.newArrayList();
-    for (String fileName : fileSelection.getFiles()) {
-      entries.add(new ReadEntryWithPath(fileName));
+    if (fileSelection.getMetaContext() != null &&
+        ! fileSelection.getMetaContext().wasPruned()) {
+      entries.add(new ReadEntryWithPath(fileSelection.getSelectionRoot()));
+    } else {
+      for (String fileName : fileSelection.getFiles()) {
+        entries.add(new ReadEntryWithPath(fileName));
+      }
     }
 
     init(fileSelection.getMetaContext());
@@ -638,6 +643,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
         cacheFileRoot, selection.wasAllPartitionsPruned());
 
     newSelection.setExpandedFully();
+    newSelection.setMetaContext(selection.getMetaContext());
     return newSelection;
   }
 

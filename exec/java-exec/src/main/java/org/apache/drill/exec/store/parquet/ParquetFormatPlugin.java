@@ -215,8 +215,10 @@ public class ParquetFormatPlugin implements FormatPlugin{
         // the directory is readable since the metadata 'directories' file cannot be created otherwise.  Note
         // that isDirReadable() does a similar check with the metadata 'cache' file.
         if (fs.exists(dirMetaPath)) {
+          DrillTable origTable = new DynamicDrillTable(fsPlugin, storageEngineName, userName,
+              new FormatSelection(plugin.getConfig(), selection));
           // create a metadata context that will be used for the duration of the query for this table
-          MetadataContext metaContext = new MetadataContext();
+          MetadataContext metaContext = new MetadataContext(origTable);
 
           ParquetTableMetadataDirs mDirs = Metadata.readMetadataDirs(fs, dirMetaPath.toString(), metaContext);
           if (mDirs.getDirectories().size() > 0) {

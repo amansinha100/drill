@@ -19,6 +19,8 @@ package org.apache.drill.exec.store.dfs;
 
 import java.util.Map;
 
+import org.apache.drill.exec.planner.logical.DrillTable;
+
 import com.google.common.collect.Maps;
 
 /**
@@ -33,7 +35,24 @@ public class MetadataContext {
    */
   private Map<String, Boolean> dirModifCheckMap = Maps.newHashMap();
 
-  public MetadataContext() {
+//  private final FileSelection selection;
+  private final DrillTable origTable;
+
+  public enum PruneStatus {
+    NOT_STARTED,         // initial state
+    PRUNED,              // partitions were pruned
+    NOT_PRUNED           // partitions did not get pruned
+  }
+
+  private PruneStatus pruneStatus = PruneStatus.NOT_STARTED;
+
+  public MetadataContext(DrillTable origTable) {
+    this.origTable = origTable;
+    final Object selection = origTable.getSelection();
+    if (selection instanceof FormatSelection) {
+      // create the association of this metadata context with the original table's selection
+      ((FormatSelection)selection).getSelection().setMetaContext(this);
+    }
   }
 
   public void setStatus(String dir) {
@@ -53,6 +72,18 @@ public class MetadataContext {
 
   public void clear() {
     dirModifCheckMap.clear();
+  }
+
+  public DrillTable getTable() {
+    return origTable;
+  }
+
+  public void setPruneStatus(PruneStatus status) {
+    pruneStatus = status;
+  }
+
+  public boolean wasPruned() {
+    return pruneStatus == PruneStatus.PRUNED;
   }
 
 }

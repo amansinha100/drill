@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.planner.logical.partition;
 
+import java.io.IOException;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
@@ -48,25 +49,33 @@ import org.apache.drill.exec.physical.base.GroupScan;
 import org.apache.drill.exec.planner.FileSystemPartitionDescriptor;
 import org.apache.drill.exec.planner.PartitionDescriptor;
 import org.apache.drill.exec.planner.PartitionLocation;
+import org.apache.drill.exec.planner.logical.DirPrunedEnumerableTableScan;
 import org.apache.drill.exec.planner.logical.DrillOptiq;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
+import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillScanRel;
 import org.apache.drill.exec.planner.logical.DrillTable;
 import org.apache.drill.exec.planner.logical.DrillTranslatableTable;
+import org.apache.drill.exec.planner.logical.DynamicDrillTable;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.planner.physical.PrelUtil;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.store.StoragePluginOptimizerRule;
+import org.apache.drill.exec.store.dfs.FileSelection;
 import org.apache.drill.exec.store.dfs.FormatSelection;
 import org.apache.drill.exec.store.dfs.MetadataContext;
+import org.apache.drill.exec.store.dfs.MetadataContext.PruneStatus;
+import org.apache.drill.exec.store.parquet.ParquetGroupScan;
 import org.apache.drill.exec.vector.NullableBitVector;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.prepare.RelOptTableImpl;
 import org.apache.calcite.rex.RexNode;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -153,6 +162,12 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
     PartitionDescriptor descriptor = getPartitionDescriptor(settings, scanRel);
     final BufferAllocator allocator = optimizerContext.getAllocator();
 
+    final Object selection = getDrillTable(scanRel).getSelection();
+    MetadataContext metaContext = null;
+    if (selection instanceof FormatSelection) {
+         metaContext = ((FormatSelection)selection).getSelection().getMetaContext();
+    }
+
     RexNode condition = null;
     if (projectRel == null) {
       condition = filterRel.getCondition();
@@ -186,6 +201,18 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
     if (partitionColumnBitSet.isEmpty()) {
       logger.info("No partition columns are projected from the scan..continue. " +
           "Total pruning elapsed time: {} ms", totalPruningTime.elapsed(TimeUnit.MILLISECONDS));
+
+      if (scanRel instanceof EnumerableTableScan && metaContext != null) {
+        metaContext.setPruneStatus(PruneStatus.NOT_PRUNED);
+        RelNode inputRel = createNewScanRel(scanRel, metaContext);
+        if (inputRel != null) {
+          if (projectRel != null) {
+            inputRel = projectRel.copy(projectRel.getTraitSet(), Collections.singletonList(inputRel));
+          }
+          final RelNode newFilter = filterRel.copy(filterRel.getTraitSet(), Collections.singletonList(inputRel));
+          call.transformTo(newFilter);
+        }
+      }
       return;
     }
 
@@ -407,11 +434,6 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
 
       }
 
-      final Object selection = getDrillTable(scanRel).getSelection();
-      MetadataContext metaContext = null;
-      if (selection instanceof FormatSelection) {
-           metaContext = ((FormatSelection)selection).getSelection().getMetaContext();
-      }
       RelNode inputRel = descriptor.supportsMetadataCachePruning() ?
           descriptor.createTableScan(newPartitions, cacheFileRoot, wasAllPartitionsPruned, metaContext) :
             descriptor.createTableScan(newPartitions, wasAllPartitionsPruned);
@@ -425,6 +447,10 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
       } else {
         final RelNode newFilter = filterRel.copy(filterRel.getTraitSet(), Collections.singletonList(inputRel));
         call.transformTo(newFilter);
+      }
+
+      if (metaContext != null) {
+        metaContext.setPruneStatus(PruneStatus.PRUNED);
       }
 
     } catch (Exception e) {
@@ -501,6 +527,19 @@ public abstract class PruneScanRule extends StoragePluginOptimizerRule {
       drillTable = scan.getTable().unwrap(DrillTranslatableTable.class).getDrillTable();
     }
     return drillTable;
+  }
+
+  private static RelNode createNewScanRel(TableScan origScan, MetadataContext metaContext) {
+    final RelOptTable t = origScan.getTable();
+    final DrillTranslatableTable newTable = new DrillTranslatableTable(metaContext.getTable());
+    final RelOptTableImpl newOptTableImpl = RelOptTableImpl.create(t.getRelOptSchema(), t.getRowType(), newTable);
+    final Object selection = metaContext.getTable().getSelection();
+    if (selection instanceof FormatSelection) {
+      FileSelection fileSel = ((FormatSelection)selection).getSelection();
+      return DirPrunedEnumerableTableScan.create(origScan.getCluster(), newOptTableImpl, fileSel.getSelectionRoot());
+    }
+
+    return null;
   }
 
   private static boolean isQualifiedDirPruning(final TableScan scan) {
