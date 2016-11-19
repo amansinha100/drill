@@ -51,7 +51,19 @@ public class HashAggPrel extends AggPrelBase implements Prel{
                      List<ImmutableBitSet> groupSets,
                      List<AggregateCall> aggCalls,
                      OperatorPhase phase) throws InvalidRelException {
-    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase);
+    this(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase, -1);
+  }
+
+  public HashAggPrel(RelOptCluster cluster,
+      RelTraitSet traits,
+      RelNode child,
+      boolean indicator,
+      ImmutableBitSet groupSet,
+      List<ImmutableBitSet> groupSets,
+      List<AggregateCall> aggCalls,
+      OperatorPhase phase,
+      double rowcount) throws InvalidRelException {
+    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase, rowcount);
   }
 
   @Override

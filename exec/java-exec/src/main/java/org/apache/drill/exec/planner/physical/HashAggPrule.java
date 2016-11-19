@@ -134,7 +134,8 @@ public class HashAggPrule extends AggPruleBase {
           aggregate.getGroupSet(),
           aggregate.getGroupSets(),
           phase1Agg.getPhase2AggCalls(),
-          OperatorPhase.PHASE_2of2);
+          OperatorPhase.PHASE_2of2,
+          aggregate.getRows());
       return phase2Agg;
     }
 

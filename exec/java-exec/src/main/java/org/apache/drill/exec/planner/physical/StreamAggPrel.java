@@ -54,7 +54,7 @@ public class StreamAggPrel extends AggPrelBase implements Prel{
                        List<ImmutableBitSet> groupSets,
                        List<AggregateCall> aggCalls,
                        OperatorPhase phase) throws InvalidRelException {
-    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase);
+    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase, -1);
   }
 
   @Override

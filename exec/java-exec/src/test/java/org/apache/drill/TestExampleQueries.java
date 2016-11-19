@@ -1195,4 +1195,13 @@ public class TestExampleQueries extends BaseTestQuery {
         .run();
   }
 
+  @Test
+  public void test1() throws Exception {
+    test("use dfs_test.tmp");
+
+    testBuilder()
+        .sqlQueryFromFile("/Users/asinha/tmp/tpcds64.sql")
+        .build().run();
+  }
+
 }
