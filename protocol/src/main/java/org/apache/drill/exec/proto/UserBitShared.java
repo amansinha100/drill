@@ -678,8 +678,11 @@ public final class UserBitShared {
     /**
      * <code>UNPIVOT_MAPS = 38;</code>
      */
-    public static final int UNPIVOT_MAPS_VALUE = 38;
-
+    public static final int STATISTICS_MERGE_VALUE = 38;
+    /**
+     * <code>UNPIVOT_MAPS = 38;</code>
+     */
+    public static final int UNPIVOT_MAPS_VALUE = 39;
 
     public final int getNumber() { return value; }
 
