@@ -57,7 +57,6 @@ public abstract class AggPrelBase extends DrillAggregateRelBase implements Prel 
   protected List<NamedExpression> keys = Lists.newArrayList();
   protected List<NamedExpression> aggExprs = Lists.newArrayList();
   protected List<AggregateCall> phase2AggCallList = Lists.newArrayList();
-  protected double rowcount = -1;
 
   /**
    * Specialized aggregate function for SUMing the COUNTs.  Since return type of
@@ -103,9 +102,8 @@ public abstract class AggPrelBase extends DrillAggregateRelBase implements Prel 
                      List<AggregateCall> aggCalls,
                      OperatorPhase phase,
                      double rowcount) throws InvalidRelException {
-    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls);
+    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, rowcount);
     this.operPhase = phase;
-    this.rowcount = rowcount;
     createKeysAndExprs();
   }
 
@@ -123,11 +121,6 @@ public abstract class AggPrelBase extends DrillAggregateRelBase implements Prel 
 
   public List<AggregateCall> getPhase2AggCalls() {
     return phase2AggCallList;
-  }
-
-  @Override
-  public double getRows() {
-    return rowcount >= 0 ? rowcount : super.getRows();
   }
 
   protected void createKeysAndExprs() {

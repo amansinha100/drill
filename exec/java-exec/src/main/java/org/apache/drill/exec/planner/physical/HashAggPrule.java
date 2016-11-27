@@ -120,7 +120,8 @@ public class HashAggPrule extends AggPruleBase {
           aggregate.getGroupSet(),
           aggregate.getGroupSets(),
           aggregate.getAggCallList(),
-          OperatorPhase.PHASE_1of2);
+          OperatorPhase.PHASE_1of2,
+          aggregate.getRows());
 
       HashToRandomExchangePrel exch =
           new HashToRandomExchangePrel(phase1Agg.getCluster(), phase1Agg.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(distOnAllKeys),
@@ -154,7 +155,8 @@ public class HashAggPrule extends AggPruleBase {
         aggregate.getGroupSet(),
         aggregate.getGroupSets(),
         aggregate.getAggCallList(),
-        OperatorPhase.PHASE_1of1);
+        OperatorPhase.PHASE_1of1,
+        aggregate.getRows());
 
     call.transformTo(newAgg);
   }

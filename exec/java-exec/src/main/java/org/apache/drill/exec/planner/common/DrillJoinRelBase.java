@@ -49,6 +49,7 @@ import com.google.common.collect.Lists;
 public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
   protected List<Integer> leftKeys = Lists.newArrayList();
   protected List<Integer> rightKeys = Lists.newArrayList();
+  protected double rowcount = -1.0;
 
   /**
    * The join key positions for which null values will not match.
@@ -60,6 +61,12 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
       JoinRelType joinType){
     super(cluster, traits, left, right, condition, joinType, Collections.<String> emptySet());
     this.joinRowFactor = PrelUtil.getPlannerSettings(cluster.getPlanner()).getRowCountEstimateFactor();
+  }
+
+  public DrillJoinRelBase(RelOptCluster cluster, RelTraitSet traits, RelNode left, RelNode right, RexNode condition,
+      JoinRelType joinType, double rowcount) {
+    this(cluster, traits, left, right, condition, joinType);
+    this.rowcount = rowcount;
   }
 
   @Override
@@ -97,11 +104,15 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
 
   @Override
   public double getRows() {
-    if (this.condition.isAlwaysTrue()) {
-      return joinRowFactor * this.getLeft().getRows() * this.getRight().getRows();
-    } else {
-      return joinRowFactor * Math.max(this.getLeft().getRows(), this.getRight().getRows());
+    if (rowcount >= 0) {
+      return rowcount;
     }
+    if (this.condition.isAlwaysTrue()) {
+      rowcount = joinRowFactor * this.getLeft().getRows() * this.getRight().getRows();
+    } else {
+      rowcount = joinRowFactor * Math.max(this.getLeft().getRows(), this.getRight().getRows());
+    }
+    return rowcount;
   }
 
   /**

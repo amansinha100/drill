@@ -43,11 +43,19 @@ import org.pentaho.aggdes.algorithm.impl.Cost;
  */
 public abstract class DrillAggregateRelBase extends Aggregate implements DrillRelNode {
 
+  protected double rowcount = -1.0;
+
   public DrillAggregateRelBase(RelOptCluster cluster, RelTraitSet traits, RelNode child, boolean indicator,
       ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) throws InvalidRelException {
     super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls);
   }
 
+  public DrillAggregateRelBase(RelOptCluster cluster, RelTraitSet traits, RelNode child, boolean indicator,
+      ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls,
+      double rowcount) throws InvalidRelException {
+    this(cluster, traits, child, indicator, groupSet, groupSets, aggCalls);
+    this.rowcount = rowcount;
+  }
 
   /**
    * Estimate cost of hash agg. Called by DrillAggregateRel.computeSelfCost() and HashAggPrel.computeSelfCost()
@@ -92,4 +100,11 @@ public abstract class DrillAggregateRelBase extends Aggregate implements DrillRe
     return computeHashAggCost(planner);
   }
 
+  @Override
+  public double getRows() {
+    if (rowcount >= 0) {
+      return rowcount;
+    }
+    return super.getRows();
+  }
 }

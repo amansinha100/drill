@@ -53,14 +53,15 @@ public class StreamAggPrel extends AggPrelBase implements Prel{
                        ImmutableBitSet groupSet,
                        List<ImmutableBitSet> groupSets,
                        List<AggregateCall> aggCalls,
-                       OperatorPhase phase) throws InvalidRelException {
-    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase, -1);
+                       OperatorPhase phase,
+                       double rowcount) throws InvalidRelException {
+    super(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase, rowcount);
   }
 
   @Override
   public Aggregate copy(RelTraitSet traitSet, RelNode input, boolean indicator, ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) {
     try {
-      return new StreamAggPrel(getCluster(), traitSet, input, indicator, groupSet, groupSets, aggCalls, this.getOperatorPhase());
+      return new StreamAggPrel(getCluster(), traitSet, input, indicator, groupSet, groupSets, aggCalls, this.getOperatorPhase(), this.rowcount);
     } catch (InvalidRelException e) {
       throw new AssertionError(e);
     }

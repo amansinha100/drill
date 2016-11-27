@@ -88,7 +88,8 @@ public class StreamAggPrule extends AggPruleBase {
                   aggregate.getGroupSet(),
                   aggregate.getGroupSets(),
                   aggregate.getAggCallList(),
-                  OperatorPhase.PHASE_1of2);
+                  OperatorPhase.PHASE_1of2,
+                  aggregate.getRows());
 
               UnionExchangePrel exch =
                   new UnionExchangePrel(phase1Agg.getCluster(), singleDistTrait, phase1Agg);
@@ -101,7 +102,8 @@ public class StreamAggPrule extends AggPruleBase {
                   aggregate.getGroupSet(),
                   aggregate.getGroupSets(),
                   phase1Agg.getPhase2AggCalls(),
-                  OperatorPhase.PHASE_2of2);
+                  OperatorPhase.PHASE_2of2,
+                  aggregate.getRows());
             }
           }.go(aggregate, convertedInput);
 
@@ -150,7 +152,8 @@ public class StreamAggPrule extends AggPruleBase {
                   aggregate.getGroupSet(),
                   aggregate.getGroupSets(),
                   aggregate.getAggCallList(),
-                  OperatorPhase.PHASE_1of2);
+                  OperatorPhase.PHASE_1of2,
+                  aggregate.getRows());
 
               int numEndPoints = PrelUtil.getSettings(phase1Agg.getCluster()).numEndPoints();
 
@@ -168,7 +171,8 @@ public class StreamAggPrule extends AggPruleBase {
                   aggregate.getGroupSet(),
                   aggregate.getGroupSets(),
                   phase1Agg.getPhase2AggCalls(),
-                  OperatorPhase.PHASE_2of2);
+                  OperatorPhase.PHASE_2of2,
+                  aggregate.getRows());
             }
           }.go(aggregate, convertedInput);
         }
@@ -191,7 +195,8 @@ public class StreamAggPrule extends AggPruleBase {
         aggregate.getGroupSet(),
         aggregate.getGroupSets(),
         aggregate.getAggCallList(),
-        OperatorPhase.PHASE_1of1);
+        OperatorPhase.PHASE_1of1,
+        aggregate.getRows());
 
     call.transformTo(newAgg);
   }

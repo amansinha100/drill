@@ -44,17 +44,6 @@ public class HashAggPrel extends AggPrelBase implements Prel{
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashAggPrel.class);
 
   public HashAggPrel(RelOptCluster cluster,
-                     RelTraitSet traits,
-                     RelNode child,
-                     boolean indicator,
-                     ImmutableBitSet groupSet,
-                     List<ImmutableBitSet> groupSets,
-                     List<AggregateCall> aggCalls,
-                     OperatorPhase phase) throws InvalidRelException {
-    this(cluster, traits, child, indicator, groupSet, groupSets, aggCalls, phase, -1);
-  }
-
-  public HashAggPrel(RelOptCluster cluster,
       RelTraitSet traits,
       RelNode child,
       boolean indicator,
@@ -70,7 +59,7 @@ public class HashAggPrel extends AggPrelBase implements Prel{
   public Aggregate copy(RelTraitSet traitSet, RelNode input, boolean indicator, ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) {
     try {
       return new HashAggPrel(getCluster(), traitSet, input, indicator, groupSet, groupSets, aggCalls,
-          this.getOperatorPhase());
+          this.getOperatorPhase(), this.rowcount);
     } catch (InvalidRelException e) {
       throw new AssertionError(e);
     }

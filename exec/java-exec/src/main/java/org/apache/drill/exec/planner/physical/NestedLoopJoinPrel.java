@@ -43,15 +43,15 @@ import com.google.common.collect.Lists;
 public class NestedLoopJoinPrel  extends JoinPrel {
 
   public NestedLoopJoinPrel(RelOptCluster cluster, RelTraitSet traits, RelNode left, RelNode right, RexNode condition,
-                      JoinRelType joinType) throws InvalidRelException {
-    super(cluster, traits, left, right, condition, joinType);
+                      JoinRelType joinType, double rowcount) throws InvalidRelException {
+    super(cluster, traits, left, right, condition, joinType, rowcount);
     RelOptUtil.splitJoinCondition(left, right, condition, leftKeys, rightKeys, filterNulls);
   }
 
   @Override
   public Join copy(RelTraitSet traitSet, RexNode conditionExpr, RelNode left, RelNode right, JoinRelType joinType, boolean semiJoinDone) {
     try {
-      return new NestedLoopJoinPrel(this.getCluster(), traitSet, left, right, conditionExpr, joinType);
+      return new NestedLoopJoinPrel(this.getCluster(), traitSet, left, right, conditionExpr, joinType, this.rowcount);
     }catch (InvalidRelException e) {
       throw new AssertionError(e);
     }
