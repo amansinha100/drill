@@ -66,6 +66,8 @@ public class SwapHashJoinVisitor extends BasePrelVisitor<Prel, Double, RuntimeEx
     JoinPrel newJoin = (JoinPrel) visitPrel(prel, value);
 
     if (prel instanceof HashJoinPrel) {
+      logger.info("Left input of hash join : {} ", newJoin.getLeft().getDescription());
+      logger.info("Right input of hash join : {} ", newJoin.getRight().getDescription());
       // Mark left/right is swapped, when INNER hash join's left row count < ( 1+ margin factor) right row count.
       if (newJoin.getLeft().getRows() < (1 + value.doubleValue() ) * newJoin.getRight().getRows() &&
           newJoin.getJoinType() == JoinRelType.INNER) {

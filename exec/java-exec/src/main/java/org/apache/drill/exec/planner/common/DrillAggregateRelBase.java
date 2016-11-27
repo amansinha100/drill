@@ -42,6 +42,7 @@ import org.pentaho.aggdes.algorithm.impl.Cost;
  * Base class for logical and physical Aggregations implemented in Drill
  */
 public abstract class DrillAggregateRelBase extends Aggregate implements DrillRelNode {
+  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillAggregateRelBase.class);
 
   protected double rowcount = -1.0;
 
@@ -103,8 +104,10 @@ public abstract class DrillAggregateRelBase extends Aggregate implements DrillRe
   @Override
   public double getRows() {
     if (rowcount >= 0) {
+      logger.info("Prel: {}; rowcount was already set at {} ", this.getDescription(), rowcount);
       return rowcount;
     }
+    logger.info("Prel: {}; computing rowcount", this.getDescription());
     return super.getRows();
   }
 }

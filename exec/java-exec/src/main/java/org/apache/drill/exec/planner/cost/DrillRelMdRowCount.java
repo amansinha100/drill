@@ -19,11 +19,13 @@ package org.apache.drill.exec.planner.cost;
 
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.metadata.ReflectiveRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMdRowCount;
 import org.apache.calcite.rel.metadata.RelMetadataProvider;
 import org.apache.calcite.util.BuiltInMethod;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.drill.exec.planner.common.DrillAggregateRelBase;
 
 public class DrillRelMdRowCount extends RelMdRowCount{
   private static final DrillRelMdRowCount INSTANCE = new DrillRelMdRowCount();
@@ -36,6 +38,8 @@ public class DrillRelMdRowCount extends RelMdRowCount{
 
     if (groupKey.isEmpty()) {
       return 1.0;
+    } else if (rel instanceof DrillAggregateRelBase) {
+      return ((DrillAggregateRelBase)rel).getRows();
     } else {
       return super.getRowCount(rel);
     }

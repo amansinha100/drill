@@ -27,6 +27,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 
 public abstract class SinglePrel extends SingleRel implements Prel{
+  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SinglePrel.class);
 
   public SinglePrel(RelOptCluster cluster, RelTraitSet traits, RelNode child) {
     super(cluster, traits, child);
@@ -50,5 +51,11 @@ public abstract class SinglePrel extends SingleRel implements Prel{
   @Override
   public boolean needsFinalColumnReordering() {
     return true;
+  }
+
+  @Override
+  public double getRows() {
+    logger.info("Prel: {}; computing rowcount", this.getDescription());
+    return super.getRows();
   }
 }

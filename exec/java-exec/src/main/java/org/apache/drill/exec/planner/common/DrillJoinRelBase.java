@@ -47,6 +47,8 @@ import com.google.common.collect.Lists;
  * Base class for logical and physical Joins implemented in Drill.
  */
 public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
+  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillJoinRelBase.class);
+
   protected List<Integer> leftKeys = Lists.newArrayList();
   protected List<Integer> rightKeys = Lists.newArrayList();
   protected double rowcount = -1.0;
@@ -105,8 +107,10 @@ public abstract class DrillJoinRelBase extends Join implements DrillRelNode {
   @Override
   public double getRows() {
     if (rowcount >= 0) {
+      logger.info("Prel: {}; rowcount was already set at {} ", this.getDescription(), rowcount);
       return rowcount;
     }
+    logger.info("Prel: {}; computing rowcount", this.getDescription());
     if (this.condition.isAlwaysTrue()) {
       rowcount = joinRowFactor * this.getLeft().getRows() * this.getRight().getRows();
     } else {
