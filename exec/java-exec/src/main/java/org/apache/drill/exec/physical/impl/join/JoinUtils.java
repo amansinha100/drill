@@ -20,6 +20,7 @@ package org.apache.drill.exec.physical.impl.join;
 
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.logical.data.JoinCondition;
@@ -210,6 +211,25 @@ public class JoinUtils {
    * @return True if the root rel or its descendant is scalar, False otherwise
    */
   public static boolean isScalarSubquery(RelNode root) {
+    RelMetadataQuery relMetadataQuery = RelMetadataQuery.instance();
+    RelNode currentRel = root;
+    while (currentRel != null) {
+      if (currentRel instanceof RelSubset) {
+        currentRel = ((RelSubset) currentRel).getBest();
+        continue;
+      }
+      Double rowCount = relMetadataQuery.getMaxRowCount(currentRel);
+      if (rowCount != null && rowCount <= 1.0) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  /*
+  public static boolean isScalarSubquery(RelNode root) {
     DrillAggregateRel agg = null;
     RelNode currentrel = root;
     while (agg == null && currentrel != null) {
@@ -233,6 +253,7 @@ public class JoinUtils {
     }
     return false;
   }
+  */
 
   public static JoinCategory getJoinCategory(RelNode left, RelNode right, RexNode condition,
       List<Integer> leftKeys, List<Integer> rightKeys, List<Boolean> filterNulls) {
