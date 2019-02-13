@@ -51,6 +51,7 @@ import org.apache.drill.exec.util.ImpersonationUtil;
 import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.drill.shaded.guava.com.google.common.io.BaseEncoding;
 
 /**
  * Wraps the stats table info including schema and tableName. Also materializes stats from storage
@@ -67,6 +68,7 @@ public class DrillStatsTable {
   private final String schemaName;
   private final String tableName;
   private final Map<String, Long> ndv = Maps.newHashMap();
+  private final Map<String, Histogram> histogram = Maps.newHashMap();
   private double rowCount = -1;
   private boolean materialized = false;
   private TableStatistics statistics = null;
@@ -135,6 +137,30 @@ public class DrillStatsTable {
   }
 
   /**
+   * Get the histogram of a given column. If stats are not present for the given column,
+   * a null is returned.
+   *
+   * Note: returned data may not be accurate. Accuracy depends on whether the table data has changed after the
+   * stats are computed.
+   *
+   * @param col
+   * @return Histogram for this column
+   */
+  public Histogram getHistogram(String col) {
+    // Stats might not have materialized because of errors.
+    if (!materialized) {
+      return null;
+    }
+    final String upperCol = col.toUpperCase();
+    Histogram histogramCol = histogram.get(upperCol);
+    if (histogramCol == null) {
+      histogramCol = histogram.get(SchemaPath.getSimplePath(upperCol).toString());
+    }
+    return histogramCol;
+  }
+
+
+  /**
    * Read the stats from storage and keep them in memory.
    * @param table - Drill table for which we require stats
    * @param context - Query context
@@ -155,6 +181,12 @@ public class DrillStatsTable {
           for (ColumnStatistics_v1 cs : ds.getColumnStatistics()) {
             ndv.put(cs.getName().toUpperCase(), cs.getNdv());
             rowCount = Math.max(rowCount, cs.getCount());
+
+            // for histogram, get the t-digest and build the histogram
+            String tdigest_str = cs.getTDigest();
+            byte[] tdigest_bytearray = BaseEncoding.base64().decode(tdigest_str);
+            Histogram hist = HistogramUtils.buildHistogramFromTDigest(tdigest_bytearray, cs.getType());
+            histogram.put(cs.getName(), hist);
           }
         }
       }
@@ -301,6 +333,7 @@ public class DrillStatsTable {
     @JsonProperty ("nonnullrowcount") private long nonNullCount = 0;
     @JsonProperty ("ndv") private long ndv = 0;
     @JsonProperty ("avgwidth") private double width = 0;
+    @JsonProperty ("t-digest") private String tdigest = null;
 
     public ColumnStatistics_v1() {}
     @JsonGetter ("column")
@@ -351,6 +384,12 @@ public class DrillStatsTable {
     }
     @JsonSetter ("avgwidth")
     public void setAvgWidth(double width) { this.width = width; }
+    @JsonGetter("t-digest")
+    public String getTDigest() { return this.tdigest; }
+    @JsonSetter("t-digest")
+    public void setTDigest(String tdigest_str) {
+      this.tdigest = tdigest_str;
+    }
   }
 
   private TableStatistics readStatistics(DrillTable drillTable, Path path) throws IOException {

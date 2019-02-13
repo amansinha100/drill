@@ -18,7 +18,10 @@
 package org.apache.drill.exec.planner.cost;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
@@ -45,6 +48,7 @@ import org.apache.drill.exec.physical.base.GroupScan;
 import org.apache.drill.exec.planner.common.DrillJoinRelBase;
 import org.apache.drill.exec.planner.common.DrillRelOptUtil;
 import org.apache.drill.exec.planner.common.DrillScanRelBase;
+import org.apache.drill.exec.planner.common.Histogram;
 import org.apache.drill.exec.planner.logical.DrillScanRel;
 import org.apache.drill.exec.planner.logical.DrillTable;
 import org.apache.drill.exec.planner.logical.DrillTranslatableTable;
@@ -56,6 +60,11 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
   private static final DrillRelMdSelectivity INSTANCE = new DrillRelMdSelectivity();
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillRelMdSelectivity.class);
   public static final RelMetadataProvider SOURCE = ReflectiveRelMetadataProvider.reflectiveSource(BuiltInMethod.SELECTIVITY.method, INSTANCE);
+
+  public static final Set<SqlKind> RANGE_PREDICATE =
+    EnumSet.of(
+      SqlKind.LESS_THAN, SqlKind.GREATER_THAN,
+      SqlKind.LESS_THAN_OR_EQUAL, SqlKind.GREATER_THAN_OR_EQUAL);
 
   @Override
   public Double getSelectivity(RelNode rel, RelMetadataQuery mq, RexNode predicate) {
@@ -139,7 +148,8 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
       for (RexNode orPred : RelOptUtil.disjunctions(pred)) {
         //CALCITE guess
         Double guess = RelMdUtil.guessSelectivity(pred);
-        if (orPred.isA(SqlKind.EQUALS)) {
+        if (orPred.isA(SqlKind.EQUALS)
+            || orPred.isA(RANGE_PREDICATE)) {
           if (orPred instanceof RexCall) {
             int colIdx = -1;
             RexInputRef op = findRexInputRef(orPred);
@@ -148,9 +158,22 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
             }
             if (colIdx != -1 && colIdx < fieldNames.size()) {
               String col = fieldNames.get(colIdx);
-              if (table.getStatsTable() != null
+              if (table.getStatsTable() != null) {
+                if (orPred.isA(SqlKind.EQUALS)
                       && table.getStatsTable().getNdv(col) != null) {
-                orSel += 1.00 / table.getStatsTable().getNdv(col);
+                  orSel += 1.00 / table.getStatsTable().getNdv(col);
+                } else if (orPred.isA(RANGE_PREDICATE)
+                  && table.getStatsTable().getHistogram(col) != null) {
+                  Histogram histogram = table.getStatsTable().getHistogram(col);
+                  Double sel2 = histogram.estimatedSelectivity(orPred);
+                  if (sel2 == null) {
+                    orSel += guess;
+                  } else {
+                    orSel += sel2;
+                  }
+                } else {
+                  orSel += guess;
+                }
               } else {
                 orSel += guess;
               }
@@ -163,7 +186,7 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
             }
           }
         } else {
-          //Use the CALCITE guess. TODO: Use histograms for COMPARISON operator
+          //Use the CALCITE guess
           orSel += guess;
         }
       }

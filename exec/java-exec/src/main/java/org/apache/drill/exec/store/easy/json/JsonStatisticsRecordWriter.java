@@ -36,6 +36,8 @@ import org.apache.drill.exec.vector.complex.reader.FieldReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.drill.shaded.guava.com.google.common.io.BaseEncoding;
+import com.clearspring.analytics.stream.quantile.TDigest;
 
 public class JsonStatisticsRecordWriter extends JSONBaseStatisticsRecordWriter {
 
@@ -346,7 +348,8 @@ public class JsonStatisticsRecordWriter extends JSONBaseStatisticsRecordWriter {
     public void startField() throws IOException {
       if (!skipNullFields || this.reader.isSet()) {
         if (fieldName.equals(Statistic.HLL)
-            || fieldName.equals(Statistic.HLL_MERGE)) {
+            || fieldName.equals(Statistic.HLL_MERGE)
+            || fieldName.equals(Statistic.TDIGEST_MERGE)) {
           nextField = fieldName;
         }
       }
@@ -363,6 +366,11 @@ public class JsonStatisticsRecordWriter extends JSONBaseStatisticsRecordWriter {
             || nextField.equals(Statistic.HLL_MERGE)) {
           // Do NOT write out the HLL output, since it is not used yet for computing statistics for a
           // subset of partitions in the query OR for computing NDV with incremental statistics.
+        }  else if (nextField.equals(Statistic.TDIGEST_MERGE)) {
+          // write the tdigest as base64 encoded string
+          byte[] original_bytearray = reader.readByteArray();
+          String tdigest_str = BaseEncoding.base64().encode(original_bytearray);
+          ((DrillStatsTable.ColumnStatistics_v1) columnStatistics).setTDigest(tdigest_str);
         }
       }
     }
