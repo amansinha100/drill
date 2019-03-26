@@ -163,4 +163,36 @@ public class TestConvertCountToDirectScan extends PlanTestBase {
     }
   }
 
+  @Test
+  public void testCountsWithMetadataCacheSummary() throws Exception {
+    test("use dfs.tmp");
+    String tableName = "parquet_table_counts";
+
+    try {
+      test(String.format("create table `%s/1` as select * from cp.`parquet/alltypes_optional.parquet`", tableName));
+      test(String.format("create table `%s/2` as select * from cp.`parquet/alltypes_optional.parquet`", tableName));
+      test(String.format("create table `%s/3` as select * from cp.`parquet/alltypes_optional.parquet`", tableName));
+      test(String.format("create table `%s/4` as select * from cp.`parquet/alltypes_optional.parquet`", tableName));
+
+      test("refresh table metadata %s", tableName);
+
+      String sql = String.format("select\n" +
+              "count(*) as star_count,\n" +
+              "count(col_int) as int_column_count,\n" +
+              "count(col_vrchr) as vrchr_column_count\n" +
+              "from %s", tableName);
+
+      testPlanMatchingPatterns(sql, new String[]{"DynamicPojoRecordReader"});
+
+      testBuilder()
+              .sqlQuery(sql)
+              .unOrdered()
+              .baselineColumns("star_count", "int_column_count", "vrchr_column_count")
+              .baselineValues(24L, 8L, 12L)
+              .go();
+
+    } finally {
+      test("drop table if exists %s", tableName);
+    }
+  }
 }
