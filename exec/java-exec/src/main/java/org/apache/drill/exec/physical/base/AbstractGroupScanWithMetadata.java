@@ -32,6 +32,7 @@ import org.apache.drill.exec.compile.sig.ConstantExpressionIdentifier;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.fn.FunctionImplementationRegistry;
 import org.apache.drill.exec.expr.stat.RowsMatch;
+import org.apache.drill.exec.ops.OptimizerRulesContext;
 import org.apache.drill.exec.ops.UdfUtilities;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.record.MaterializedField;
@@ -42,6 +43,7 @@ import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.store.ColumnExplorer;
 import org.apache.drill.exec.store.dfs.FileSelection;
 import org.apache.drill.exec.store.parquet.FilterEvaluatorUtils;
+import org.apache.drill.exec.store.parquet.ParquetGroupScan;
 import org.apache.drill.exec.store.parquet.ParquetTableMetadataUtils;
 import org.apache.drill.metastore.BaseMetadata;
 import org.apache.drill.metastore.ColumnStatistics;
@@ -66,6 +68,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.apache.drill.exec.ExecConstants.HIVE_OPTIMIZE_SCAN_WITH_NATIVE_READERS;
+import static org.apache.drill.exec.ExecConstants.SKIP_RUNTIME_ROWGROUP_PRUNING_KEY;
 
 /**
  * Represents table group scan with metadata usage.
@@ -183,6 +188,22 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
 
   public void setFilter(LogicalExpression filter) {
     this.filter = filter;
+  }
+
+  /**
+   *  Set the filter - thus enabling runtime rowgroup pruning
+   *  The runtime pruning can be disabled with an option.
+   * @param filterExpr The filter to be used at runtime to match with rowgroups' footers
+   * @param optimizerContext The context for the options
+   */
+  public void setFilterForRuntime(LogicalExpression filterExpr, OptimizerRulesContext optimizerContext) {
+    OptionManager options = optimizerContext.getPlannerSettings().getOptions();
+    boolean skipRuntimePruning = options.getBoolean(SKIP_RUNTIME_ROWGROUP_PRUNING_KEY) ||  // if option is set to disable runtime pruning
+      // or when this is a HiveDrillNativeParquetScan
+      // (Currently runtime pruning does not work correctly in HIVE_DRILL_NATIVE_PARQUET_ROW_GROUP_SCAN)
+      ( ! (this instanceof ParquetGroupScan) && options.getBoolean(HIVE_OPTIMIZE_SCAN_WITH_NATIVE_READERS) );
+
+    if ( ! skipRuntimePruning ) { setFilter(filterExpr); }
   }
 
   @Override
@@ -455,7 +476,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
   protected abstract boolean supportsFileImplicitColumns();
   protected abstract List<String> getPartitionValues(LocationProvider locationProvider);
 
-  protected boolean isImplicitOrPartCol(SchemaPath schemaPath, OptionManager optionManager) {
+  public boolean isImplicitOrPartCol(SchemaPath schemaPath, OptionManager optionManager) {
     Set<String> implicitColNames = ColumnExplorer.initImplicitFileColumns(optionManager).keySet();
     return ColumnExplorer.isPartitionColumn(optionManager, schemaPath) || implicitColNames.contains(schemaPath.getRootSegmentPath());
   }
@@ -615,7 +636,6 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
             matchAllMetadata = true;
             partitions = filterAndGetMetadata(schemaPathsInExpr, source.getPartitionsMetadata(), filterPredicate, optionManager);
           } else {
-            matchAllMetadata = false;
             overflowLevel = MetadataLevel.PARTITION;
           }
         }
