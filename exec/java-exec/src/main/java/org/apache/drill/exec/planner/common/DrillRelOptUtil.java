@@ -654,10 +654,13 @@ public abstract class DrillRelOptUtil {
   }
 
   public static DrillTable getDrillTable(final TableScan scan) {
-    DrillTable drillTable;
+    DrillTable drillTable = null;
     drillTable = scan.getTable().unwrap(DrillTable.class);
     if (drillTable == null) {
-      drillTable = scan.getTable().unwrap(DrillTranslatableTable.class).getDrillTable();
+      DrillTranslatableTable transTable = scan.getTable().unwrap(DrillTranslatableTable.class);
+      if (transTable != null) {
+        drillTable = transTable.getDrillTable();
+      }
     }
     return drillTable;
   }

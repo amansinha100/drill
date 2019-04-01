@@ -119,6 +119,12 @@ public class ConvertCountToDirectScanRule extends RelOptRule {
     }
 
     DrillTable drillTable = DrillRelOptUtil.getDrillTable(scan);
+
+    if (drillTable == null) {
+      logger.debug("Rule does not apply since an eligible drill table instance was not found.");
+      return;
+    }
+
     Object selection = drillTable.getSelection();
 
     if (!(selection instanceof FormatSelection)) {
