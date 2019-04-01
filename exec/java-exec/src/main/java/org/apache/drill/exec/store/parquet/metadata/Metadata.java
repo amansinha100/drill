@@ -791,8 +791,12 @@ public class Metadata {
     return summary.isAllColumns();
   }
 
+  public static Path getSummaryFilePath(Path metadataParentDir) {
+    return new Path(metadataParentDir, METADATA_SUMMARY_FILENAME);
+  }
+
   public static Summary getSummary(FileSystem fs, Path metadataParentDir) {
-    Path summaryFile = new Path(metadataParentDir, METADATA_SUMMARY_FILENAME);
+    Path summaryFile = getSummaryFilePath(metadataParentDir);
     try {
       if (!fs.exists(summaryFile)) {
         return null;

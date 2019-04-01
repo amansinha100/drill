@@ -182,7 +182,12 @@ public class TestConvertCountToDirectScan extends PlanTestBase {
               "count(col_vrchr) as vrchr_column_count\n" +
               "from %s", tableName);
 
-      testPlanMatchingPatterns(sql, new String[]{"DynamicPojoRecordReader"});
+      int expectedNumFiles = 1;
+      String numFilesPattern = "numFiles = " + expectedNumFiles;
+      String usedMetaSummaryPattern = "usedMetadataSummaryFile = true";
+      String recordReaderPattern = "DynamicPojoRecordReader";
+
+      testPlanMatchingPatterns(sql, new String[]{numFilesPattern, usedMetaSummaryPattern, recordReaderPattern});
 
       testBuilder()
               .sqlQuery(sql)

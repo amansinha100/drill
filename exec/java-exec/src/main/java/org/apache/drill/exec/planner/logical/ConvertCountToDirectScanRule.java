@@ -135,8 +135,6 @@ public class ConvertCountToDirectScanRule extends RelOptRule {
       return;
     }
 
-    List<Path> fileList = ImmutableList.of(formatSelection.getSelection().getSelectionRoot());
-
     PlannerSettings settings = call.getPlanner().getContext().unwrap(PlannerSettings.class);
     Metadata_V4.Summary metadataSummary = status.getRight();
     Map<String, Long> result = collectCounts(settings, metadataSummary, agg, scan, project);
@@ -148,6 +146,9 @@ public class ConvertCountToDirectScanRule extends RelOptRule {
       return;
     }
 
+    List<Path> fileList =
+            ImmutableList.of(Metadata.getSummaryFilePath(formatSelection.getSelection().getSelectionRoot()));
+
     final RelDataType scanRowType = CountToDirectScanUtils.constructDataType(agg, result.keySet());
 
     final DynamicPojoRecordReader<Long> reader = new DynamicPojoRecordReader<>(
@@ -155,7 +156,7 @@ public class ConvertCountToDirectScanRule extends RelOptRule {
         Collections.singletonList((List<Long>) new ArrayList<>(result.values())));
 
     final ScanStats scanStats = new ScanStats(ScanStats.GroupScanProperty.EXACT_ROW_COUNT, 1, 1, scanRowType.getFieldCount());
-    final MetadataDirectGroupScan directScan = new MetadataDirectGroupScan(reader, fileList, scanStats);
+    final MetadataDirectGroupScan directScan = new MetadataDirectGroupScan(reader, fileList, scanStats, true);
 
     final DrillDirectScanRel newScan = new DrillDirectScanRel(scan.getCluster(), scan.getTraitSet().plus(DrillRel.DRILL_LOGICAL),
       directScan, scanRowType);
