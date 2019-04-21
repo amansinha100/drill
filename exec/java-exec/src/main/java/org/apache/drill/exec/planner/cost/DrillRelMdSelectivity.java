@@ -18,10 +18,7 @@
 package org.apache.drill.exec.planner.cost;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.EnumSet;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.calcite.plan.RelOptUtil;
@@ -114,6 +111,8 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
     double ROWCOUNT_UNKNOWN = -1.0;
     GroupScan scan = null;
     PlannerSettings settings = PrelUtil.getPlannerSettings(rel.getCluster().getPlanner());
+    final RexBuilder rexBuilder = rel.getCluster().getRexBuilder();
+
     if (rel instanceof DrillScanRel) {
       scan = ((DrillScanRel) rel).getGroupScan();
     } else if (rel instanceof ScanPrel) {
@@ -148,7 +147,7 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
                 .map(SchemaPath::getSimplePath)
                 .collect(Collectors.toList());
           }
-          return getScanSelectivityInternal(tableMetadata, predicate, fieldNames);
+          return getScanSelectivityInternal(tableMetadata, predicate, fieldNames, rexBuilder);
         }
       } catch (IOException e) {
         super.getSelectivity(rel, mq, predicate);
@@ -157,12 +156,18 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
     return super.getSelectivity(rel, mq, predicate);
   }
 
-  private double getScanSelectivityInternal(TableMetadata tableMetadata, RexNode predicate, List<SchemaPath> fieldNames) {
+  private double getScanSelectivityInternal(TableMetadata tableMetadata, RexNode predicate, List<SchemaPath> fieldNames, RexBuilder rexBuilder) {
     double sel = 1.0;
     if ((predicate == null) || predicate.isAlwaysTrue()) {
       return sel;
     }
-    for (RexNode pred : RelOptUtil.conjunctions(predicate)) {
+
+    List<RexNode> conjuncts1 = RelOptUtil.conjunctions(predicate);
+
+    // pre-process the conjuncts such that predicates on the same column are grouped together
+    List<RexNode> conjuncts2 = preprocessRangePredicates(conjuncts1, fieldNames, rexBuilder);
+
+    for (RexNode pred : conjuncts2) {
       double orSel = 0;
       for (RexNode orPred : RelOptUtil.disjunctions(pred)) {
         if (isMultiColumnPredicate(orPred)) {
@@ -201,6 +206,41 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
     }
     // Cap selectivity if it exceeds 1.0
     return (sel > 1.0) ? 1.0 : sel;
+  }
+
+  private List<RexNode> preprocessRangePredicates(List<RexNode> conjuncts, List<SchemaPath> fieldNames, RexBuilder rexBuilder) {
+    Map<SchemaPath, List<RexNode>> colToPredicateMap = new HashMap<>();
+    for (RexNode pred : conjuncts) {
+      if (pred.isA(RANGE_PREDICATE)) {
+        SchemaPath col = getColumn(pred, fieldNames);
+        if (col != null) {
+          List<RexNode> predList = null;
+          if ((predList = colToPredicateMap.get(col)) != null) {
+            predList.add(pred);
+          } else {
+            predList = new ArrayList<>();
+            predList.add(pred);
+            colToPredicateMap.put(col, predList);
+          }
+        }
+      }
+    }
+
+    List<RexNode> newPredsList = new ArrayList<>();
+
+    // for the predicates on same column, combine them into a single conjunct
+    for (Map.Entry<SchemaPath, List<RexNode>> entry : colToPredicateMap.entrySet()) {
+      List<RexNode> predList = entry.getValue();
+      if (predList.size() >= 1) {
+        if (predList.size() > 1) {
+          RexNode newPred = RexUtil.composeConjunction(rexBuilder, predList, false);
+          newPredsList.add(newPred);
+        } else {
+          newPredsList.add(predList.get(0));
+        }
+      }
+    }
+    return newPredsList;
   }
 
   private double computeEqualsSelectivity(TableMetadata tableMetadata, RexNode orPred, List<SchemaPath> fieldNames) {

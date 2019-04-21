@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 import java.util.List;
 
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexLiteral;
@@ -30,6 +31,7 @@ import com.clearspring.analytics.stream.quantile.TDigest;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
+import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 
 /**
  * A column specific equi-depth histogram which is meant for numeric data types
@@ -62,6 +64,54 @@ public class NumericEquiDepthHistogram implements Histogram {
   @JsonProperty("buckets")
   private Double[] buckets;
 
+  private static class BucketRanges {
+    private int startBucketId;
+    private int endBucketId;
+    private double startBucketFraction;
+    private double endBucketFraction;
+    private boolean isZeroRows;
+
+    protected BucketRanges(boolean isZeroRows) {
+      this(-1, Integer.MAX_VALUE, 1.0, 1.0, isZeroRows);
+    }
+
+    protected BucketRanges(int start, int end, double startFraction, double endFraction, boolean isZeroRows) {
+      this.startBucketId = start;
+      this.endBucketId = end;
+      this.startBucketFraction = startFraction;
+      this.endBucketFraction = endFraction;
+      this.isZeroRows = isZeroRows;
+    }
+
+    // intersect this bucket range with the other and store the result in this bucket range
+    protected void intersect(BucketRanges other) {
+      if (this.isZeroRows) {
+        return;
+      }
+      if (other.isZeroRows) {
+        this.isZeroRows = true;
+      } else {
+        if (other.startBucketId > this.startBucketId) {
+          this.startBucketId = other.startBucketId;
+          this.startBucketFraction = other.startBucketFraction;
+        }
+        if (other.endBucketId < this.endBucketId) {
+          this.endBucketId = other.endBucketId;
+          this.endBucketFraction = other.endBucketFraction;
+        }
+      }
+    }
+
+    protected void setIsZeroRows(boolean zeroRows) {
+      this.isZeroRows = zeroRows;
+    }
+
+    protected Double selectivity() {
+
+      return 1.0;
+    }
+  }
+
   // Default constructor for deserializer
   public NumericEquiDepthHistogram() {}
 
@@ -89,111 +139,122 @@ public class NumericEquiDepthHistogram implements Histogram {
   }
 
   @Override
-  public Double estimatedSelectivity(final RexNode filter) {
-    if (numRowsPerBucket >= 0) {
-      // at a minimum, the histogram should have a start and end point of 1 bucket, so at least 2 entries
-      Preconditions.checkArgument(buckets.length >= 2,  "Histogram has invalid number of entries");
-      final int first = 0;
-      final int last = buckets.length - 1;
+  public Double estimatedSelectivity(final RexNode columnFilter) {
+    if (numRowsPerBucket == 0) {
+      return null;
+    }
 
-      // number of buckets is 1 less than the total # entries in the buckets array since last
-      // entry is the end point of the last bucket
-      final int numBuckets = buckets.length - 1;
-      final long totalRows = numBuckets * numRowsPerBucket;
-      if (filter instanceof RexCall) {
-        // get the operator
-        SqlOperator op = ((RexCall) filter).getOperator();
-        if (op.getKind() == SqlKind.GREATER_THAN ||
-                op.getKind() == SqlKind.GREATER_THAN_OR_EQUAL) {
-          Double value = getLiteralValue(filter);
-          if (value != null) {
+    // at a minimum, the histogram should have a start and end point of 1 bucket, so at least 2 entries
+    Preconditions.checkArgument(buckets.length >= 2,  "Histogram has invalid number of entries");
 
-            // *** Handle the boundary conditions first ***
+    // The supplied filter may contain several range predicates and in the general case is of
+    // type: col op value1 AND col op value2 AND col op value3 ...
+    // e.g a > 10 AND a < 50 AND a >= 20 AND a <= 70 ...
+    // Even though in most cases it will have either 1 or 2 range conditions, we still have to handle the general case
+    // For each conjunct, we will find the histogram bucket ranges and intersect them, taking into account that the
+    // first and last bucket may be partially covered and all other buckets in the middle are fully covered. 
 
-            // if value is less than or equal to the first bucket's start point then all rows qualify
-            int result = value.compareTo(buckets[first]);
-            if (result <= 0) {
-              return LARGE_SELECTIVITY;
-            }
-            // if value is greater than the end point of the last bucket, then none of the rows qualify
-            result = value.compareTo(buckets[last]);
-            if (result > 0) {
-              return SMALL_SELECTIVITY;
-            } else if (result == 0) {
-              if (op.getKind() == SqlKind.GREATER_THAN_OR_EQUAL) {
-                // value is exactly equal to the last bucket's end point so we take the ratio 1/bucket_width
-                long totalFilterRows = (long) (1 / (buckets[last] - buckets[last - 1]) * numRowsPerBucket);
-                double selectivity = (double) totalFilterRows / totalRows;
-                return selectivity;
-              } else {
-                // predicate is 'column > value' and value is equal to last bucket's endpoint, so none of
-                // the rows qualify
-                return SMALL_SELECTIVITY;
-              }
-            }
+    List<RexNode> filterList = RelOptUtil.conjunctions(columnFilter);
 
-            // *** End of boundary conditions ****
+    // Preconditions.checkArgument(filterList.size() > 0 && filterList.size() <= 2, "Invalid number of conjuncts");
 
-            int n = getContainingBucket(value, numBuckets);
-            if (n >= 0) {
-              // all buckets to the right of containing bucket will be fully covered
-              int coveredBuckets = (last) - (n + 1);
-              long coveredRows = numRowsPerBucket * coveredBuckets;
-              // num matching rows in the current bucket is a function of (end_point_of_bucket - value)
-              long partialRows = (long) ((buckets[n + 1] - value) / (buckets[n + 1] - buckets[n]) * numRowsPerBucket);
-              long totalFilterRows = partialRows + coveredRows;
-              double selectivity = (double)totalFilterRows/totalRows;
-              return selectivity;
+    final int first = 0;
+    final int last = buckets.length - 1;
+
+    BucketRanges currentBucketRange = new BucketRanges();
+
+    for (RexNode filter : filterList) {
+      estimatedSelectivityInternal(filter);
+    }
+  }
+
+  private BucketRanges estimatedSelectivityInternal(final RexNode filter) {
+    final int first = 0;
+    final int last = buckets.length - 1;
+
+    // number of buckets is 1 less than the total # entries in the buckets array since last
+    // entry is the end point of the last bucket
+    final int numBuckets = buckets.length - 1;
+    final long totalRows = numBuckets * numRowsPerBucket;
+    if (filter instanceof RexCall) {
+      // get the operator
+      SqlOperator op = ((RexCall) filter).getOperator();
+      if (op.getKind() == SqlKind.GREATER_THAN ||
+        op.getKind() == SqlKind.GREATER_THAN_OR_EQUAL) {
+        Double value = getLiteralValue(filter);
+        if (value != null) {
+
+          // *** Handle the boundary conditions first ***
+
+          // if value is less than or equal to the first bucket's start point then all rows qualify
+          int result = value.compareTo(buckets[first]);
+          if (result <= 0) {
+            return new BucketRanges(first, last, 1.0, 1.0, false);
+          }
+          // if value is greater than the end point of the last bucket, then none of the rows qualify
+          result = value.compareTo(buckets[last]);
+          if (result > 0) {
+            return new BucketRanges(true);
+          } else if (result == 0) {
+            if (op.getKind() == SqlKind.GREATER_THAN_OR_EQUAL) {
+              // value is exactly equal to the last bucket's end point so we take the ratio 1/bucket_width
+              double endBucketFraction = (double) 1.0 / (buckets[last] - buckets[last - 1]);
+              return new BucketRanges(last, last, endBucketFraction, endBucketFraction, false);
             } else {
-              // value does not exist in any of the buckets
-              return SMALL_SELECTIVITY;
+              // predicate is 'column > value' and value is equal to last bucket's endpoint, so none of
+              // the rows qualify
+              return new BucketRanges(true);
             }
           }
-        } else if (op.getKind() == SqlKind.LESS_THAN ||
-                op.getKind() == SqlKind.LESS_THAN_OR_EQUAL) {
-          Double value = getLiteralValue(filter);
-          if (value != null) {
 
-            // *** Handle the boundary conditions first ***
+          // *** End of boundary conditions ****
 
-            // if value is greater than the last bucket's end point then all rows qualify
-            int result = value.compareTo(buckets[last]);
-            if (result >= 0) {
-              return LARGE_SELECTIVITY;
-            }
-            // if value is less than the first bucket's start point then none of the rows qualify
-            result = value.compareTo(buckets[first]);
-            if (result < 0) {
-              return SMALL_SELECTIVITY;
-            } else if (result == 0) {
-              if (op.getKind() == SqlKind.LESS_THAN_OR_EQUAL) {
-                // value is exactly equal to the first bucket's start point so we take the ratio 1/bucket_width
-                long totalFilterRows = (long) (1 / (buckets[first + 1] - buckets[first]) * numRowsPerBucket);
-                double selectivity = (double) totalFilterRows / totalRows;
-                return selectivity;
-              } else {
-                // predicate is 'column < value' and value is equal to first bucket's start point, so none of
-                // the rows qualify
-                return SMALL_SELECTIVITY;
-              }
-            }
+          int n = getContainingBucket(value, numBuckets);
+          if (n >= 0) {
+            double startBucketFraction = ((double)(buckets[n + 1] - value)) / (buckets[n + 1] - buckets[n]);
+            return new BucketRanges(n, last, startBucketFraction, 1.0, false);
+          } else {
+            // value does not exist in any of the buckets
+            return new BucketRanges(true);
+          }
+        }
+      } else if (op.getKind() == SqlKind.LESS_THAN ||
+        op.getKind() == SqlKind.LESS_THAN_OR_EQUAL) {
+        Double value = getLiteralValue(filter);
+        if (value != null) {
 
-            // *** End of boundary conditions ****
+          // *** Handle the boundary conditions first ***
 
-            int n = getContainingBucket(value, numBuckets);
-            if (n >= 0) {
-              // all buckets to the left will be fully covered
-              int coveredBuckets = n;
-              long coveredRows = numRowsPerBucket * coveredBuckets;
-              // num matching rows in the current bucket is a function of (value - start_point_of_bucket)
-              long partialRows = (long) ((value - buckets[n]) / (buckets[n + 1] - buckets[n]) * numRowsPerBucket);
-              long totalFilterRows = partialRows + coveredRows;
-              double selectivity = (double)totalFilterRows / totalRows;
-              return selectivity;
+          // if value is greater than the last bucket's end point then all rows qualify
+          int result = value.compareTo(buckets[last]);
+          if (result >= 0) {
+            return new BucketRanges(first, last, 1.0, 1.0, false);
+          }
+          // if value is less than the first bucket's start point then none of the rows qualify
+          result = value.compareTo(buckets[first]);
+          if (result < 0) {
+            return new BucketRanges(true);
+          } else if (result == 0) {
+            if (op.getKind() == SqlKind.LESS_THAN_OR_EQUAL) {
+              // value is exactly equal to the first bucket's start point so we take the ratio 1/bucket_width
+              double startBucketFraction = (double) 1.0 / (buckets[first + 1] - buckets[first]);
+              return new BucketRanges(first, first, startBucketFraction, startBucketFraction, false);
             } else {
-              // value does not exist in any of the buckets
-              return SMALL_SELECTIVITY;
+              // predicate is 'column < value' and value is equal to first bucket's start point, so none of
+              // the rows qualify
+              return new BucketRanges(true);
             }
+          }
+
+          // *** End of boundary conditions ****
+
+          int n = getContainingBucket(value, numBuckets);
+          if (n >= 0) {
+            double endBucketFraction = ((double)(value - buckets[n])) / (buckets[n + 1] - buckets[n]);
+            return new BucketRanges(first, n, 1.0, endBucketFraction, false);
+          } else {
+            // value does not exist in any of the buckets
+            return new BucketRanges(true);
           }
         }
       }
