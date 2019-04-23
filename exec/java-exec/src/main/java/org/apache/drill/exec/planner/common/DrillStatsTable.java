@@ -75,7 +75,7 @@ public class DrillStatsTable {
   private final String tableName;
   private final Map<SchemaPath, Long> ndv = new HashMap<>();
   private final Map<SchemaPath, Histogram> histogram = new HashMap<>();
-  private double rowCount = -1;
+  private long rowCount = -1;
   private final Map<SchemaPath, Long> nnRowCount = new HashMap<>();
   private boolean materialized = false;
   private DrillTable table;
@@ -120,7 +120,7 @@ public class DrillStatsTable {
     Long ndvCol = ndv.get(col);
     // Ndv estimation techniques like HLL may over-estimate, hence cap it at rowCount
     if (ndvCol != null) {
-      return Math.min(ndvCol, rowCount);
+      return (double) Math.min(ndvCol, rowCount);
     }
     return null;
   }
@@ -137,7 +137,7 @@ public class DrillStatsTable {
    *
    * @return rowcount for the table, if available. NULL otherwise.
    */
-  public Double getRowCount() {
+  public Long getRowCount() {
     // Stats might not have materialized because of errors.
     if (!materialized) {
       return null;
@@ -154,7 +154,7 @@ public class DrillStatsTable {
    * @param col - column for which non-null rowcount is desired
    * @return non-null rowcount of the column, if available. NULL otherwise.
    */
-  public Double getNNRowCount(SchemaPath col) {
+  public Long getNNRowCount(SchemaPath col) {
     // Stats might not have materialized because of errors.
     if (!materialized) {
       return null;
@@ -184,7 +184,6 @@ public class DrillStatsTable {
     }
     return histogram.get(column);
   }
-
 
   /**
    * Read the stats from storage and keep them in memory.
@@ -337,7 +336,7 @@ public class DrillStatsTable {
       this.type = type;
     }
     @JsonGetter ("schema")
-    public double getSchema() {
+    public long getSchema() {
       return this.schema;
     }
     @JsonSetter ("schema")
@@ -345,7 +344,7 @@ public class DrillStatsTable {
       this.schema = schema;
     }
     @JsonGetter ("rowcount")
-    public double getCount() {
+    public long getCount() {
       return this.count;
     }
     @JsonSetter ("rowcount")
@@ -353,7 +352,7 @@ public class DrillStatsTable {
       this.count = count;
     }
     @JsonGetter ("nonnullrowcount")
-    public double getNonNullCount() {
+    public long getNonNullCount() {
       return this.nonNullCount;
     }
     @JsonSetter ("nonnullrowcount")
@@ -486,13 +485,17 @@ public class DrillStatsTable {
       if (ndv != null) {
         statisticsValues.put(ColumnStatisticsKind.NVD, ndv);
       }
-      Double nonNullCount = statsProvider.getNNRowCount(fieldName);
+      Long nonNullCount = statsProvider.getNNRowCount(fieldName);
       if (nonNullCount != null) {
         statisticsValues.put(ColumnStatisticsKind.NON_NULL_COUNT, nonNullCount);
       }
       Histogram histogram = statsProvider.getHistogram(fieldName);
       if (histogram != null) {
         statisticsValues.put(ColumnStatisticsKind.HISTOGRAM, histogram);
+      }
+      Long rowcount = statsProvider.getRowCount();
+      if (rowcount != null) {
+        statisticsValues.put(ColumnStatisticsKind.ROWCOUNT, rowcount);
       }
       return statisticsValues;
     }

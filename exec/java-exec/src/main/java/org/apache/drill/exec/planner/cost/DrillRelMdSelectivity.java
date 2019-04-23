@@ -18,7 +18,14 @@
 package org.apache.drill.exec.planner.cost;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+
 import java.util.stream.Collectors;
 
 import org.apache.calcite.plan.RelOptUtil;
@@ -164,17 +171,19 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
 
     List<RexNode> conjuncts1 = RelOptUtil.conjunctions(predicate);
 
+    // a Set that holds range predicates that are combined based on whether they are defined on the same column
+    Set<RexNode> combinedRangePredicates = new HashSet<>();
     // pre-process the conjuncts such that predicates on the same column are grouped together
-    List<RexNode> conjuncts2 = preprocessRangePredicates(conjuncts1, fieldNames, rexBuilder);
+    // List<RexNode> conjuncts2 = preprocessRangePredicates(conjuncts1, fieldNames, rexBuilder, combinedRangePredicates);
 
-    for (RexNode pred : conjuncts2) {
+    for (RexNode pred : conjuncts1) {
       double orSel = 0;
       for (RexNode orPred : RelOptUtil.disjunctions(pred)) {
         if (isMultiColumnPredicate(orPred)) {
           orSel += RelMdUtil.guessSelectivity(orPred);  //CALCITE guess
         } else if (orPred.isA(SqlKind.EQUALS)) {
           orSel += computeEqualsSelectivity(tableMetadata, orPred, fieldNames);
-        } else if (orPred.isA(RANGE_PREDICATE)) {
+        } else if (orPred.isA(RANGE_PREDICATE) || combinedRangePredicates.contains(orPred)) {
           orSel += computeRangeSelectivity(tableMetadata, orPred, fieldNames);
         } else if (orPred.isA(SqlKind.NOT_EQUALS)) {
           orSel += 1.0 - computeEqualsSelectivity(tableMetadata, orPred, fieldNames);
@@ -208,7 +217,8 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
     return (sel > 1.0) ? 1.0 : sel;
   }
 
-  private List<RexNode> preprocessRangePredicates(List<RexNode> conjuncts, List<SchemaPath> fieldNames, RexBuilder rexBuilder) {
+  private List<RexNode> preprocessRangePredicates(List<RexNode> conjuncts, List<SchemaPath> fieldNames, RexBuilder rexBuilder,
+                                                  Set<RexNode> combinedRangePredicates) {
     Map<SchemaPath, List<RexNode>> colToPredicateMap = new HashMap<>();
     for (RexNode pred : conjuncts) {
       if (pred.isA(RANGE_PREDICATE)) {
@@ -235,6 +245,8 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
         if (predList.size() > 1) {
           RexNode newPred = RexUtil.composeConjunction(rexBuilder, predList, false);
           newPredsList.add(newPred);
+          // also save this newly created predicate in a separate set for later use
+          combinedRangePredicates.add(newPred);
         } else {
           newPredsList.add(predList.get(0));
         }
@@ -262,7 +274,8 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
       ColumnStatistics columnStatistics = tableMetadata != null ? tableMetadata.getColumnStatistics(col) : null;
       Histogram histogram = columnStatistics != null ? (Histogram) columnStatistics.getStatistic(ColumnStatisticsKind.HISTOGRAM) : null;
       if (histogram != null) {
-        Double sel = histogram.estimatedSelectivity(orPred);
+        Long totalCount = (Long) columnStatistics.getStatistic(ColumnStatisticsKind.ROWCOUNT);
+        Double sel = histogram.estimatedSelectivity(orPred, totalCount);
         if (sel != null) {
           return sel;
         }
@@ -396,8 +409,8 @@ public class DrillRelMdSelectivity extends RelMdSelectivity {
     return findAllRexInputRefs(node).size() > 1;
   }
 
-  private static List<RexInputRef> findAllRexInputRefs(final RexNode node) {
-      List<RexInputRef> rexRefs = new ArrayList<>();
+  private static Set<RexInputRef> findAllRexInputRefs(final RexNode node) {
+      Set<RexInputRef> rexRefs = new HashSet<>();
       RexVisitor<Void> visitor =
           new RexVisitorImpl<Void>(true) {
             public Void visitInputRef(RexInputRef inputRef) {

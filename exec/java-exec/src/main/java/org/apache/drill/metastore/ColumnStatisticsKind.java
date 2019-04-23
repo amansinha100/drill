@@ -114,15 +114,32 @@ public enum ColumnStatisticsKind implements CollectableColumnStatisticsKind {
    */
   NON_NULL_COUNT(Statistic.NNROWCOUNT) {
     @Override
-    public Double mergeStatistics(List<? extends ColumnStatistics> statisticsList) {
-      double nonNullRowCount = 0;
+    public Long mergeStatistics(List<? extends ColumnStatistics> statisticsList) {
+      long nonNullRowCount = 0;
       for (ColumnStatistics statistics : statisticsList) {
-        Double nnRowCount = (Double) statistics.getStatistic(this);
+        Long nnRowCount = (Long) statistics.getStatistic(this);
         if (nnRowCount != null) {
           nonNullRowCount += nnRowCount;
         }
       }
       return nonNullRowCount;
+    }
+  },
+
+  /**
+   * Column statistics kind which represents total row count for the specific column.
+   */
+  ROWCOUNT(Statistic.ROWCOUNT) {
+    @Override
+    public Long mergeStatistics(List<? extends ColumnStatistics> statisticsList) {
+      long rowCount = 0;
+      for (ColumnStatistics statistics : statisticsList) {
+        Long count = (Long) statistics.getStatistic(this);
+        if (count != null) {
+          rowCount += count;
+        }
+      }
+      return rowCount;
     }
   },
 

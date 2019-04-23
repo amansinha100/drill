@@ -31,7 +31,6 @@ import com.clearspring.analytics.stream.quantile.TDigest;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
-import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 
 /**
  * A column specific equi-depth histogram which is meant for numeric data types
@@ -46,15 +45,9 @@ public class NumericEquiDepthHistogram implements Histogram {
    */
   static final double SMALL_SELECTIVITY = 0.0001;
 
-  /**
-   * Use a large selectivity of 1.0 whenever we are reasonably confident that all rows
-   * qualify. Even if this is off by a small fraction, it is acceptable.
-   */
-  static final double LARGE_SELECTIVITY = 1.0;
-
   // For equi-depth, all buckets will have same (approx) number of rows
   @JsonProperty("numRowsPerBucket")
-  private long numRowsPerBucket;
+  private double numRowsPerBucket;
 
   // An array of buckets arranged in increasing order of their start boundaries
   // Note that the buckets only maintain the start point of the bucket range.
@@ -64,51 +57,77 @@ public class NumericEquiDepthHistogram implements Histogram {
   @JsonProperty("buckets")
   private Double[] buckets;
 
-  private static class BucketRanges {
-    private int startBucketId;
-    private int endBucketId;
-    private double startBucketFraction;
-    private double endBucketFraction;
-    private boolean isZeroRows;
+  /**
+   * Helper class to maintain start bucket and end bucket information for a single range predicate
+   */
+  private class BucketRange {
+    private int startBucketId;   // 0-based index of the starting bucket
+    private int endBucketId;     // 0-based index of the ending bucket
+    private double startBucketFraction; // fraction of rows in start bucket that qualify the predicate
+    private double endBucketFraction;   // fraction of rows in end bucket that qualify the predicate
+    private boolean isEmpty;  // shortcut for an empty range
 
-    protected BucketRanges(boolean isZeroRows) {
-      this(-1, Integer.MAX_VALUE, 1.0, 1.0, isZeroRows);
+    protected BucketRange(boolean isEmpty) {
+      this(-1, Integer.MAX_VALUE, 1.0, 1.0, isEmpty);
     }
 
-    protected BucketRanges(int start, int end, double startFraction, double endFraction, boolean isZeroRows) {
+    protected BucketRange(int start, int end, double startFraction, double endFraction) {
+      this(start, end, startFraction, endFraction, false);
+    }
+
+    protected BucketRange(int start, int end, double startFraction, double endFraction, boolean isEmpty) {
       this.startBucketId = start;
       this.endBucketId = end;
       this.startBucketFraction = startFraction;
       this.endBucketFraction = endFraction;
-      this.isZeroRows = isZeroRows;
+      this.isEmpty = isEmpty;
     }
 
     // intersect this bucket range with the other and store the result in this bucket range
-    protected void intersect(BucketRanges other) {
-      if (this.isZeroRows) {
+    protected void intersect(BucketRange other) {
+      if (this.isEmpty) {
         return;
       }
-      if (other.isZeroRows) {
-        this.isZeroRows = true;
+      if (other.isEmpty) {
+        this.isEmpty = true;
       } else {
-        if (other.startBucketId > this.startBucketId) {
+        if (other.startBucketId > this.startBucketId ||
+          (other.startBucketId == this.startBucketId && other.startBucketFraction < this.startBucketFraction)) {
           this.startBucketId = other.startBucketId;
           this.startBucketFraction = other.startBucketFraction;
         }
-        if (other.endBucketId < this.endBucketId) {
+        if (other.endBucketId < this.endBucketId ||
+          (other.endBucketId == this.endBucketId && other.endBucketFraction < this.endBucketFraction)) {
           this.endBucketId = other.endBucketId;
           this.endBucketFraction = other.endBucketFraction;
         }
       }
     }
 
-    protected void setIsZeroRows(boolean zeroRows) {
-      this.isZeroRows = zeroRows;
+    protected void setIsEmpty(boolean isEmpty) {
+      this.isEmpty = isEmpty;
     }
 
-    protected Double selectivity() {
+    protected long getRowCount() {
+      if (isEmpty) {
+        return 0;
+      }
 
-      return 1.0;
+      Preconditions.checkArgument(startBucketId <= endBucketId);
+
+      long numSelectedRows;
+      final int last = buckets.length - 1;
+      // if the endBucketId corresponds to the last endpoint, then adjust it to be one less
+      if (endBucketId == last) {
+        endBucketId = last - 1;
+      }
+      if (startBucketId == endBucketId) {
+        numSelectedRows = (long) (startBucketFraction * numRowsPerBucket);
+      } else {
+        numSelectedRows = (long) ((startBucketFraction + endBucketFraction) * numRowsPerBucket + (endBucketId - startBucketId - 1) * numRowsPerBucket);
+      }
+
+      return numSelectedRows;
     }
   }
 
@@ -126,11 +145,11 @@ public class NumericEquiDepthHistogram implements Histogram {
     numRowsPerBucket = -1;
   }
 
-  public long getNumRowsPerBucket() {
+  public double getNumRowsPerBucket() {
     return numRowsPerBucket;
   }
 
-  public void setNumRowsPerBucket(long numRows) {
+  public void setNumRowsPerBucket(double numRows) {
     this.numRowsPerBucket = numRows;
   }
 
@@ -138,8 +157,19 @@ public class NumericEquiDepthHistogram implements Histogram {
     return buckets;
   }
 
+
+  /**
+   * Estimate the selectivity of a filter which may contain several range predicates and in the general case is of
+   * type: col op value1 AND col op value2 AND col op value3 ...
+   *  <p>
+   *    e.g a > 10 AND a < 50 AND a >= 20 AND a <= 70 ...
+   *  </p>
+   * Even though in most cases it will have either 1 or 2 range conditions, we still have to handle the general case
+   * For each conjunct, we will find the histogram bucket ranges and intersect them, taking into account that the
+   * first and last bucket may be partially covered and all other buckets in the middle are fully covered.
+   */
   @Override
-  public Double estimatedSelectivity(final RexNode columnFilter) {
+  public Double estimatedSelectivity(final RexNode columnFilter, final long totalRowCount) {
     if (numRowsPerBucket == 0) {
       return null;
     }
@@ -147,35 +177,30 @@ public class NumericEquiDepthHistogram implements Histogram {
     // at a minimum, the histogram should have a start and end point of 1 bucket, so at least 2 entries
     Preconditions.checkArgument(buckets.length >= 2,  "Histogram has invalid number of entries");
 
-    // The supplied filter may contain several range predicates and in the general case is of
-    // type: col op value1 AND col op value2 AND col op value3 ...
-    // e.g a > 10 AND a < 50 AND a >= 20 AND a <= 70 ...
-    // Even though in most cases it will have either 1 or 2 range conditions, we still have to handle the general case
-    // For each conjunct, we will find the histogram bucket ranges and intersect them, taking into account that the
-    // first and last bucket may be partially covered and all other buckets in the middle are fully covered. 
-
     List<RexNode> filterList = RelOptUtil.conjunctions(columnFilter);
-
-    // Preconditions.checkArgument(filterList.size() > 0 && filterList.size() <= 2, "Invalid number of conjuncts");
 
     final int first = 0;
     final int last = buckets.length - 1;
 
-    BucketRanges currentBucketRange = new BucketRanges();
+    BucketRange currentRange = new BucketRange(false);
 
     for (RexNode filter : filterList) {
-      estimatedSelectivityInternal(filter);
+      BucketRange tmpRange = getBucketRange(filter);
+      if (tmpRange != null) {
+        currentRange.intersect(tmpRange);
+      }
     }
+    long numSelectedRows = currentRange.getRowCount();
+    return numSelectedRows == 0 ? SMALL_SELECTIVITY : (double)numSelectedRows/totalRowCount;
   }
 
-  private BucketRanges estimatedSelectivityInternal(final RexNode filter) {
+  private BucketRange getBucketRange(final RexNode filter) {
     final int first = 0;
     final int last = buckets.length - 1;
 
     // number of buckets is 1 less than the total # entries in the buckets array since last
     // entry is the end point of the last bucket
     final int numBuckets = buckets.length - 1;
-    final long totalRows = numBuckets * numRowsPerBucket;
     if (filter instanceof RexCall) {
       // get the operator
       SqlOperator op = ((RexCall) filter).getOperator();
@@ -189,21 +214,21 @@ public class NumericEquiDepthHistogram implements Histogram {
           // if value is less than or equal to the first bucket's start point then all rows qualify
           int result = value.compareTo(buckets[first]);
           if (result <= 0) {
-            return new BucketRanges(first, last, 1.0, 1.0, false);
+            return new BucketRange(first, last - 1, 1.0, 1.0, false);
           }
           // if value is greater than the end point of the last bucket, then none of the rows qualify
           result = value.compareTo(buckets[last]);
           if (result > 0) {
-            return new BucketRanges(true);
+            return new BucketRange(true);
           } else if (result == 0) {
             if (op.getKind() == SqlKind.GREATER_THAN_OR_EQUAL) {
               // value is exactly equal to the last bucket's end point so we take the ratio 1/bucket_width
               double endBucketFraction = (double) 1.0 / (buckets[last] - buckets[last - 1]);
-              return new BucketRanges(last, last, endBucketFraction, endBucketFraction, false);
+              return new BucketRange(last - 1, last - 1, endBucketFraction, endBucketFraction);
             } else {
               // predicate is 'column > value' and value is equal to last bucket's endpoint, so none of
               // the rows qualify
-              return new BucketRanges(true);
+              return new BucketRange(true);
             }
           }
 
@@ -212,10 +237,10 @@ public class NumericEquiDepthHistogram implements Histogram {
           int n = getContainingBucket(value, numBuckets);
           if (n >= 0) {
             double startBucketFraction = ((double)(buckets[n + 1] - value)) / (buckets[n + 1] - buckets[n]);
-            return new BucketRanges(n, last, startBucketFraction, 1.0, false);
+            return new BucketRange(n, last - 1, startBucketFraction, 1.0);
           } else {
             // value does not exist in any of the buckets
-            return new BucketRanges(true);
+            return new BucketRange(true);
           }
         }
       } else if (op.getKind() == SqlKind.LESS_THAN ||
@@ -228,21 +253,21 @@ public class NumericEquiDepthHistogram implements Histogram {
           // if value is greater than the last bucket's end point then all rows qualify
           int result = value.compareTo(buckets[last]);
           if (result >= 0) {
-            return new BucketRanges(first, last, 1.0, 1.0, false);
+            return new BucketRange(first, last - 1, 1.0, 1.0);
           }
           // if value is less than the first bucket's start point then none of the rows qualify
           result = value.compareTo(buckets[first]);
           if (result < 0) {
-            return new BucketRanges(true);
+            return new BucketRange(true);
           } else if (result == 0) {
             if (op.getKind() == SqlKind.LESS_THAN_OR_EQUAL) {
               // value is exactly equal to the first bucket's start point so we take the ratio 1/bucket_width
               double startBucketFraction = (double) 1.0 / (buckets[first + 1] - buckets[first]);
-              return new BucketRanges(first, first, startBucketFraction, startBucketFraction, false);
+              return new BucketRange(first, first, startBucketFraction, startBucketFraction);
             } else {
               // predicate is 'column < value' and value is equal to first bucket's start point, so none of
               // the rows qualify
-              return new BucketRanges(true);
+              return new BucketRange(true);
             }
           }
 
@@ -251,10 +276,10 @@ public class NumericEquiDepthHistogram implements Histogram {
           int n = getContainingBucket(value, numBuckets);
           if (n >= 0) {
             double endBucketFraction = ((double)(value - buckets[n])) / (buckets[n + 1] - buckets[n]);
-            return new BucketRanges(first, n, 1.0, endBucketFraction, false);
+            return new BucketRange(first, n, 1.0, endBucketFraction);
           } else {
             // value does not exist in any of the buckets
-            return new BucketRanges(true);
+            return new BucketRange(true);
           }
         }
       }
@@ -336,7 +361,7 @@ public class NumericEquiDepthHistogram implements Histogram {
     // tuples will be stored in the t-digest.  However, the overall stats such as totalRowCount, nonNullCount and
     // NDV would have already been extrapolated up from the sample. So, we take the max of the t-digest size and
     // the supplied nonNullCount. Why non-null ? Because only non-null values are stored in the t-digest.
-    long numRowsPerBucket = (Math.max(tdigest.size(), nonNullCount))/numBuckets;
+    double numRowsPerBucket = (double)(Math.max(tdigest.size(), nonNullCount))/numBuckets;
     histogram.setNumRowsPerBucket(numRowsPerBucket);
 
     return histogram;
